@@ -251,6 +251,18 @@ def _bank_from_filename(filename: str) -> str | None:
     return None
 
 
+# Как банк называет свою колонку с категорией. Т-Банк выгружает сразу две —
+# свою и пользовательскую, — и ни одна не называется «Категория»: на боевой
+# выгрузке из-за этого вся подсказка банка терялась, и четыреста операций
+# уезжали в «Прочее». Порядок важен: сначала то, что человек проставил сам.
+_CATEGORY_ALIASES: tuple[str, ...] = (
+    "Ваша категория",
+    "Категория по-умолчанию",
+    "Категория по умолчанию",
+    "Категория операции",
+)
+
+
 def _row_from(record: dict[str, str], fmt: ColumnMap, bank: str) -> ParsedRow | None:
     def cell(col: str | None) -> str:
         if not col:
@@ -258,6 +270,14 @@ def _row_from(record: dict[str, str], fmt: ColumnMap, bank: str) -> ParsedRow | 
         for key, value in record.items():
             if key and key.strip().lower().replace("﻿", "") == col.lower():
                 return (value or "").strip()
+        return ""
+
+    def category() -> str:
+        """Категория банка под любым из имён, которыми её называют выгрузки."""
+        for name in (fmt.category_col, *_CATEGORY_ALIASES):
+            found = cell(name)
+            if found:
+                return found
         return ""
 
     if fmt.status_col and fmt.ok_statuses:
@@ -283,6 +303,6 @@ def _row_from(record: dict[str, str], fmt: ColumnMap, bank: str) -> ParsedRow | 
         bank=row_bank,
         last4=parse_last4(cell(fmt.card_col)),
         external_id=(cell(fmt.external_id_col) or None),
-        category_hint=(cell(fmt.category_col) or None),
+        category_hint=(category() or None),
         raw=dict(record),
     )

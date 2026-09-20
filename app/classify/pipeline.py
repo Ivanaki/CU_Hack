@@ -414,6 +414,58 @@ def rule_wallet_topup_alone(ctx: Ctx) -> None:
         )
 
 
+# Как банк сам называет перемещение между счетами одного человека. Это не
+# догадка по имени получателя, а прямое утверждение выписки: строка уже
+# говорит, что деньги остались у хозяина. На боевой выгрузке Т-Банка таких
+# строк на 360 000 ₽ за месяц, и без этого правила они все уезжали в траты —
+# ровно та ошибка, ради которой существует продукт.
+_OWN_ACCOUNTS_RE = re.compile(
+    r"между\s+своими\s+счетами|перевод\s+между\s+счетами|"
+    r"на\s+(?:свой|собственный)\s+счёт|со\s+своего\s+счёта|"
+    r"с\s+карты\s+на\s+(?:свой\s+)?(?:счёт|вклад|накопительный)",
+    re.IGNORECASE,
+)
+
+
+def rule_own_accounts_by_text(ctx: Ctx) -> None:
+    """Строка, которая сама себя называет переводом между своими счетами.
+
+    Правило склейки требует обе половины пары; в выгрузке одного счёта
+    второй половины нет по построению — человек выгрузил одну карту.
+    Но банк уже написал словами, что деньги не ушли наружу, и спорить с
+    этим нечего: тратой это не станет ни при каком ответе.
+
+    Деньги переезжают на «Другие мои счета» — сумма остаётся видимой как
+    непотраченное, а не растворяется в расходах.
+    """
+    for row in ctx.free():
+        text = f"{row.counterparty_raw} {row.description}"
+        if not _OWN_ACCOUNTS_RE.search(text):
+            continue
+        other = ctx.reg.get_or_create(
+            kind=AccountKind.DEPOSIT, key="own:other", name="Другие мои счета"
+        )
+        amount = abs(row.amount)
+        outgoing = row.amount < 0
+        op = ctx.new_op(
+            kind=OperationKind.TRANSFER,
+            occurred_at=row.booked_at,
+            title="Перевод между своими счетами",
+            amount=amount,
+            legs=[row],
+            rule="own_accounts_by_text",
+            confidence=0.95,
+            explanation=(
+                "Банк сам пометил операцию как перевод между вашими счетами. "
+                "Деньги не ушли наружу, поэтому это перемещение, а не трата: "
+                "в расходах месяца их нет."
+            ),
+        )
+        mine = _account(ctx, row)
+        src, dst = (mine, other) if outgoing else (other, mine)
+        build.transfer(ctx.session, ctx.reg, op, src=src, dst=dst, sent=amount, received=amount)
+
+
 def rule_atm(ctx: Ctx) -> None:
     for row in ctx.free(incoming=False):
         mcc = (row.mcc or "").zfill(4) if row.mcc else ""
@@ -1557,6 +1609,7 @@ def reclassify(session: Session, user_id: int, *, now: datetime | None = None) -
     # Порядок строго значим: склейка нескольких строк в одно событие идёт
     # раньше толкования одиночных строк.
     rule_self_transfers(ctx)      # склейка двух строк в одно событие
+    rule_own_accounts_by_text(ctx)  # выписка сама говорит «между своими счетами»
     rule_atm(ctx)                 # снятие наличных
     rule_wallet_topup_alone(ctx)  # пополнение кошелька без пары в выписках
     rule_borrow_in(ctx)           # мне дали в долг — это обязательство, не доход
