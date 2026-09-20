@@ -57,8 +57,9 @@ from starlette.formparsers import MultiPartException, MultiPartParser
 from app.api.auth import db_session, same_secret, verify_init_data
 from app.config import Settings, get_settings
 from app.db import session_scope
-from app.models import User
+from app.models import OperationSource, User
 from app.service import (
+    add_quick_expense,
     get_or_create_user,
     ingest_screenshot,
     owned_stored_names,
@@ -165,6 +166,9 @@ class UploadOut(BaseModel):
         default=None, description="Операций у пользователя после разбора"
     )
     questions: int | None = Field(default=None, description="Открытых вопросов после разбора")
+    # Что услышали в голосовой записке. Человек обязан видеть распознанный
+    # текст: без него непонятно, почему записалось не то, что он сказал.
+    heard: str | None = Field(default=None, description="Распознанный текст записки")
 
     # Что распозналось именно в этом файле. Прошлые два поля описывают всю
     # книгу после пересчёта, а человек спрашивает про то, что скинул сейчас.
@@ -646,6 +650,67 @@ async def _analyze(
         "operations": outcome.operations,
         "questions": outcome.questions,
     }
+    return _with_trace(found, outcome)
+
+
+async def _listen(
+    session: Session,
+    user_id: int,
+    data: bytes,
+    *,
+    stored_as: str,
+    content_type: str,
+    filename: str,
+) -> dict[str, Any]:
+    """Голосовая записка с телефона: распознать и записать трату.
+
+    Быстрая команда по двойному касанию умеет отправлять и звук, и без
+    этого разбора записка просто ложилась файлом на диск: человек сказал
+    «кофе триста», получил «файл принят» — и ничего не произошло. Для него
+    это неотличимо от поломки.
+    """
+    from app.asr.transcribe import transcribe  # noqa: PLC0415
+
+    def run() -> tuple[str, Any]:
+        heard = transcribe(data)
+        if not heard:
+            return "", None
+        user = session.get(User, user_id)
+        # SAVEPOINT по той же причине, что и у картинки: падение разбора не
+        # должно уносить с собой запись о том, чей это файл.
+        with session.begin_nested():
+            _row, outcome = add_quick_expense(
+                session, user, heard,
+                source=OperationSource.VOICE, channel="shortcut",
+                stored_as=stored_as, content_type=content_type,
+                size_bytes=len(data), filename=filename,
+            )
+        return heard, outcome
+
+    try:
+        heard, outcome = await asyncio.to_thread(run)
+    except Exception:
+        log.exception("разбор голосовой записки с шортката не удался")
+        return {"ingested": False, "operations": None, "questions": None}
+
+    if not heard:
+        # Честнее сказать, что не расслышали, чем промолчать: человек
+        # решит, что трата записана, и не проверит.
+        return {"ingested": False, "heard": "", "operations": None, "questions": None}
+    if outcome is None or not outcome.ok:
+        return {"ingested": False, "heard": heard, "operations": None, "questions": None}
+
+    found: dict[str, Any] = {
+        "ingested": True,
+        "heard": heard,
+        "operations": outcome.operations,
+        "questions": outcome.questions,
+    }
+    return _with_trace(found, outcome)
+
+
+def _with_trace(found: dict[str, Any], outcome: Any) -> dict[str, Any]:
+    """Добавляет к ответу след загрузки: что дал именно этот файл."""
     trace = outcome.trace
     if trace is not None:
         # Номер загрузки — то, по чему потом поднимается весь след:
@@ -922,10 +987,19 @@ async def upload_file(
         )
 
     wanted = analyze and _as_bool(fields.get("analyze"), True)
+    analyzed: dict[str, Any] | None = None
     if owner is not None and wanted and content_type.startswith("image/"):
         analyzed = await _analyze(
             session, owner.id, data, stored_as=stored_as, content_type=content_type
         )
+    elif owner is not None and wanted and content_type.startswith("audio/"):
+        # Голос — второй вход быстрой команды по двойному касанию, наравне
+        # со скриншотом. Без него записка молча ложилась на диск.
+        analyzed = await _listen(
+            session, owner.id, data,
+            stored_as=stored_as, content_type=content_type, filename=shown_name,
+        )
+    if analyzed is not None:
         for name, value in analyzed.items():
             setattr(result, name, value)
 

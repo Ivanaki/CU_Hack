@@ -324,11 +324,21 @@ def add_manual(
     *,
     origin: OperationSource = OperationSource.MANUAL,
     channel: str = "",
+    stored_as: str = "",
+    content_type: str = "",
+    size_bytes: int = 0,
+    filename: str = "",
 ) -> ImportResult:
-    """Быстрый ручной или голосовой ввод — в основном наличные."""
+    """Быстрый ручной или голосовой ввод — в основном наличные.
+
+    stored_as и остальное — про файл на диске: у голосовой записки с
+    телефона он есть, и без этой связи нельзя ответить «что именно я
+    надиктовал».
+    """
     return import_rows(
-        session, user_id, rows, source="Вручную", filename="", origin=origin,
-        channel=channel,
+        session, user_id, rows, source="Вручную", filename=filename, origin=origin,
+        channel=channel, stored_as=stored_as, content_type=content_type,
+        size_bytes=size_bytes,
     )
 
 

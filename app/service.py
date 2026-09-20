@@ -555,11 +555,19 @@ def add_quick_expense(
     source: OperationSource = OperationSource.MANUAL,
     when: datetime | None = None,
     channel: str = "",
+    stored_as: str = "",
+    content_type: str = "",
+    size_bytes: int = 0,
+    filename: str = "",
 ) -> tuple[ParsedRow | None, IngestOutcome]:
     row = parse_quick_entry(text, when=when)
     if row is None:
         return None, IngestOutcome(None, 0, 0, 0, error="не нашёл сумму в сообщении")
-    result = add_manual(session, user.id, [row], origin=source, channel=channel)
+    result = add_manual(
+        session, user.id, [row], origin=source, channel=channel,
+        stored_as=stored_as, content_type=content_type, size_bytes=size_bytes,
+        filename=filename,
+    )
     record_action(session, user, manual=1)
     report = reclassify(session, user.id)
     return row, IngestOutcome(

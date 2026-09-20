@@ -326,15 +326,20 @@ def test_звук_по_ссылке_не_разбирается_как_карт�
     def boom(*args, **kwargs):
         raise AssertionError("звук — не картинка")
 
+    from app.asr import transcribe as asr_mod
     from app.ingest import vision as vision_mod
 
     monkeypatch.setattr(vision_mod, "parse_images", boom)
+    # Звук идёт в распознавание речи — своей дорогой, мимо зрения.
+    monkeypatch.setattr(asr_mod, "transcribe", lambda *a, **k: "такси 450")
     token = issue(TG_OWNER)
 
     body = upload(client, m4a(), content_type="audio/mp4", **{"X-Upload-Token": token})
 
     assert body.status_code == 200, body.text
-    assert "ingested" not in body.json()
+    data = body.json()
+    assert data["ingested"] is True
+    assert data["heard"] == "такси 450"
 
 
 # --- секрет не утекает ------------------------------------------------------

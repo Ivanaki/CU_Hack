@@ -597,15 +597,53 @@ def test_звук_хозяина_открывается_хозяином(client,
 
 
 def test_звук_по_ссылке_не_идёт_в_разбор_картинок(client, monkeypatch, token):
+    """Звук уходит в распознавание речи, но никогда — в разбор картинок."""
+
     def boom(*args, **kwargs):
         raise AssertionError("звук — не картинка")
 
+    from app.api import uploads as uploads_mod
     from app.ingest import vision
 
     monkeypatch.setattr(vision, "parse_images", boom)
+    # Распознавание в тестах выключено: важно, что ручка не падает и честно
+    # говорит «не расслышал», а не молчит.
+    monkeypatch.setattr(uploads_mod, "_listen", _silent_listen)
     body = post_raw(client, m4a(), content_type="audio/mp4", token=token).json()
     assert body["content_type"] == "audio/mp4"
-    assert "ingested" not in body
+    assert body["ingested"] is False
+
+
+async def _silent_listen(*args, **kwargs):
+    return {"ingested": False, "heard": "", "operations": None, "questions": None}
+
+
+def test_голос_с_шортката_становится_тратой(client, monkeypatch, token):
+    """Записка «кофе 300» с телефона обязана превратиться в операцию.
+
+    Без этого быстрая команда по двойному касанию принимает звук, кладёт
+    файл на диск и молчит — для человека это неотличимо от поломки.
+    """
+    from app.asr import transcribe as asr_mod
+
+    monkeypatch.setattr(asr_mod, "transcribe", lambda *a, **k: "кофе 300")
+    body = post_raw(client, m4a(), content_type="audio/mp4", token=token).json()
+
+    assert body["ingested"] is True
+    assert body["heard"] == "кофе 300"
+    assert body["added"] == 1
+    # Файл записки привязан к той же загрузке: видно, что именно надиктовано.
+    assert body["batch_id"]
+
+
+def test_нерасслышанный_голос_не_выдумывает_трату(client, monkeypatch, token):
+    from app.asr import transcribe as asr_mod
+
+    monkeypatch.setattr(asr_mod, "transcribe", lambda *a, **k: "")
+    body = post_raw(client, m4a(), content_type="audio/mp4", token=token).json()
+
+    assert body["ingested"] is False
+    assert body["heard"] == ""
 
 
 def test_ошибка_разбора_не_ломает_загрузку(client, monkeypatch, upload_dir: Path, token):
