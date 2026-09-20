@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="ru" data-concept="instrument" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Честный месяц — Приборная</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef1f6;
+  --bg-deep:#e4e8f0;
+  --panel:#ffffff;
+  --panel-2:#f4f6fb;
+  --line:#dfe4ee;
+  --text:#0b0f1a;
+  --hint:#68728a;
+  --dim:#98a1b5;
+  --neon:#4f7d00;
+  --neon-soft:rgba(79,125,0,.12);
+  --cyan:#0f8fb5;
+  --amber:#b96b00;
+  --red:#ff5c7a;
+  --shadow:0 12px 30px rgba(15,23,42,.10);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg-deep);
+  color:var(--text);
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  font-size:15px;line-height:1.35;
+  overflow-x:hidden;
+}
+.phone{max-width:430px;margin:0 auto;min-height:100vh;background:var(--bg);
+  background-image:radial-gradient(120% 60% at 50% -10%, rgba(61,220,255,.10), transparent 60%);
+  padding:0 16px 40px;overflow-x:hidden}
+.mono{font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.caps{text-transform:uppercase;letter-spacing:.14em;font-size:10px;font-weight:600;color:var(--dim)}
+
+.top{display:flex;align-items:center;gap:10px;padding:14px 0 6px}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;letter-spacing:-.01em}
+.logo .dot{width:9px;height:9px;border-radius:50%;background:var(--neon);box-shadow:0 0 12px var(--neon)}
+.top .spacer{flex:1}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 10px;
+  font-size:11px;color:var(--hint);display:flex;align-items:center;gap:6px}
+.icon-btn{width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:var(--panel);
+  color:var(--hint);font-size:13px;display:grid;place-items:center;cursor:pointer;font-family:inherit}
+
+.hero{position:relative;padding:6px 0 0;text-align:center}
+.ringwrap{position:relative;width:258px;height:258px;margin:2px auto 0}
+.ringwrap svg{display:block;transform:rotate(-90deg)}
+.ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring-center .val{font-size:74px;font-weight:800;letter-spacing:-.05em;line-height:.9;
+  background:linear-gradient(180deg,#ffffff,var(--neon));-webkit-background-clip:text;background-clip:text;color:transparent}
+.ring-center .pct{font-size:24px;font-weight:700;color:var(--neon);margin-left:2px}
+.ring-center .lbl{margin-top:8px;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--hint);font-weight:600}
+.ring-center .delta{margin-top:6px;font-size:11px;color:var(--neon);background:var(--neon-soft);
+  padding:3px 8px;border-radius:999px}
+.hero-sub{display:flex;justify-content:center;margin:12px 0 2px}
+.hero-sub .cell{flex:1;padding:0 4px}
+.hero-sub .cell + .cell{border-left:1px solid var(--line)}
+.hero-sub .k{font-size:9.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em}
+.hero-sub .v{font-size:13.5px;font-weight:600;margin-top:4px}
+.hero-sub .v.pos{color:var(--neon)}
+.hero-sub .v.neg{color:var(--amber)}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin-top:12px}
+.panel-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.panel-h h2{margin:0;font-size:13px;font-weight:700;letter-spacing:-.01em}
+.panel-h .side{font-size:11px;color:var(--dim)}
+
+.gap-row{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;padding:9px 0;border-top:1px dashed var(--line)}
+.gap-row:first-of-type{border-top:0;padding-top:0}
+.gap-row .em{font-size:15px;text-align:center}
+.gap-row .t{font-size:12.5px}
+.gap-row .h{font-size:10.5px;color:var(--dim);margin-top:2px}
+.gap-row .a{font-weight:700;font-size:13.5px;color:var(--amber)}
+.gap-bar{height:3px;border-radius:2px;background:var(--panel-2);margin-top:6px;overflow:hidden}
+.gap-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--amber),var(--red));border-radius:2px}
+
+.streak{display:flex;align-items:center;gap:14px}
+.flame{position:relative;width:62px;height:62px;flex:0 0 62px;border-radius:18px;
+  background:radial-gradient(circle at 50% 70%, rgba(255,181,69,.35), rgba(255,92,122,.10) 70%);
+  border:1px solid rgba(255,181,69,.35);display:grid;place-items:center;font-size:28px}
+.flame b{position:absolute;bottom:-7px;left:50%;transform:translateX(-50%);background:var(--amber);color:#1a1200;
+  font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;border:2px solid var(--panel)}
+.streak .info{flex:1;min-width:0}
+.streak .big{font-size:18px;font-weight:700;letter-spacing:-.02em}
+.streak .small{font-size:11.5px;color:var(--hint);margin-top:3px;line-height:1.35}
+.days{display:flex;gap:4px;margin-top:12px}
+.days .d{flex:1;height:26px;border-radius:6px;background:var(--panel-2);border:1px solid var(--line);
+  display:grid;place-items:center;font-size:9px;color:var(--dim)}
+.days .d.on{background:linear-gradient(180deg, rgba(201,255,61,.22), rgba(201,255,61,.06));
+  border-color:rgba(201,255,61,.45);color:var(--neon);font-weight:700}
+.days .d.today{box-shadow:0 0 0 2px var(--neon) inset;color:var(--neon)}
+.progress-line{margin-top:11px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--hint)}
+.progress-line .track{flex:1;height:5px;border-radius:3px;background:var(--panel-2);overflow:hidden}
+.progress-line .track i{display:block;height:100%;background:var(--neon)}
+
+.q-head{display:flex;align-items:center;gap:8px;margin:20px 0 8px}
+.q-head h2{margin:0;font-size:15px;font-weight:700;letter-spacing:-.02em}
+.q-badge{background:var(--neon);color:#0b1000;font-size:11px;font-weight:800;border-radius:999px;padding:2px 8px}
+.qcard{background:linear-gradient(180deg,var(--panel-2),var(--panel));border:1px solid var(--line);
+  border-radius:18px;padding:14px;margin-bottom:10px;position:relative;overflow:hidden;
+  box-shadow:var(--shadow);transition:.32s cubic-bezier(.3,.8,.3,1)}
+.qcard:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--cyan)}
+.qcard.gone{opacity:0;transform:translateX(-24px) scale(.96);margin-bottom:-110px;pointer-events:none}
+.qtop{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.av{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;font-size:15px;font-weight:700;
+  background:rgba(61,220,255,.14);color:var(--cyan);border:1px solid rgba(61,220,255,.3)}
+.qtop .who{font-size:13.5px;font-weight:600}
+.qtop .meta{font-size:11px;color:var(--dim);margin-top:2px}
+.qtop .amt{margin-left:auto;font-weight:700;font-size:15px;font-family:'IBM Plex Mono',monospace}
+.qtop .amt.in{color:var(--neon)}
+.qtext{font-size:13.5px;line-height:1.45;margin:0 0 12px;color:var(--text)}
+.qtext em{color:var(--hint);font-style:normal;font-size:12px}
+.opts{display:flex;flex-wrap:wrap;gap:7px}
+.opt{flex:1 1 calc(50% - 4px);min-width:0;border:1px solid var(--line);background:var(--panel);
+  color:var(--text);border-radius:11px;padding:10px 8px;font-size:12px;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;gap:6px;justify-content:center;text-align:center;transition:.14s;font-family:inherit}
+.opt:active{transform:scale(.96)}
+.opt:hover{border-color:var(--neon);color:var(--neon)}
+.opts.num .opt{flex:1 1 0;padding:12px 4px;font-size:15px;font-weight:700;font-family:'IBM Plex Mono',monospace}
+.opts.num .opt.sugg{border-color:rgba(201,255,61,.5);background:var(--neon-soft);color:var(--neon)}
+.opts.num .opt.wide{flex:1 1 100%;font-size:12px;font-family:inherit;padding:9px}
+.qdone{text-align:center;padding:20px 14px;border:1px dashed var(--line);border-radius:16px;color:var(--hint);font-size:13px;line-height:1.45}
+.qdone .big{font-size:26px;display:block;margin-bottom:6px}
+
+.cat{display:grid;grid-template-columns:26px 1fr auto;gap:10px;align-items:center;padding:8px 0}
+.cat + .cat{border-top:1px solid var(--line)}
+.cat .em{font-size:16px}
+.cat .n{font-size:13px;font-weight:500}
+.cat .bar{height:4px;background:var(--panel-2);border-radius:3px;margin-top:6px;overflow:hidden}
+.cat .bar i{display:block;height:100%;border-radius:3px;background:var(--cyan)}
+.cat .r{text-align:right}
+.cat .sum{font-size:13.5px;font-weight:700;font-family:'IBM Plex Mono',monospace}
+.cat .dl{font-size:10.5px;margin-top:3px}
+.dl.up{color:var(--red)}.dl.down{color:var(--neon)}.dl.flat{color:var(--dim)}
+.share{font-size:10.5px;color:var(--dim);font-family:'IBM Plex Mono',monospace}
+
+.splitbar{height:34px;border-radius:10px;overflow:hidden;display:flex;border:1px solid var(--line)}
+.splitbar div{display:flex;align-items:center;padding:0 10px;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden}
+.splitbar .m{background:rgba(61,220,255,.18);color:var(--cyan)}
+.splitbar .o{background:rgba(255,181,69,.18);color:var(--amber);justify-content:flex-end}
+.split-legend{display:flex;justify-content:space-between;margin-top:8px;font-size:11.5px;color:var(--hint);gap:8px}
+.split-legend b{color:var(--text);font-family:'IBM Plex Mono',monospace}
+
+.tip{display:flex;gap:11px;padding:11px 0;align-items:flex-start}
+.tip + .tip{border-top:1px solid var(--line)}
+.tip .em{width:30px;height:30px;flex:0 0 30px;border-radius:9px;background:var(--panel-2);display:grid;place-items:center;font-size:15px}
+.tip .t{font-size:13px;font-weight:600}
+.tip .d{font-size:11.5px;color:var(--hint);margin-top:3px;line-height:1.4}
+.tip .g{margin-top:7px;display:inline-block;font-size:11px;font-weight:700;color:var(--neon);
+  background:var(--neon-soft);border-radius:7px;padding:3px 8px}
+
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.fact{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:11px 12px}
+.fact .k{font-size:9.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim)}
+.fact .v{font-size:18px;font-weight:700;margin-top:5px;font-family:'IBM Plex Mono',monospace;letter-spacing:-.02em}
+.foot{text-align:center;color:var(--dim);font-size:10.5px;margin-top:20px;letter-spacing:.04em}
+.hero-sub .v,.gap-row .a,.cat .sum,.cat .dl,.fact .v,.qtop .amt,.split-legend b,.tip .g{white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="phone" id="app"></div>
+
+<script>
+const DATA = {
+  period:{ title:"Сентябрь 2026", today:"20 сентября", daysPassed:20, daysTotal:30 },
+  money:{ spent:125618, income:301240, deltaPrev:9620, turnover:426858, unclear:4700 },
+  awareness:{ percent:99, prev:94, gaps:[
+    { emoji:"📥", title:"Неразобранных поступлений", amount:500,  hint:"1 перевод от Кати Н." },
+    { emoji:"❔", title:"Трат без категории",        amount:1200, hint:"3 операции" },
+    { emoji:"💵", title:"Наличных без назначения",   amount:3000, hint:"снято 5 сентября" }
+  ]},
+  streak:{ current:12, record:18, nextReward:14, rewardName:"Значок «Две недели правды»",
+    days:[{d:7,on:false},{d:8,on:false},{d:9,on:true},{d:10,on:true},{d:11,on:true},{d:12,on:true},{d:13,on:true},
+          {d:14,on:true},{d:15,on:true},{d:16,on:true},{d:17,on:true},{d:18,on:true},{d:19,on:true},{d:20,on:true,today:true}] },
+  disputes:[
+    { id:"d1", av:"К", who:"Катя Н.", meta:"18 сентября · перевод СБП", amount:500, dir:"in",
+      question:"Катя Н. перевела 500 ₽ — что это?", note:"комментарий к переводу: «за обед»",
+      options:[{e:"🍽",t:"Вернула свою долю"},{e:"🤝",t:"Вернула долг"},{e:"🎁",t:"Подарок"},{e:"💰",t:"Это доход"}] },
+    { id:"d2", av:"🐰", who:"White Rabbit", meta:"14 сентября · ресторан", amount:8000, dir:"out",
+      question:"Счёт на 8 ⁠000 ₽ — на скольких человек делили?", note:"пока считаю, что на 5 → ваша доля 1 ⁠600 ₽",
+      numeric:true, options:[{t:"2"},{t:"3"},{t:"4"},{t:"5",sugg:true},{t:"Больше",wide:true}] }
+  ],
+  categories:[
+    { e:"🏠", n:"Жильё и ЖКХ",      a:76800, s:61, d:0,     must:true },
+    { e:"🛒", n:"Продукты",          a:22725, s:18, d:1240,  must:true },
+    { e:"🚕", n:"Такси",             a:6967,  s:6,  d:1980,  must:false },
+    { e:"🍽", n:"Кафе и рестораны",  a:6360,  s:5,  d:-2100, must:false },
+    { e:"🛵", n:"Доставка еды",      a:5287,  s:4,  d:640,   must:false },
+    { e:"🪑", n:"Товары для дома",   a:3100,  s:2,  d:1500,  must:false },
+    { e:"🔁", n:"Подписки",          a:1888,  s:2,  d:0,     must:false },
+    { e:"❔", n:"Прочее",            a:1200,  s:1,  d:-420,  must:false },
+    { e:"📶", n:"Связь",             a:900,   s:1,  d:0,     must:true }
+  ],
+  split:{ mandatory:100425, optional:25193, optionalShare:20 },
+  tips:[
+    { e:"🚇", t:"Проездной выгоднее такси", d:"8 поездок на 6 ⁠967 ₽. Месячный проездной — 3 ⁠070 ₽.", gain:3897 },
+    { e:"🔁", t:"Две подписки не открывали", d:"Из 1 ⁠888 ₽ за сентябрь 749 ₽ ушли за то, чем вы не пользовались.", gain:749 },
+    { e:"🛵", t:"Доставка при полном холодильнике", d:"11 заказов на 5 ⁠287 ₽, средний чек 481 ₽ — дороже похода в магазин.", gain:2100 }
+  ],
+  facts:{ actionsPerDay:1.4, owed:0, cash:3000, disputes:2 }
+};
+
+const TH = " ";
+const num = n => Math.round(n).toLocaleString("ru-RU").replace(/[\s ]/g, TH + "⁠");
+const money = n => num(n) + TH + "₽";
+const signed = n => (n > 0 ? "+" : n < 0 ? "−" : "") + num(Math.abs(n)) + TH + "₽";
+const el = h => { const t = document.createElement("template"); t.innerHTML = h.trim(); return t.content.firstElementChild; };
+
+try{
+  const t = new URLSearchParams(location.search).get("theme");
+}catch(e){}
+
+const app = document.getElementById("app");
+const state = { awareness: DATA.awareness.percent, open: DATA.disputes.map(d => d.id) };
+const R = 108, C = 2 * Math.PI * R;
+
+function ringSVG(p){
+  const off = C * (1 - p / 100);
+  let ticks = "";
+  for (let i = 0; i < 60; i++){
+    const a = (i / 60) * 2 * Math.PI;
+    const x1 = 129 + Math.cos(a) * 92, y1 = 129 + Math.sin(a) * 92;
+    const x2 = 129 + Math.cos(a) * 86, y2 = 129 + Math.sin(a) * 86;
+    const lit = (i / 60) * 100 <= p;
+    ticks += '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) +
+      '" stroke="' + (lit ? "var(--neon)" : "var(--line)") + '" stroke-width="' + (lit ? 1.6 : 1) + '" opacity="' + (lit ? .5 : .9) + '"/>';
+  }
+  return '<svg width="258" height="258" viewBox="0 0 258 258" aria-hidden="true">' +
+    '<defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">' +
+      '<stop offset="0%" stop-color="var(--cyan)"/><stop offset="70%" stop-color="var(--neon)"/></linearGradient>' +
+    '<filter id="glow" x="-50%" y="-50%" width="200%" height="200%">' +
+      '<feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>' +
+    '<circle cx="129" cy="129" r="' + R + '" fill="none" stroke="var(--line)" stroke-width="14"/>' +
+    '<circle id="arc" cx="129" cy="129" r="' + R + '" fill="none" stroke="url(#g1)" stroke-width="14" stroke-linecap="round" ' +
+      'filter="url(#glow)" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + C.toFixed(1) + '" ' +
+      'style="transition:stroke-dashoffset 1.1s cubic-bezier(.2,.8,.2,1)" data-target="' + off.toFixed(1) + '"/>' +
+    ticks + '</svg>';
+}
+
+function render(){
+  const d = DATA, ring = state.awareness;
+  app.innerHTML = `
+  <div class="top">
+    <div class="logo"><span class="dot"></span>Честный месяц</div>
+    <div class="spacer"></div>
+    <div class="chip">${d.period.title}</div>
+  </div>
+
+  <div class="hero">
+    <div class="ringwrap">${ringSVG(ring)}
+      <div class="ring-center">
+        <div><span class="val" id="ringVal">${ring}</span><span class="pct">%</span></div>
+        <div class="lbl">Осознанность</div>
+        <div class="delta">+${ring - d.awareness.prev} п.п. к августу</div>
+      </div>
+    </div>
+    <div class="hero-sub">
+      <div class="cell"><div class="k">Оборот</div><div class="v mono">${money(d.money.turnover)}</div></div>
+      <div class="cell"><div class="k">Непонятно</div><div class="v neg mono" id="unclearVal">${money(d.money.unclear)}</div></div>
+      <div class="cell"><div class="k">Разобрано</div><div class="v pos mono" id="clearVal">${num(d.money.turnover - d.money.unclear)}</div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h2>Что мешает довести до 100%</h2><span class="side">3 хвоста</span></div>
+    <div id="gaps"></div>
+  </div>
+
+  <div class="panel">
+    <div class="streak">
+      <div class="flame">🔥<b>${d.streak.current}</b></div>
+      <div class="info">
+        <div class="big">Серия ${d.streak.current} дней</div>
+        <div class="small">Личный рекорд — ${d.streak.record} дней. Сегодня ход уже сделан.</div>
+      </div>
+    </div>
+    <div class="days">${d.streak.days.map(x =>
+      '<div class="d ' + (x.on ? "on" : "") + " " + (x.today ? "today" : "") + '">' + x.d + '</div>').join("")}</div>
+    <div class="progress-line">
+      <span>до награды</span>
+      <span class="track"><i style="width:${Math.round(d.streak.current / d.streak.nextReward * 100)}%"></i></span>
+      <span class="mono">${d.streak.current}/${d.streak.nextReward}</span>
+    </div>
+    <div class="progress-line" style="margin-top:7px"><span>🏅 ${d.streak.rewardName} — через 2 дня</span></div>
+  </div>
+
+  <div class="q-head">
+    <h2>Спорные операции</h2>
+    <span class="q-badge" id="qBadge">${d.disputes.length}</span>
+    <div style="flex:1"></div>
+    <span class="caps">1 тап = ответ</span>
+  </div>
+  <div id="queue"></div>
+
+  <div class="panel">
+    <div class="panel-h"><h2>Потрачено в сентябре</h2>
+      <span class="side">к августу ${signed(d.money.deltaPrev)}</span></div>
+    <div style="display:flex;align-items:baseline;gap:8px;margin:2px 0 12px;flex-wrap:wrap">
+      <div class="mono" style="font-size:30px;font-weight:700;letter-spacing:-.03em">${money(d.money.spent)}</div>
+      <div style="font-size:11.5px;color:var(--hint)">получено ${money(d.money.income)}</div>
+    </div>
+    <div class="splitbar">
+      <div class="m" style="width:${Math.round(d.split.mandatory / d.money.spent * 100)}%">Обязательные</div>
+      <div class="o" style="width:${Math.round(d.split.optional / d.money.spent * 100)}%">${d.split.optionalShare}%</div>
+    </div>
+    <div class="split-legend">
+      <span>Надо было: <b>${money(d.split.mandatory)}</b></span>
+      <span>Можно было не: <b>${money(d.split.optional)}</b></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h2>По категориям</h2><span class="side">9 категорий</span></div>
+    <div id="cats"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h2>Советы на октябрь</h2><span class="side">до −${num(d.tips.reduce((s, t) => s + t.gain, 0))}${TH}₽</span></div>
+    <div id="tips"></div>
+  </div>
+
+  <div class="facts">
+    <div class="fact"><div class="k">Действий в день</div><div class="v">${String(d.facts.actionsPerDay).replace(".", ",")}</div></div>
+    <div class="fact"><div class="k">Вам должны</div><div class="v">${money(d.facts.owed)}</div></div>
+    <div class="fact"><div class="k">Наличные на руках</div><div class="v">${money(d.facts.cash)}</div></div>
+    <div class="fact"><div class="k">Спорных операций</div><div class="v" id="factQ">${d.facts.disputes}</div></div>
+  </div>
+
+  <div class="foot">20 из 30 дней месяца · обновлено 3 минуты назад</div>`;
+
+  const maxGap = Math.max.apply(null, DATA.awareness.gaps.map(g => g.amount));
+  document.getElementById("gaps").innerHTML = DATA.awareness.gaps.map(g => `
+    <div class="gap-row">
+      <div class="em">${g.emoji}</div>
+      <div><div class="t">${g.title}</div><div class="h">${g.hint}</div>
+        <div class="gap-bar"><i style="width:${Math.round(g.amount / maxGap * 100)}%"></i></div></div>
+      <div class="a mono">${money(g.amount)}</div>
+    </div>`).join("");
+
+  const maxCat = DATA.categories[0].a;
+  document.getElementById("cats").innerHTML = DATA.categories.map(c => `
+    <div class="cat">
+      <div class="em">${c.e}</div>
+      <div><div class="n">${c.n} <span class="share">${c.s}%</span></div>
+        <div class="bar"><i style="width:${Math.round(c.a / maxCat * 100)}%;background:${c.must ? "var(--cyan)" : "var(--amber)"}"></i></div></div>
+      <div class="r"><div class="sum">${num(c.a)}</div>
+        <div class="dl ${c.d > 0 ? "up" : c.d < 0 ? "down" : "flat"}">${c.d === 0 ? "без изменений" : signed(c.d)}</div></div>
+    </div>`).join("");
+
+  document.getElementById("tips").innerHTML = DATA.tips.map(t => `
+    <div class="tip"><div class="em">${t.e}</div>
+      <div><div class="t">${t.t}</div><div class="d">${t.d}</div>
+      <span class="g">−${money(t.gain)} в месяц</span></div></div>`).join("");
+
+  renderQueue();
+
+  requestAnimationFrame(() => {
+    const arc = document.getElementById("arc");
+    if (arc) arc.setAttribute("stroke-dashoffset", arc.dataset.target);
+  });
+  document.getElementById("themeBtn").onclick = toggleTheme;
+}
+
+function renderQueue(){
+  const q = document.getElementById("queue");
+  q.innerHTML = "";
+  const list = DATA.disputes.filter(d => state.open.indexOf(d.id) >= 0);
+  if (!list.length){
+    q.appendChild(el('<div class="qdone"><span class="big">✅</span>Вопросов нет. Осознанность 100% — редкий день, запомните его.</div>'));
+    return;
+  }
+  list.forEach(d => {
+    const card = el(`
+      <div class="qcard" data-id="${d.id}">
+        <div class="qtop">
+          <div class="av">${d.av}</div>
+          <div><div class="who">${d.who}</div><div class="meta">${d.meta}</div></div>
+          <div class="amt ${d.dir === "in" ? "in" : ""}">${d.dir === "in" ? "+" : "−"}${money(d.amount)}</div>
+        </div>
+        <p class="qtext">${d.question}<br><em>${d.note}</em></p>
+        <div class="opts ${d.numeric ? "num" : ""}">
+          ${d.options.map((o, i) => '<button class="opt ' + (o.sugg ? "sugg" : "") + " " + (o.wide ? "wide" : "") + '" data-i="' + i + '">' +
+            (o.e ? "<span>" + o.e + "</span>" : "") + "<span>" + o.t + "</span></button>").join("")}
+        </div>
+      </div>`);
+    card.querySelectorAll(".opt").forEach(b => { b.onclick = () => answer(d, b); });
+    q.appendChild(card);
+  });
+}
+
+function answer(d, btn){
+  try{ if (window.Telegram && Telegram.WebApp.HapticFeedback) Telegram.WebApp.HapticFeedback.impactOccurred("light"); }catch(e){}
+  const card = btn.closest(".qcard");
+  btn.style.background = "var(--neon)"; btn.style.color = "#0b1000"; btn.style.borderColor = "var(--neon)";
+  setTimeout(() => {
+    card.classList.add("gone");
+    setTimeout(() => {
+      state.open = state.open.filter(x => x !== d.id);
+      clearAmount(d.dir === "in" ? d.amount : 0);
+      renderQueue();
+      const left = state.open.length;
+      document.getElementById("qBadge").textContent = left;
+      document.getElementById("factQ").textContent = left;
+    }, 320);
+  }, 160);
+}
+
+function clearAmount(cleared){
+  const unclear = Math.max(0, DATA.money.unclear - cleared);
+  DATA.money.unclear = unclear;
+  document.getElementById("unclearVal").textContent = money(unclear);
+  document.getElementById("clearVal").textContent = num(DATA.money.turnover - unclear);
+  const p = Math.min(100, Math.round((1 - unclear / DATA.money.turnover) * 100));
+  if (p !== state.awareness){
+    state.awareness = p;
+    document.getElementById("ringVal").textContent = p;
+    const arc = document.getElementById("arc");
+    if (arc) arc.setAttribute("stroke-dashoffset", (C * (1 - p / 100)).toFixed(1));
+  }
+}
+
+function toggleTheme(){
+  const r = document.documentElement;
+  const now = cur ? cur : (sysDark ? "dark" : "light");
+}
+
+render();
+try{ Telegram.WebApp.ready(); Telegram.WebApp.expand(); }catch(e){}
+</script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+# Запуск без docker: systemd + venv.
+# Положить в /etc/systemd/system/honest-month.service, затем
+#   systemctl daemon-reload && systemctl enable --now honest-month
+# Пути ниже соответствуют инструкции в deploy/README.md.
+
+[Unit]
+Description=Честный месяц — телеграм-бот и HTTP API
+# Бот сразу уходит в long polling: со старым network.target служба
+# успевает стартовать до поднятия сети и падает на первом запросе.
+After=network-online.target
+Wants=network-online.target
+# Защита от петли перезапусков при неверном токене: 5 падений за минуту — стоп.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=honest
+Group=honest
+WorkingDirectory=/opt/honest-month
+# Рабочий каталог важен: относительный путь к SQLite из .env
+# (sqlite:///./data/runtime/honest.db) считается от него.
+EnvironmentFile=/opt/honest-month/.env
+# Без этого python буферизует вывод и в journalctl логи приходят пачками.
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/honest-month/.venv/bin/python -m app.main
+
+Restart=always
+RestartSec=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=honest-month
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target

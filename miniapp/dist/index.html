@@ -1,0 +1,2571 @@
+<!doctype html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Честный месяц</title>
+<link rel="icon" href="data:,">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+/* ============================================================
+   «Честный месяц» — Mini App одним файлом.
+   Оформление: «Аркада» — наклейки с толстым контуром, карта месяца,
+   маскот Грош. Тема только светлая: цветовую схему клиента Telegram
+   намеренно не подхватываем, команда тёмный вариант забраковала.
+   Шрифты подключать нельзя (страница обязана быть самодостаточной),
+   поэтому системный стек: на iOS это SF Pro, её Black-начертание
+   держит «аркадную» жирность не хуже гарнитуры из интернета.
+   ============================================================ */
+:root{
+  --bg:#FBF0D9; --bg-2:#F3E4C6; --card:#FFFCF4; --card-2:#F7EEDC;
+  --ink:#1B2430; --hint:#8C8474;
+  --stroke:#1B2430; --chip:#FBF0D9; --line:#E7D9BD;
+  --gold:#F5B93A; --gold-d:#DFA226; --gold-soft:#FCEFD0;
+  --green:#4CC86A; --green-d:#2FA854; --green-soft:#E1F6E7;
+  --coral:#FF7A59; --coral-d:#E4573A; --coral-soft:#FFE8E1;
+  --dot:rgba(27,36,48,.9);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink); overflow-x:hidden;
+  font-family:'Nunito',-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  font-size:15px; font-weight:700; line-height:1.35; -webkit-font-smoothing:antialiased;
+}
+/* глубина фона: тёплые пятна + сетка точек */
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(760px 440px at 6% -6%,  rgba(76,200,106,.20), transparent 62%),
+    radial-gradient(600px 500px at 110% 16%, rgba(255,122,89,.16), transparent 60%),
+    radial-gradient(560px 460px at -16% 84%, rgba(245,185,58,.20), transparent 62%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%)}
+body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.05;
+  background-image:radial-gradient(var(--dot) 1.1px, transparent 1.3px);background-size:17px 17px}
+.phone{position:relative;z-index:1;max-width:430px;margin:0 auto;min-height:100vh;
+  padding:env(safe-area-inset-top,0px) 16px calc(12px + env(safe-area-inset-bottom,0px));
+  overflow-x:hidden}
+.hidden{display:none!important}
+.muted{color:var(--hint)}
+.tiny{font-size:11.5px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+
+/* --- наклейка: общий приём этого варианта --- */
+.stk{border:3px solid var(--stroke);border-radius:20px;box-shadow:0 5px 0 var(--stroke)}
+
+.bar{display:flex;align-items:center;gap:7px;padding:12px 0}
+.pill{display:flex;align-items:center;gap:6px;background:var(--card);border:3px solid var(--stroke);
+  border-radius:999px;padding:4px 11px;font-size:13px;font-weight:900;box-shadow:0 3px 0 var(--stroke);
+  white-space:nowrap}
+.pill .icbox{width:19px;height:19px}
+.pill.bump{animation:pill-bump .7s cubic-bezier(.3,1.5,.4,1)}
+@keyframes pill-bump{0%{transform:scale(1)}34%{transform:scale(1.18) rotate(-4deg)}100%{transform:scale(1)}}
+.bar .sp{flex:1}
+
+.card{background:var(--card);border:3px solid var(--stroke);border-radius:20px;padding:15px;
+  margin-bottom:14px;box-shadow:0 5px 0 var(--stroke)}
+.h{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.h h2{margin:0;font-size:15px;font-weight:900;letter-spacing:-.01em}
+.h .sp{flex:1}
+.h .tag{font-size:11px;font-weight:900;color:var(--ink);background:var(--gold-soft);
+  border:2px solid var(--stroke);padding:3px 9px;border-radius:999px;white-space:nowrap}
+.h .tag.g{background:var(--green-soft)}
+.h .tag.c{background:var(--coral-soft)}
+.note{font-size:11.5px;font-weight:700;color:var(--hint);line-height:1.42}
+
+/* ================= ГЕРОЙ ================= */
+.hero{position:relative;overflow:hidden;border-radius:26px;margin-bottom:14px;padding:13px 14px 12px;
+  color:#0F2417;border:3px solid var(--stroke);box-shadow:0 6px 0 var(--stroke);
+  background:radial-gradient(120% 90% at 20% 0%, #6FDC8B, transparent 62%), linear-gradient(165deg,#54CF74,#31A85A)}
+.hero .tex{position:absolute;inset:0;pointer-events:none;opacity:.14;
+  background-image:radial-gradient(#0F2417 1.4px, transparent 1.6px);background-size:22px 22px}
+.hero>*{position:relative;z-index:1}
+.hero-top{display:flex;align-items:center;gap:8px;margin-bottom:1px}
+.hero-top .lbl{font-size:10.5px;font-weight:900;letter-spacing:.09em;text-transform:uppercase;opacity:.72}
+.hero-top .lv{margin-left:auto;font-size:10.5px;font-weight:900;background:var(--chip);
+  border:2px solid var(--stroke);padding:2px 9px;border-radius:999px;white-space:nowrap;color:#1B2430}
+.hero-body{display:flex;align-items:center;gap:0}
+
+.ringbox{position:relative;width:150px;height:150px;flex:0 0 150px;margin-left:-7px}
+.ringbox svg{display:block}
+.ringbox .in{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;pointer-events:none}
+.ringbox .v{font-size:49px;font-weight:900;letter-spacing:-.055em;line-height:.9;color:#FBF0D9;
+  font-variant-numeric:tabular-nums;text-shadow:0 3px 0 rgba(15,36,23,.35)}
+.ringbox .v i{font-size:20px;font-style:normal;opacity:.9}
+.ringbox .c{font-size:8.8px;font-weight:900;letter-spacing:.11em;text-transform:uppercase;
+  margin-top:5px;max-width:104px;text-align:center;line-height:1.3;color:#0F2417;opacity:.82}
+
+.mascotbox{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;margin-right:-4px}
+.bubble{background:var(--chip);color:#1B2430;border:3px solid var(--stroke);border-radius:14px;
+  padding:6px 9px;font-size:11px;font-weight:800;line-height:1.3;position:relative;text-align:center;
+  width:100%;box-shadow:0 3px 0 var(--stroke);
+  transform-origin:50% 120%;animation:bub-in .5s cubic-bezier(.3,1.5,.5,1) both}
+.bubble:after,.bubble:before{content:"";position:absolute;left:50%;transform:translateX(-50%);
+  border:8px solid transparent;border-bottom:0}
+.bubble:before{bottom:-11px;border-top-color:var(--stroke)}
+.bubble:after{bottom:-6px;border-width:6px;border-top-color:var(--chip)}
+.bubble b{color:var(--coral-d);white-space:nowrap}
+@keyframes bub-in{0%{opacity:0;transform:scale(.7) translateY(6px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+.mas-tap{background:none;border:0;padding:0;margin:0 0 -14px;cursor:pointer;width:142px;height:142px;flex:0 0 142px}
+
+/* правая колонка героя на вкладке «Месяц»: уровень и XP вместо маскота */
+.lvlbox{flex:1;min-width:0;padding:2px 0 2px 8px}
+.lvlbox .num{display:flex;align-items:baseline;gap:6px}
+.lvlbox .num b{font-size:34px;font-weight:900;letter-spacing:-.05em;line-height:1;color:#0F2417}
+.lvlbox .num span{margin-left:2px;font-size:10.5px;font-weight:900;text-transform:uppercase;
+  letter-spacing:.08em;opacity:.7}
+.lvlbox .ttl{font-size:12.5px;font-weight:900;margin-top:3px;line-height:1.25}
+.lvlbox .xptrack{height:11px;border-radius:7px;background:rgba(15,36,23,.22);border:2.5px solid var(--stroke);
+  margin-top:9px;overflow:hidden}
+.lvlbox .xptrack i{display:block;height:100%;width:0;background:linear-gradient(90deg,#FFE0A0,var(--gold));
+  transition:width 1.1s cubic-bezier(.2,1,.3,1)}
+.lvlbox .xpk{font-size:10.5px;font-weight:900;margin-top:5px;opacity:.82}
+
+.hero-foot{display:flex;gap:7px;margin-top:10px}
+.hero-foot>div{flex:1;min-width:0;background:var(--chip);border:2.5px solid var(--stroke);
+  border-radius:13px;padding:6px 8px;color:#1B2430}
+.hero-foot .k{font-size:8.6px;font-weight:900;text-transform:uppercase;letter-spacing:.07em;opacity:.55}
+.hero-foot .v{font-size:12.5px;font-weight:900;margin-top:1px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.hero-foot .v.up{color:var(--green-d)}
+.hero-foot .v.bad{color:var(--coral-d)}
+
+/* ================= ТРОПА (карта месяца) ================= */
+.saybox{position:relative;z-index:4;margin:2px 0 10px 58px}
+.saybox .bubble{display:inline-block;width:auto;text-align:left;border-radius:16px 16px 16px 5px;
+  padding:7px 11px;font-size:12px;transform-origin:0 100%;max-width:100%}
+.saybox .bubble:before,.saybox .bubble:after{display:none}
+.route{position:relative;padding:14px 0 6px;margin-bottom:14px}
+.route .line{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:visible;
+  opacity:0;animation:line-in .7s ease-out .2s forwards}
+@keyframes line-in{to{opacity:1}}
+.route .line path{fill:none;stroke:var(--stroke);stroke-width:7;stroke-linecap:round;
+  stroke-dasharray:3 13;opacity:.42}
+.node{position:relative;z-index:1;display:flex;align-items:center;gap:11px;margin-bottom:13px}
+.node:last-child{margin-bottom:0}
+.node .dot{width:58px;height:58px;flex:0 0 58px;border-radius:50%;border:3.5px solid var(--stroke);
+  background:#fff;overflow:hidden;display:grid;place-items:center;box-shadow:0 5px 0 var(--stroke);
+  padding:11px;position:relative;
+  animation:dot-pop .5s cubic-bezier(.3,1.5,.4,1) both}
+/* scale() не сдвигает центр кружка — пунктир меряется по центрам и не разъезжается */
+@keyframes dot-pop{0%{transform:scale(.2);opacity:0}100%{transform:scale(1);opacity:1}}
+.node .dot .icbox{width:100%;height:100%}
+.node.done .dot{background:var(--green)}
+.node.locked .dot{background:var(--card-2)}
+.node.locked .dot .icbox{opacity:.5}
+/* доступная станция — статичное зелёное кольцо; пульсирует ровно одна,
+   ближайшая: десяток пульсаров подряд читается как рябь, а не как «сюда» */
+.node.live .dot{box-shadow:0 5px 0 var(--stroke), 0 0 0 4px rgba(76,200,106,.34)}
+.node.next .dot{animation:dot-pop .5s cubic-bezier(.3,1.5,.4,1) both,
+  node-pulse 2.2s ease-in-out infinite .5s}
+@keyframes node-pulse{0%,100%{box-shadow:0 5px 0 var(--stroke), 0 0 0 5px rgba(76,200,106,.38)}
+  50%{box-shadow:0 5px 0 var(--stroke), 0 0 0 11px rgba(76,200,106,.14)}}
+.node .lbl{display:flex;align-items:center;gap:9px;background:var(--card);
+  border:3px solid var(--stroke);border-radius:16px;padding:8px 11px;
+  box-shadow:0 4px 0 var(--stroke);min-width:0;flex:1;
+  animation:lbl-in .46s cubic-bezier(.3,1.35,.5,1) both}
+@keyframes lbl-in{0%{opacity:0;transform:translateX(14px)}100%{opacity:1;transform:none}}
+.node .lbl .lt{min-width:0;flex:1}
+.node .lbl .t{font-size:12.5px;font-weight:800;line-height:1.25;
+  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.node .lbl .s{font-size:10.5px;font-weight:700;color:var(--hint);margin-top:2px;line-height:1.3;
+  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+/* сумма живёт внутри той же наклейки: отдельной плашкой она вылезала за
+   правый край на настоящих недельных суммах */
+.node .lbl .a{flex:0 0 auto;font-size:12.5px;font-weight:900;color:var(--coral-d);white-space:nowrap}
+.node.done .lbl{background:var(--green-soft)}
+.node.done .lbl .t{opacity:.62}
+.node.locked .lbl{background:var(--card-2)}
+.node.locked .lbl .t{opacity:.55}
+.node.go .lbl{cursor:pointer;transition:transform .08s,box-shadow .08s,background .16s}
+.node.go .lbl:hover{background:var(--gold-soft)}
+.node.go .lbl:active{transform:translateY(3px);box-shadow:none}
+.node .mapman{position:absolute;left:-16px;bottom:-8px;width:94px;height:94px;z-index:3;pointer-events:auto;
+  background:none;border:0;padding:0;cursor:pointer}
+.node.now{margin:22px 0 24px}
+/* Кружок под Грошем гасим, но из потока не убираем: пунктир меряется по
+   центрам, и без него кривая оборвалась бы. animation:none обязателен —
+   иначе dot-pop с fill-mode both вернул бы opacity:1 поверх этого правила. */
+.node.now .dot{animation:none;opacity:.001}
+.pastbtn{display:flex;align-items:center;gap:9px;width:100%;margin-bottom:13px;font:inherit;
+  font-size:11.5px;font-weight:900;color:var(--hint);cursor:pointer;background:var(--card-2);
+  border:2.5px dashed var(--stroke);border-radius:14px;padding:9px 12px}
+.pastbtn:active{transform:translateY(2px)}
+.pastbtn .icbox{width:18px;height:18px;flex:0 0 18px}
+.route .flagline{display:flex;align-items:center;gap:9px;margin-top:10px;padding-left:2px;
+  font-size:11px;font-weight:800;color:var(--hint)}
+.route .flagline .icbox{width:16px;height:16px}
+
+/* ================= ЗАДАНИЯ ================= */
+.quest{display:flex;align-items:center;gap:10px;padding:8px;border-radius:14px;background:var(--card-2);
+  border:2.5px solid var(--stroke);margin-bottom:9px;transition:background .25s}
+.quest:last-child{margin-bottom:0}
+.quest.done{background:var(--green-soft)}
+.quest .icbox{width:34px;height:34px;flex:0 0 34px;border-radius:11px;background:#fff;
+  border:2.5px solid var(--stroke);padding:4px}
+.quest .t{font-size:12.5px;font-weight:800}
+.quest .s{font-size:10.5px;font-weight:700;color:var(--hint);margin-top:2px;line-height:1.35}
+.quest .track{height:8px;border-radius:5px;background:var(--chip);border:2px solid var(--stroke);
+  margin-top:6px;overflow:hidden}
+.quest .track i{display:block;height:100%;background:var(--gold);width:0;
+  transition:width 1s cubic-bezier(.2,1,.3,1)}
+.quest.done .track i{background:var(--green)}
+.quest .a{font-size:13px;font-weight:900;color:var(--coral-d);white-space:nowrap;text-align:right}
+.quest .xp{font-size:10px;font-weight:900;color:var(--hint);display:block;margin-top:2px;text-align:right}
+
+/* партнёрские задания: отдельная рамка, чтобы не путать со своими */
+.sponsor{background:#fff;border:2.5px solid var(--stroke);border-radius:16px;padding:10px;
+  margin-bottom:10px;box-shadow:0 3px 0 var(--stroke)}
+.sponsor:last-child{margin-bottom:0}
+.sponsor.done{background:var(--green-soft)}
+.sponsor .sh{display:flex;align-items:center;gap:9px}
+.sponsor .icbox{width:34px;height:34px;flex:0 0 34px;border-radius:11px;background:#fff;
+  border:2.5px solid var(--stroke);padding:4px}
+.sponsor .nm{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;color:var(--coral-d)}
+.sponsor .t{font-size:13px;font-weight:900;margin-top:1px;line-height:1.25}
+.sponsor .s{font-size:11px;font-weight:700;color:var(--hint);margin-top:4px;line-height:1.38}
+.sponsor .track{height:9px;border-radius:6px;background:var(--chip);border:2px solid var(--stroke);
+  margin-top:8px;overflow:hidden}
+.sponsor .track i{display:block;height:100%;width:0;
+  background:repeating-linear-gradient(115deg,var(--coral) 0 9px,#FF9C80 9px 18px);
+  transition:width 1s cubic-bezier(.2,1,.3,1)}
+.sponsor.done .track i{background:var(--green)}
+.sponsor .rw{display:flex;align-items:center;gap:7px;margin-top:9px;background:var(--gold-soft);
+  border:2px solid var(--stroke);border-radius:11px;padding:6px 9px;font-size:11px;font-weight:900}
+.sponsor .rw .icbox{width:18px;height:18px;flex:0 0 18px;border:0;border-radius:0;background:none;padding:0}
+.sponsor .dl{font-size:10px;font-weight:800;color:var(--hint);margin-top:6px}
+
+/* ================= ДОСТИЖЕНИЯ ================= */
+.achgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.ach{display:flex;flex-direction:column;background:var(--card-2);border:2.5px solid var(--stroke);
+  border-radius:16px;padding:9px 6px 8px;text-align:center;cursor:pointer;font:inherit;color:var(--ink);
+  box-shadow:0 3px 0 var(--stroke);transition:transform .08s,box-shadow .08s,background .2s;
+  animation:ach-in .42s cubic-bezier(.3,1.4,.5,1) both}
+@keyframes ach-in{0%{opacity:0;transform:scale(.72)}100%{opacity:1;transform:none}}
+.ach:active{transform:translateY(3px);box-shadow:none}
+.ach.on{background:var(--gold-soft)}
+.ach.sel{background:var(--green-soft)}
+.ach .icbox{width:38px;height:38px;margin:0 auto 5px}
+.ach.off .icbox{opacity:.42;filter:grayscale(1)}
+.ach .t{flex:1;font-size:10px;font-weight:900;line-height:1.2;overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.ach.off .t{color:var(--hint)}
+.ach .mini{display:block;height:6px;border-radius:4px;background:var(--chip);
+  border:1.5px solid var(--stroke);margin-top:6px;overflow:hidden}
+.ach .mini i{display:block;height:100%;width:0;background:var(--gold);
+  transition:width .9s cubic-bezier(.2,1,.3,1)}
+.achnote{display:flex;gap:10px;align-items:flex-start;margin-top:11px;padding:10px 12px;
+  background:var(--card-2);border:2.5px solid var(--stroke);border-radius:14px;
+  animation:ist-in .32s cubic-bezier(.3,1.3,.5,1) both}
+.achnote.on{background:var(--green-soft)}
+.achnote .icbox{width:26px;height:26px;flex:0 0 26px}
+.achnote .t{font-size:12.5px;font-weight:900}
+.achnote .d{font-size:11.5px;font-weight:700;color:var(--hint);margin-top:3px;line-height:1.4}
+
+/* карточка уровня на вкладке «Награды» */
+.lvlcard{position:relative;overflow:hidden;border:3px solid var(--stroke);border-radius:24px;
+  padding:14px;margin-bottom:14px;color:#2A1F08;box-shadow:0 5px 0 var(--stroke);
+  background:radial-gradient(120% 90% at 82% 0%, #FFE2A0, transparent 60%),
+             linear-gradient(160deg,#FFD277 0%,#F5B93A 55%,#DFA226 100%)}
+.lvlcard:before{content:"";position:absolute;inset:0;opacity:.14;pointer-events:none;
+  background-image:repeating-linear-gradient(118deg,#2A1F08 0 3px,transparent 3px 20px)}
+.lvlcard>*{position:relative;z-index:1}
+.lvlcard .top{display:flex;align-items:center;gap:10px}
+.lvlcard .mas-tap{width:104px;height:104px;flex:0 0 104px;margin:0 0 -10px -8px}
+.lvlcard .num{font-size:40px;font-weight:900;letter-spacing:-.05em;line-height:1}
+.lvlcard .num span{margin-left:7px;font-size:11.5px;font-weight:900;text-transform:uppercase;
+  letter-spacing:.08em;opacity:.62}
+.lvlcard .ttl{font-size:13.5px;font-weight:900;margin-top:2px;line-height:1.25}
+.lvlcard .xptrack{height:13px;border-radius:8px;background:rgba(42,31,8,.18);
+  border:2.5px solid var(--stroke);margin-top:12px;overflow:hidden}
+.lvlcard .xptrack i{display:block;height:100%;width:0;
+  background:repeating-linear-gradient(115deg,var(--green) 0 11px,#7BDD95 11px 22px);
+  transition:width 1.15s cubic-bezier(.22,1.3,.36,1)}
+.lvlcard .xpk{display:flex;gap:8px;margin-top:7px;font-size:11px;font-weight:900}
+.lvlcard .xpk .sp{flex:1}
+
+/* ================= ЗАБЕГ ДО КОНЦА МЕСЯЦА ================= */
+.race{background:var(--card);border:3px solid var(--stroke);border-radius:20px;padding:15px;
+  margin-bottom:14px;box-shadow:0 5px 0 var(--stroke)}
+.race .big{font-size:29px;font-weight:900;letter-spacing:-.04em;line-height:1;white-space:nowrap;margin-top:2px}
+.race .cap{font-size:11px;font-weight:800;color:var(--hint);margin-top:4px}
+.lane{position:relative;height:38px;margin:14px 0 10px;border:3px solid var(--stroke);border-radius:999px;
+  background:var(--chip);overflow:hidden}
+.lane .fill{position:absolute;inset:0;right:auto;width:0;background:
+  repeating-linear-gradient(115deg, var(--gold) 0 11px, #FFCE63 11px 22px);
+  border-right:3px solid var(--stroke);transition:width 1.2s cubic-bezier(.22,1.3,.36,1)}
+.lane .pin{position:absolute;top:50%;left:0;width:30px;height:30px;margin:-15px 0 0 -15px;
+  transition:left 1.2s cubic-bezier(.22,1.3,.36,1);z-index:2}
+.lane .pin .coin{width:100%;height:100%;display:block;filter:drop-shadow(0 2px 0 rgba(27,36,48,.35))}
+.lane .flag{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:22px;height:22px;z-index:1;opacity:.85}
+.race-foot{display:flex;gap:8px}
+.race-foot>div{flex:1;min-width:0;border:2.5px solid var(--stroke);border-radius:13px;padding:8px 9px;background:var(--card-2)}
+.race-foot .k{font-size:9.5px;font-weight:900;color:var(--hint);text-transform:uppercase;letter-spacing:.05em}
+.race-foot .v{font-size:14.5px;font-weight:900;margin-top:2px;white-space:nowrap}
+
+/* ================= СТРИК ================= */
+.streak-card{position:relative;overflow:hidden;border:3px solid var(--stroke);border-radius:22px;
+  padding:14px;margin-bottom:14px;color:#2A1108;box-shadow:0 5px 0 var(--stroke);
+  background:linear-gradient(160deg,#FFA487 0%,#FF7A59 58%,#F2603F 100%)}
+.streak-card:before{content:"";position:absolute;inset:0;opacity:.16;pointer-events:none;
+  background-image:repeating-linear-gradient(118deg, #2A1108 0 3px, transparent 3px 20px)}
+.streak-card>*{position:relative;z-index:1}
+.streak-top{display:flex;align-items:center;gap:11px}
+.flamebox{width:44px;height:48px;flex:0 0 44px}
+.streak-top .n{font-size:35px;font-weight:900;letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums}
+.streak-top .t{font-size:12px;font-weight:900;opacity:.8;margin-top:1px}
+.streak-top .rec{margin-left:auto;text-align:right;font-size:11px;font-weight:900;background:var(--chip);
+  border:2.5px solid var(--stroke);border-radius:12px;padding:5px 9px;line-height:1.25;color:#1B2430}
+.week{display:flex;gap:5px;margin-top:13px}
+.week .d{flex:1;text-align:center;min-width:0}
+.week .d .n{font-size:9.5px;font-weight:900;opacity:.72}
+.week .d .b{margin-top:4px;height:29px;border:2.5px solid var(--stroke);border-radius:10px;
+  background:rgba(42,17,8,.14);display:grid;place-items:center}
+.week .d .b .icbox{width:15px;height:15px}
+.week .d.on .b{background:var(--chip)}
+.week .d.today .b{box-shadow:0 0 0 3px rgba(251,240,217,.65)}
+.reward{margin-top:12px;background:var(--chip);border:2.5px solid var(--stroke);border-radius:13px;
+  padding:7px 9px;display:flex;align-items:center;gap:8px;font-size:11px;font-weight:900;color:#1B2430}
+.reward .icbox{width:22px;height:22px;flex:0 0 22px}
+.reward .rn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.reward .track{flex:1;min-width:34px;height:9px;background:#EADCC0;border:2px solid var(--stroke);
+  border-radius:6px;overflow:hidden}
+.reward .track i{display:block;height:100%;background:var(--green);width:0;
+  transition:width 1.1s cubic-bezier(.2,1,.3,1)}
+.streak-card.flash{animation:st-flash .85s ease-out}
+@keyframes st-flash{0%{transform:scale(1)}28%{transform:scale(1.025)}100%{transform:scale(1)}}
+.flamebox.flash{animation:fl-pop .85s cubic-bezier(.3,1.5,.4,1)}
+@keyframes fl-pop{0%{transform:scale(1)}32%{transform:scale(1.42) rotate(-6deg)}100%{transform:scale(1)}}
+.flamebox .ic{animation:fl-breathe 1.6s ease-in-out infinite;transform-origin:50% 100%}
+@keyframes fl-breathe{0%,100%{transform:scaleY(1) scaleX(1)}45%{transform:scaleY(1.07) scaleX(.96)}}
+
+/* ================= ВОПРОСЫ ================= */
+.qwrap{display:grid;grid-template-rows:1fr;transition:grid-template-rows .45s cubic-bezier(.4,0,.2,1)}
+.qwrap>.qin{overflow:hidden;min-height:0}
+.qwrap.gone{grid-template-rows:0fr}
+.quiz{border:3px solid var(--stroke);border-radius:20px;background:var(--card);padding:15px;margin-bottom:14px;
+  box-shadow:0 5px 0 var(--stroke);transition:transform .42s cubic-bezier(.5,-.2,.7,.4), opacity .34s ease}
+.qwrap.gone .quiz{transform:translateX(120%) rotate(7deg) scale(.94);opacity:0;pointer-events:none}
+.quiz.pop{animation:q-pop .45s cubic-bezier(.3,1.4,.5,1) both}
+@keyframes q-pop{0%{opacity:0;transform:translateY(14px) scale(.96)}100%{opacity:1;transform:none}}
+.quiz .qh{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.quiz .qh .badge{background:var(--coral);color:#FBF0D9;font-size:10px;font-weight:900;padding:3px 9px;
+  border:2.5px solid var(--stroke);border-radius:999px;text-transform:uppercase;letter-spacing:.07em}
+.quiz .qh .cnt{margin-left:auto;font-size:11px;font-weight:800;color:var(--hint)}
+.quiz .who{display:flex;align-items:center;gap:10px;background:var(--card-2);border:2.5px solid var(--stroke);
+  border-radius:14px;padding:8px 10px;margin-bottom:11px}
+.quiz .who .av{width:36px;height:36px;border-radius:50%;background:#fff;overflow:hidden;border:2.5px solid var(--stroke);
+  display:grid;place-items:center;font-weight:900;font-size:15px;flex:0 0 36px;color:#1B2430;padding:4px}
+.quiz .who .nm{font-size:12.5px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.quiz .who .dt{font-size:10.5px;font-weight:700;color:var(--hint)}
+.quiz .who .am{margin-left:auto;font-size:15px;font-weight:900;white-space:nowrap}
+.quiz .who .am.in{color:var(--green-d)}
+.quiz .q{font-size:15.5px;font-weight:900;line-height:1.3;margin-bottom:4px}
+.quiz .qn{font-size:11.5px;font-weight:700;color:var(--hint);margin-bottom:11px;line-height:1.4}
+.ans{width:100%;display:flex;align-items:center;gap:10px;background:var(--card);border:2.5px solid var(--stroke);
+  border-radius:14px;padding:11px 12px;margin-bottom:9px;font:inherit;font-size:13.5px;font-weight:800;
+  color:var(--ink);cursor:pointer;text-align:left;box-shadow:0 3px 0 var(--stroke);
+  transition:background .14s,transform .08s,box-shadow .08s}
+.ans:last-child{margin-bottom:0}
+.ans:hover{background:var(--gold-soft)}
+.ans:active{transform:translateY(3px);box-shadow:none}
+.ans:disabled{opacity:.55;cursor:default}
+.ans.picked{background:var(--green-soft);animation:ans-pick .4s cubic-bezier(.3,1.5,.4,1)}
+@keyframes ans-pick{0%{transform:scale(1)}40%{transform:scale(1.035)}100%{transform:scale(1)}}
+.ans .plus{margin-left:auto;font-size:15px;font-weight:900;color:var(--hint);line-height:1}
+.numrow{display:flex;gap:7px;flex-wrap:wrap}
+/* width:auto обязателен: у .ans задана ширина 100%, и с flex-basis:auto
+   каждая кнопка занимала бы отдельную строку. */
+.numrow .ans{width:auto;flex:1 1 0;min-width:54px;justify-content:center;white-space:nowrap;
+  font-size:15px;font-weight:900;padding:12px 5px;margin-bottom:0}
+.wide{margin-top:9px;justify-content:center}
+.qskip{display:block;margin:10px auto 0;font:inherit;font-size:11.5px;font-weight:800;color:var(--hint);
+  background:none;border:0;cursor:pointer;text-decoration:underline;padding:6px 10px}
+.qerr{margin-top:10px;background:var(--coral-soft);border:2.5px solid var(--stroke);border-radius:13px;
+  padding:9px 11px;font-size:11.5px;font-weight:800;animation:ist-in .3s cubic-bezier(.3,1.3,.5,1) both}
+.alldone{text-align:center;padding:20px 14px;background:var(--green-soft);border:3px dashed var(--green-d);
+  border-radius:20px;margin-bottom:14px;font-size:13.5px;font-weight:900;line-height:1.5;
+  animation:q-pop .5s cubic-bezier(.3,1.4,.5,1) both}
+.alldone .icbox{width:44px;height:44px;margin:0 auto 6px;overflow:visible}
+
+/* ================= ОТЧЁТЫ ================= */
+.big-sum{font-size:33px;font-weight:900;letter-spacing:-.045em;line-height:1;white-space:nowrap}
+.sum-row{display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap}
+.sum-row .badge{font-size:11px;font-weight:900;background:var(--coral-soft);border:2px solid var(--stroke);
+  padding:2px 8px;border-radius:999px;white-space:nowrap}
+.sum-row .badge.g{background:var(--green-soft)}
+.sum-row .sub{font-size:11.5px;font-weight:800;color:var(--hint);margin-left:auto;white-space:nowrap}
+.need{display:flex;gap:8px;margin-top:13px}
+.need>div{flex:1;min-width:0;border:2.5px solid var(--stroke);border-radius:14px;padding:9px 10px}
+.need .a{background:var(--green-soft)} .need .b{background:var(--coral-soft)}
+.need .k{font-size:10px;font-weight:900;color:var(--hint)}
+.need .v{font-size:15.5px;font-weight:900;margin-top:3px;white-space:nowrap}
+
+.weeks{display:flex;align-items:flex-end;gap:7px;height:126px;margin-top:4px}
+.wk{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;
+  justify-content:flex-end}
+.wk .wv{font-size:9.5px;font-weight:900;color:var(--hint);white-space:nowrap}
+.wk .bar{width:100%;border:2.5px solid var(--stroke);border-radius:9px 9px 6px 6px;background:var(--gold-soft);
+  height:4px;transition:height 1s cubic-bezier(.22,1.3,.36,1)}
+.wk .bar.max{background:repeating-linear-gradient(115deg,var(--gold) 0 9px,#FFCE63 9px 18px)}
+.wk .bar.zero{background:var(--card-2)}
+.wk .lb{font-size:9px;font-weight:800;color:var(--hint);text-align:center;line-height:1.2}
+.wcheck{display:flex;align-items:center;gap:8px;margin-top:11px;padding:9px 11px;border-radius:13px;
+  border:2.5px solid var(--stroke);font-size:11.5px;font-weight:800;line-height:1.35}
+.wcheck.ok{background:var(--green-soft)}
+.wcheck.bad{background:var(--coral-soft)}
+.wcheck .icbox{width:20px;height:20px;flex:0 0 20px}
+
+.catrow{display:flex;align-items:center;gap:10px;padding:6px 0}
+.catrow .icbox{width:34px;height:34px;flex:0 0 34px;border-radius:11px;background:#fff;
+  border:2.5px solid var(--stroke);padding:3px}
+.catrow .n{font-size:13px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.catrow .n span{color:var(--hint);font-size:11px;font-weight:800}
+.catrow .tr{height:9px;border-radius:5px;background:var(--chip);border:2px solid var(--stroke);
+  margin-top:5px;overflow:hidden}
+.catrow .tr i{display:block;height:100%;width:0;transition:width .9s cubic-bezier(.2,1,.3,1)}
+.catrow .r{text-align:right;white-space:nowrap}
+.catrow .v{font-size:13px;font-weight:900}
+.catrow .d{font-size:10px;font-weight:800;margin-top:2px;color:var(--hint);
+  display:flex;align-items:center;gap:3px;justify-content:flex-end}
+.catrow .d .icbox{width:9px;height:9px;flex:0 0 9px;border:0;border-radius:0;background:none;padding:0}
+.catrow .d.up{color:var(--coral-d)} .catrow .d.down{color:var(--green-d)}
+
+.tipcard{display:flex;gap:11px;background:var(--card-2);border:2.5px solid var(--stroke);border-radius:16px;
+  padding:10px;margin-bottom:9px}
+.tipcard:last-child{margin-bottom:0}
+.tipcard.lead{background:var(--green-soft)}
+.tipcard .icbox{width:40px;height:40px;flex:0 0 40px;border-radius:13px;background:#fff;
+  border:2.5px solid var(--stroke);padding:4px}
+.tipcard .t{font-size:13px;font-weight:900}
+.tipcard .d{font-size:11.5px;font-weight:700;color:var(--hint);margin-top:4px;line-height:1.42}
+.tipcard .g{display:inline-block;margin-top:7px;background:var(--green);border:2px solid var(--stroke);
+  color:#0F2417;font-size:10.5px;font-weight:900;padding:2px 9px;border-radius:999px;white-space:nowrap}
+
+/* кошелёк маркетплейса */
+.wal{background:var(--card-2);border:2.5px solid var(--stroke);border-radius:16px;padding:11px;
+  margin-bottom:10px}
+.wal:last-child{margin-bottom:0}
+.wal .wh{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+.wal .wh .icbox{width:32px;height:32px;flex:0 0 32px;border-radius:10px;background:#fff;
+  border:2.5px solid var(--stroke);padding:4px}
+.wal .wh .nm{font-size:13px;font-weight:900}
+.wal .wh .tp{margin-left:auto;font-size:13px;font-weight:900;white-space:nowrap}
+.wal .flow{display:flex;flex-direction:column;gap:6px}
+.wal .fr{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;
+  background:#fff;border:2px solid var(--stroke);border-radius:11px;padding:6px 9px}
+.wal .fr .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wal .fr .vv{margin-left:auto;white-space:nowrap}
+.wal .rest{display:flex;align-items:center;gap:8px;margin-top:9px;background:var(--green-soft);
+  border:2px solid var(--stroke);border-radius:11px;padding:7px 9px;font-size:11.5px;font-weight:900}
+.wal .rest .icbox{width:18px;height:18px;flex:0 0 18px}
+.wal .rest .vv{margin-left:auto;white-space:nowrap}
+
+.bal{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.bal .br{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;
+  background:var(--card-2);border:2px solid var(--stroke);border-radius:11px;padding:8px 10px}
+.bal .br.lead{background:var(--green-soft);font-weight:900}
+.bal .br .vv{margin-left:auto;white-space:nowrap}
+
+.facts{display:flex;gap:8px;text-align:center}
+.facts>div{flex:1;min-width:0}
+.facts .fv{font-size:19px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.facts .fk{font-size:10px;color:var(--hint);font-weight:800;margin-top:2px;line-height:1.25}
+
+/* ================= НАВИГАЦИЯ ================= */
+.nav{position:sticky;bottom:calc(8px + env(safe-area-inset-bottom,0px));display:flex;gap:4px;
+  background:var(--card);border:3px solid var(--stroke);border-radius:18px;padding:6px;margin-top:10px;
+  box-shadow:0 5px 0 var(--stroke);z-index:20}
+.nav button{position:relative;flex:1;background:none;border:0;border-radius:12px;padding:6px 0;font:inherit;
+  font-size:9.5px;font-weight:900;color:var(--hint);cursor:pointer;display:flex;flex-direction:column;
+  align-items:center;gap:3px;transition:background .2s,color .2s}
+.nav button .icbox{width:21px;height:21px;opacity:.6;transition:opacity .2s,transform .3s}
+.nav button.on{background:var(--green-soft);color:var(--ink)}
+.nav button.on .icbox{opacity:1;animation:nav-pop .42s cubic-bezier(.3,1.5,.4,1)}
+@keyframes nav-pop{0%{transform:scale(1)}40%{transform:scale(1.28) translateY(-2px)}100%{transform:scale(1)}}
+.nav .cnt{position:absolute;top:1px;right:calc(50% - 22px);min-width:17px;height:17px;padding:0 4px;
+  border-radius:999px;background:var(--coral);color:#FBF0D9;border:2px solid var(--stroke);
+  font-size:9.5px;font-weight:900;display:grid;place-items:center;line-height:1}
+
+/* ===== БЛОК «ДОБАВИТЬ ОПЕРАЦИИ» ===== */
+.intake .ways{display:flex;flex-direction:column;gap:9px}
+.way{display:flex;align-items:center;gap:11px;width:100%;text-align:left;font:inherit;color:var(--ink);
+  cursor:pointer;background:var(--card-2);padding:11px 12px;position:relative;
+  border:2.5px solid var(--stroke);border-radius:15px;box-shadow:0 3px 0 var(--stroke);
+  transition:background .16s, transform .08s, box-shadow .08s}
+.way:not(.cash):hover{background:var(--gold-soft)}
+.way:not(.cash):active{transform:translateY(3px);box-shadow:none}
+.way .icbox{width:40px;height:40px;flex:0 0 40px;background:#fff;padding:5px;
+  border:2.5px solid var(--stroke);border-radius:12px}
+.way .tx{flex:1;min-width:0}
+.way .tx b{display:block;font-size:14px;font-weight:800;line-height:1.25}
+.way .tx i{display:block;font-style:normal;font-size:11.5px;font-weight:600;color:var(--hint);margin-top:2px;
+  line-height:1.35}
+.way .go{font-size:20px;font-weight:900;color:var(--hint);flex:0 0 auto;line-height:1}
+.way.cash{align-items:flex-start;cursor:default}
+.cashrow{display:flex;gap:7px;margin-top:9px}
+.cashrow input{flex:1;min-width:0;width:100%;font:inherit;font-size:14px;font-weight:700;color:var(--ink);
+  background:var(--card);padding:9px 11px;outline:none;-webkit-appearance:none;
+  border:2.5px solid var(--stroke);border-radius:12px}
+.cashrow input::placeholder{color:var(--hint);font-weight:600}
+.cashrow button{font:inherit;font-size:13px;font-weight:800;cursor:pointer;padding:9px 15px;
+  background:var(--green);color:#0F2417;white-space:nowrap;
+  border:2.5px solid var(--stroke);border-radius:12px;box-shadow:0 3px 0 var(--stroke)}
+.cashrow button:active{transform:translateY(3px);box-shadow:none}
+.cashhint{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--hint);margin-top:8px}
+.cashhint .icbox{width:15px;height:15px;background:none;padding:0;flex:0 0 15px;border:0}
+
+.istatus{display:flex;align-items:center;gap:10px;margin-top:11px;padding:10px 12px;font-size:12.5px;
+  font-weight:700;line-height:1.4;border:2.5px solid var(--stroke);border-radius:14px;
+  animation:ist-in .32s cubic-bezier(.3,1.3,.5,1) both}
+.istatus b{font-weight:900;white-space:nowrap}
+.istatus .why{display:block;margin-top:4px;font-size:11px;font-weight:700;color:var(--hint);
+  word-break:break-word}
+@keyframes ist-in{0%{opacity:0;transform:translateY(-6px)}100%{opacity:1;transform:none}}
+.istatus .icbox{width:26px;height:26px;flex:0 0 26px;background:none;padding:0;border:0}
+.istatus.wait{background:var(--gold-soft)}
+.istatus.ok{background:var(--green-soft)}
+.istatus.err{background:var(--coral-soft)}
+.retry{font:inherit;font-size:11.5px;font-weight:800;background:none;border:0;cursor:pointer;
+  color:var(--coral-d);text-decoration:underline;padding:0;white-space:nowrap}
+.spin{width:22px;height:22px;flex:0 0 22px;border-radius:50%;border:3px solid rgba(27,36,48,.16);
+  border-top-color:var(--gold);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.iprog{height:7px;margin-top:9px;overflow:hidden;background:var(--card-2);
+  border:2px solid var(--stroke);border-radius:6px}
+.iprog i{display:block;height:100%;width:0;background:var(--gold);transition:width .22s linear}
+
+/* ===== БАННЕРЫ ===== */
+.banner{display:flex;gap:10px;align-items:flex-start;border:3px dashed var(--stroke);border-radius:18px;
+  padding:12px;margin-bottom:14px;font-size:12px;font-weight:800;line-height:1.4;background:var(--card-2)}
+.banner.err{background:var(--coral-soft);border-style:solid;box-shadow:0 5px 0 var(--stroke)}
+.banner .icbox{width:24px;height:24px;flex:0 0 24px}
+.banner .again{display:inline-block;margin-top:7px;font:inherit;font-size:11.5px;font-weight:900;
+  background:var(--card);border:2.5px solid var(--stroke);border-radius:11px;padding:6px 12px;
+  cursor:pointer;box-shadow:0 3px 0 var(--stroke)}
+.banner .again:active{transform:translateY(3px);box-shadow:none}
+.foot{text-align:center;font-size:11px;font-weight:800;color:var(--hint);padding:2px 0 4px;line-height:1.45}
+
+/* скелет первой загрузки */
+.skel{height:96px;border-radius:20px;border:3px solid rgba(27,36,48,.12);margin-bottom:14px;
+  background:linear-gradient(90deg,var(--card-2),var(--card),var(--card-2));
+  background-size:200% 100%;animation:sh 1.2s infinite}
+.skel.tall{height:210px}
+@keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* ===== ИКОНКИ ===== */
+.ic{width:100%;height:100%;display:block;object-fit:contain}
+.icbox{display:grid;place-items:center;flex:0 0 auto;overflow:hidden}
+/* готовые PNG нарисованы на белом — плитка под ними тоже белая, шва не видно */
+.icbox:has(img.ic){padding:0;background:#FFFFFF}
+img.ic{object-fit:cover}
+
+/* ===== ДВИЖОК МАСКОТА =================================================
+   Состояния задаются классом на <svg>: s-proud s-curious s-hype s-sad
+   s-think s-party. Каждый «слой» группы отвечает за свою трансформацию,
+   чтобы анимации не перетирали друг друга.                             */
+.mas{display:block;width:100%;height:100%}
+.mas .v{display:none}
+.mas .mo{fill:none;stroke:#1B2430;stroke-width:4.6;stroke-linecap:round;stroke-linejoin:round}
+
+.m-lean,.m-bounce,.m-breath,.m-squash{transform-box:view-box;transform-origin:100px 176px}
+.m-breath{animation:m-breath 3.6s ease-in-out infinite}
+@keyframes m-breath{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-2.5px) scale(1.018)}}
+.m-lean{transition:transform .55s cubic-bezier(.34,1.5,.5,1)}
+.s-curious .m-lean{transform:rotate(-7deg)}
+.s-think   .m-lean{transform:rotate(5deg)}
+.s-sad     .m-lean{transform:translateY(8px) scale(.955)}
+.s-sad     .m-breath{animation-duration:5.4s}
+.s-hype  .m-bounce{animation:m-hop .58s cubic-bezier(.35,.9,.35,1) infinite}
+.s-party .m-bounce{animation:m-jump .78s cubic-bezier(.25,1.1,.4,1) infinite}
+.s-proud .m-bounce{animation:m-sway 4.6s ease-in-out infinite}
+@keyframes m-hop{0%,100%{transform:translateY(0)}45%{transform:translateY(-10px)}}
+@keyframes m-jump{0%,100%{transform:translateY(0) rotate(0)}28%{transform:translateY(-18px) rotate(-6deg)}
+  58%{transform:translateY(-3px) rotate(5deg)}80%{transform:translateY(-7px) rotate(-2deg)}}
+@keyframes m-sway{0%,100%{transform:rotate(-1.6deg)}50%{transform:rotate(1.6deg)}}
+
+/* реакция на тап */
+.m-squash{transform-origin:100px 178px}
+.mas.tap .m-squash{animation:m-tap .55s cubic-bezier(.3,1.4,.4,1)}
+@keyframes m-tap{0%{transform:scale(1,1)}20%{transform:scale(1.16,.84)}46%{transform:scale(.92,1.09)}
+  70%{transform:scale(1.05,.96)}100%{transform:scale(1,1)}}
+.tapring{transform-box:fill-box;transform-origin:center;opacity:0}
+.mas.tap .tapring{animation:m-ring .6s ease-out}
+@keyframes m-ring{0%{opacity:.7;transform:scale(.55)}100%{opacity:0;transform:scale(1.45)}}
+
+/* моргание */
+.eye{transform-box:fill-box;transform-origin:center;animation:m-blink 5.6s infinite}
+@keyframes m-blink{0%,92.5%,100%{transform:scaleY(1)}94%{transform:scaleY(.06)}95.6%{transform:scaleY(1)}
+  97%{transform:scaleY(.06)}98.4%{transform:scaleY(1)}}
+.pupils{transform-box:view-box;transition:transform .45s cubic-bezier(.34,1.4,.5,1)}
+.s-curious .pupils{transform:translate(4px,-2px)}
+.s-think   .pupils{transform:translate(-4.5px,-4px)}
+
+/* мимика по состояниям */
+.s-proud .e-happy,.s-party .e-happy,.s-hype .e-star,.s-sad .e-sad,
+.s-curious .e-open,.s-think .e-open{display:block}
+.s-proud .mo-grin,.s-party .mo-open,.s-hype .mo-open,.s-sad .mo-frown,
+.s-curious .mo-wave,.s-think .mo-flat{display:block}
+
+/* руки */
+.arm{transform-box:view-box;transition:transform .5s cubic-bezier(.34,1.5,.5,1)}
+.arm-l{transform-origin:50px 102px}
+.arm-r{transform-origin:150px 102px}
+.s-proud   .arm-l{transform:rotate(14deg)}  .s-proud   .arm-r{transform:rotate(-14deg)}
+.s-hype    .arm-l{transform:rotate(46deg)}  .s-hype    .arm-r{transform:rotate(-46deg)}
+.s-party   .arm-l{transform:rotate(62deg)}  .s-party   .arm-r{transform:rotate(-62deg)}
+.s-sad     .arm-l{transform:rotate(-14deg)} .s-sad     .arm-r{transform:rotate(14deg)}
+.s-curious .arm-l{transform:rotate(0deg)}   .s-curious .arm-r{transform:rotate(-14deg)}
+.s-think   .arm-l{transform:rotate(-8deg)}
+.s-curious .a-point,.s-curious .a-glass,.s-curious .a-hold,.s-think .a-chin{display:block}
+.s-curious .a-idle-r,.s-think .a-idle-r,.s-curious .a-idle-l{display:none}
+.s-think .arm-r{display:none}
+
+/* реквизит */
+.s-hype .p-flame,.s-hype .p-spark,.s-sad .p-tear,.s-party .p-conf,
+.s-curious .p-ask,.s-think .p-dots,.s-proud .p-spark{display:block}
+.p-flame .fl{transform-box:fill-box;transform-origin:50% 100%;animation:fl-flick 1.1s ease-in-out infinite}
+@keyframes fl-flick{0%,100%{transform:scaleY(1) scaleX(1)}35%{transform:scaleY(1.1) scaleX(.94)}
+  65%{transform:scaleY(.94) scaleX(1.05)}}
+.spark{transform-box:fill-box;transform-origin:center;animation:sp-twinkle 2.2s ease-in-out infinite}
+.p-spark g:nth-of-type(2) .spark{animation-delay:.6s}
+.p-spark g:nth-of-type(3) .spark{animation-delay:1.2s}
+@keyframes sp-twinkle{0%,100%{transform:scale(.15) rotate(0);opacity:0}
+  40%{transform:scale(1) rotate(40deg);opacity:1}70%{transform:scale(.55) rotate(70deg);opacity:.45}}
+.tear{transform-box:fill-box;transform-origin:center;animation:tr-drop 2.8s ease-in infinite}
+@keyframes tr-drop{0%{transform:translateY(0) scale(.25);opacity:0}16%{transform:translateY(0) scale(1);opacity:1}
+  70%{transform:translateY(28px) scale(.95);opacity:.9}86%,100%{transform:translateY(36px) scale(.2);opacity:0}}
+.conf{transform-box:fill-box;transform-origin:center;animation:cf-fall 1.6s linear infinite}
+.p-conf .conf:nth-of-type(2){animation-delay:.22s}.p-conf .conf:nth-of-type(3){animation-delay:.45s}
+.p-conf .conf:nth-of-type(4){animation-delay:.68s}.p-conf .conf:nth-of-type(5){animation-delay:.9s}
+.p-conf .conf:nth-of-type(6){animation-delay:1.1s}.p-conf .conf:nth-of-type(7){animation-delay:1.3s}
+@keyframes cf-fall{0%{transform:translateY(-8px) rotate(0);opacity:0}12%{opacity:1}
+  100%{transform:translateY(78px) rotate(320deg);opacity:0}}
+.qm{transform-box:fill-box;transform-origin:50% 100%;animation:qm-bob 1.8s ease-in-out infinite}
+@keyframes qm-bob{0%,100%{transform:translateY(0) rotate(-7deg)}50%{transform:translateY(-6px) rotate(7deg)}}
+.p-dots circle{animation:dt 1.5s ease-in-out infinite}
+.p-dots circle:nth-child(2){animation-delay:.22s}.p-dots circle:nth-child(3){animation-delay:.44s}
+@keyframes dt{0%,100%{opacity:.25}50%{opacity:1}}
+.m-shadow{transition:opacity .4s}
+.s-sad .m-shadow{opacity:.07}
+
+/* ===== ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК ===== */
+#screen>*{animation:card-in .44s cubic-bezier(.3,1.3,.5,1) both}
+#screen>.route{animation:none}
+@keyframes card-in{0%{opacity:0;transform:translateY(16px) scale(.985)}100%{opacity:1;transform:none}}
+
+/* ===== ИНСТРУКЦИЯ «ЗАПУСК ДВОЙНЫМ КАСАНИЕМ» ===== */
+.howto-open{appearance:none;display:flex;align-items:center;gap:11px;width:100%;font:inherit;
+  color:inherit;text-align:left;cursor:pointer;background:var(--card);
+  border:3px solid var(--stroke);border-radius:20px;padding:13px 15px;margin-bottom:14px;
+  box-shadow:0 5px 0 var(--stroke);transition:transform .08s,box-shadow .08s,background .16s}
+.howto-open:hover{background:var(--gold-soft)}
+.howto-open:active{transform:translateY(3px);box-shadow:none}
+.howto-open .icbox{width:38px;height:38px;flex:0 0 38px;background:#fff;padding:5px;
+  border:2.5px solid var(--stroke);border-radius:12px}
+.howto-open .tx{flex:1;min-width:0}
+.howto-open .t{display:block;font-size:14px;font-weight:900;line-height:1.25}
+.howto-open .d{display:block;font-size:11.5px;font-weight:700;color:var(--hint);margin-top:2px;line-height:1.35}
+.howto-open .go{font-size:20px;font-weight:900;color:var(--hint);line-height:1}
+.sheet{
+  position:fixed;inset:0;z-index:60;background:var(--bg);overflow-y:auto;
+  padding:calc(env(safe-area-inset-top,0px) + 14px) 0 calc(env(safe-area-inset-bottom,0px) + 24px);
+  animation:sheet-in .2s ease-out
+}
+@keyframes sheet-in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.wrap{max-width:430px;margin:0 auto;padding:0 16px}
+.stack{display:flex;flex-direction:column;gap:12px}
+.sheet .card{margin-bottom:0}
+.sheet h2{margin:0;font-size:19px;font-weight:900;letter-spacing:-.02em;line-height:1.2}
+.sheet h3{margin:0;font-size:15px;font-weight:900}
+.ghost{background:none;border:0;color:var(--hint);font:inherit;font-size:13px;font-weight:800;
+  cursor:pointer;padding:13px 8px;margin:-9px -8px 0 0;white-space:nowrap}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.step-h{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.step-n{
+  flex:0 0 30px;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+  background:var(--gold);border:2.5px solid var(--stroke);color:#1B2430;font-size:14px;font-weight:900
+}
+.step-list{margin:0;padding-left:21px;display:flex;flex-direction:column;gap:6px;
+  font-size:13.5px;font-weight:700;color:var(--ink)}
+.step-list li::marker{color:var(--hint);font-weight:900}
+.path{margin-top:12px;background:var(--card-2);border:2.5px solid var(--stroke);border-radius:13px;
+  padding:10px 11px;font-size:12.5px;font-weight:800;line-height:1.5}
+.cta{
+  display:block;margin-top:14px;padding:12px 14px;border-radius:14px;
+  background:var(--green);color:#0F2417;font-size:15px;font-weight:900;
+  border:2.5px solid var(--stroke);box-shadow:0 3px 0 var(--stroke);
+  text-align:center;text-decoration:none;transition:transform .08s,box-shadow .08s
+}
+.cta:active{transform:translateY(3px);box-shadow:none}
+.faq summary{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  list-style:none;cursor:pointer;font-weight:900;font-size:14px;
+  /* зона нажатия 44px: padding растит её на отступы карточки,
+     отрицательный margin оставляет вёрстку прежней */
+  padding:13px 0;margin:-13px 0
+}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{
+  content:'';flex:0 0 auto;width:8px;height:8px;margin-right:3px;
+  border-right:2.5px solid var(--hint);border-bottom:2.5px solid var(--hint);
+  transform:rotate(45deg);transition:transform .15s
+}
+.faq[open] summary::after{transform:rotate(-135deg)}
+.faq ul{margin:10px 0 0;padding-left:21px;display:flex;flex-direction:column;gap:6px;
+  font-size:13px;font-weight:700;color:var(--ink)}
+.opt{width:100%;font:inherit;font-size:15px;font-weight:900;cursor:pointer;padding:13px 14px;
+  background:var(--card);color:var(--ink);border:3px solid var(--stroke);border-radius:16px;
+  box-shadow:0 4px 0 var(--stroke);transition:transform .08s,box-shadow .08s}
+.opt:active{transform:translateY(4px);box-shadow:none}
+.opt.done{background:var(--gold)}
+
+/* ===== уважение к prefers-reduced-motion ===== */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    animation-duration:.001ms !important; animation-iteration-count:1 !important;
+    transition-duration:.001ms !important; scroll-behavior:auto !important;
+  }
+  .p-flame .fl,.spark,.tear,.conf,.qm,.p-dots circle,.route .line{opacity:1 !important}
+}
+</style>
+</head>
+<body>
+<div class="phone" id="app">
+  <div class="bar" id="topbar"></div>
+  <div id="screen">
+    <div class="skel tall"></div><div class="skel"></div><div class="skel"></div>
+  </div>
+
+  <button class="howto-open hidden" id="howtoOpen" type="button" aria-haspopup="dialog" aria-controls="howto">
+    <span class="icbox" data-ic="clock"></span>
+    <span class="tx">
+      <span class="t">Запускайте двойным касанием</span>
+      <span class="d">Быстрая команда для iPhone: настроить один раз, 1–2 минуты</span>
+    </span>
+    <span class="go">&rsaquo;</span>
+  </button>
+
+  <div class="nav" id="nav">
+    <button type="button" data-tab="month" class="on"><span class="icbox" data-ic="nhome"></span>Месяц</button>
+    <button type="button" data-tab="reports"><span class="icbox" data-ic="nchart"></span>Отчёты</button>
+    <button type="button" data-tab="questions"><span class="icbox" data-ic="nask"></span>Вопросы</button>
+    <button type="button" data-tab="awards"><span class="icbox" data-ic="ncup"></span>Награды</button>
+  </div>
+</div>
+
+<!-- Инструкция поверх экрана: открывается по карточке «Запускайте двойным
+     касанием», закрывается по «Понятно», по «Закрыть» и по Esc. -->
+<div class="sheet hidden" id="howto" role="dialog" aria-modal="true"
+     aria-labelledby="howtoTitle" tabindex="-1">
+  <div class="wrap stack">
+    <!-- align-items у этого .row свой: заголовок занимает две строки, и по
+         центру кнопка «Закрыть» повисала между ними. Отрицательный отступ
+         поднимает её на первую строку, не меняя высоту шапки. -->
+    <div class="row" style="align-items:flex-start">
+      <h2 id="howtoTitle">Настройте запуск двойным касанием</h2>
+      <button class="ghost" id="howtoClose" type="button">Закрыть</button>
+    </div>
+    <div class="note" style="font-size:13px;margin-top:-6px">
+      Это нужно сделать только один раз. Настройка займёт примерно 1–2 минуты.
+    </div>
+
+    <ol class="steps">
+      <li class="card">
+        <div class="step-h"><span class="step-n">1</span><h3>Установите команду</h3></div>
+        <ol class="step-list">
+          <li>Нажмите кнопку «Установить команду» ниже.</li>
+          <li>На открывшейся странице нажмите «Получить быструю команду» или «Добавить команду».</li>
+          <li>Откроется приложение «Команды».</li>
+          <li>Нажмите «Добавить быструю команду».</li>
+        </ol>
+        <a class="cta" id="howtoInstall"
+           href="https://www.icloud.com/shortcuts/c7bc0cc38a5d430fbbd609ab2d6dddbf"
+           target="_blank" rel="noopener noreferrer">Установить команду</a>
+      </li>
+
+      <li class="card">
+        <div class="step-h"><span class="step-n">2</span><h3>Назначьте двойное касание</h3></div>
+        <ol class="step-list">
+          <li>Откройте «Настройки» на iPhone.</li>
+          <li>Выберите «Универсальный доступ».</li>
+          <li>Откройте раздел «Касание».</li>
+          <li>Пролистайте вниз и нажмите «Коснуться сзади».</li>
+          <li>Выберите «Двойное касание».</li>
+          <li>Пролистайте до раздела «Команды».</li>
+          <li>Выберите только что добавленную команду.</li>
+        </ol>
+        <!-- Неразрывные пробелы держат стрелку при предыдущем слове: перенос
+             идёт после стрелки, и строка не начинается с «→». -->
+        <div class="path">Настройки&nbsp;→ Универсальный доступ&nbsp;→ Касание&nbsp;→ Коснуться сзади&nbsp;→ Двойное касание&nbsp;→ нужная команда</div>
+      </li>
+
+      <li class="card">
+        <div class="step-h"><span class="step-n">3</span><h3>Проверьте работу</h3></div>
+        <div style="font-size:13.5px;font-weight:700">
+          Дважды постучите пальцем по задней панели iPhone в области логотипа Apple.
+          Команда должна запуститься.
+        </div>
+      </li>
+    </ol>
+
+    <details class="card faq">
+      <summary>Не получилось?</summary>
+      <ul>
+        <li>Откройте приложение «Команды» и один раз запустите команду вручную.</li>
+        <li>Разрешите доступ, если iPhone его запросит.</li>
+        <li>Попробуйте сделать два более чётких касания.</li>
+        <li>Толстый чехол может мешать распознаванию.</li>
+        <li>Функция доступна на iPhone 8 и более новых моделях.</li>
+      </ul>
+    </details>
+
+    <button class="opt done" id="howtoDone" type="button">Понятно</button>
+  </div>
+</div>
+
+<script>
+/* ==========================================================================
+   1. СЕТЬ
+   ========================================================================== */
+const API = new URLSearchParams(location.search).get('api') || '';
+const DEBUG_TG = new URLSearchParams(location.search).get('tg_id');
+const tg = window.Telegram?.WebApp;
+
+/* SDK подключается с telegram.org на любой странице, поэтому window.Telegram
+   .WebApp и его методы есть и в обычном браузере — там platform === 'unknown',
+   а initData пуст. Отличать клиент от браузера обязательно: иначе мы
+   перехватываем клики, которые в браузере некому обработать. */
+const inTelegram = !!(tg && (tg.initData || (tg.platform && tg.platform !== 'unknown')));
+
+try { tg?.ready(); tg?.expand(); } catch (e) {}
+/* Страница всегда светлая, а шапку и фон под резиновой прокруткой Telegram
+   красит по теме клиента — без этого у тёмного клиента получается стык. */
+try { tg?.setHeaderColor?.('#FBF0D9'); } catch (e) {}
+try { tg?.setBackgroundColor?.('#F3E4C6'); } catch (e) {}
+
+function authHeaders() {
+  const h = {};
+  const init = tg?.initData;
+  if (init) h['X-Telegram-Init-Data'] = init;
+  if (DEBUG_TG) h['X-Debug-Tg-Id'] = DEBUG_TG;
+  return h;
+}
+
+async function api(path, options = {}) {
+  const res = await fetch(`${API}/api/v1${path}`, {
+    ...options,
+    headers: {'Content-Type': 'application/json', ...authHeaders()},
+  });
+  if (!res.ok) { const err = new Error(await res.text()); err.status = res.status; throw err; }
+  return res.json();
+}
+
+/* Загрузка файлов идёт через XMLHttpRequest, а не fetch: только он даёт
+   настоящий прогресс отправки. Полоса в интерфейсе обязана показывать
+   реальную отправку, а не таймер. Content-Type здесь не ставим — границу
+   multipart проставляет сам браузер. */
+function upload(path, form, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${API}/api/v1${path}`);
+    const h = authHeaders();
+    Object.keys(h).forEach((k) => xhr.setRequestHeader(k, h[k]));
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { resolve(JSON.parse(xhr.responseText)); }
+        catch (e) { reject(new Error('сервер ответил не по-нашему')); }
+      } else {
+        const err = new Error(xhr.responseText || `ошибка ${xhr.status}`);
+        err.status = xhr.status;
+        reject(err);
+      }
+    };
+    xhr.onerror = () => reject(new Error('сеть недоступна'));
+    xhr.ontimeout = () => reject(new Error('сервер не ответил вовремя'));
+    xhr.timeout = 120000;
+    xhr.send(form);
+  });
+}
+
+/* Человеческий текст вместо технической строки: людям нужен следующий шаг,
+   а не код состояния. */
+function humanError(e) {
+  const s = e && e.status;
+  if (s === 401 || s === 403) return 'Telegram не подтвердил вход. Закройте и откройте приложение из чата бота.';
+  if (s === 413) return 'Файл слишком большой — принимаю до 12 МБ.';
+  if (s === 400) return 'Файл не удалось разобрать. Проверьте, что это выписка из интернет-банка.';
+  if (s === 404) return 'Такой операции уже нет — экран обновится.';
+  if (s === 429) return 'Слишком много запросов подряд. Подождите несколько секунд.';
+  if (s >= 500) return 'Сервер отвечает ошибкой. Мы уже знаем, попробуйте через минуту.';
+  return 'Интернет не отвечает. Проверьте связь и попробуйте ещё раз.';
+}
+
+/* Запасные данные: страница обязана что-то показывать, даже если API не
+   ответил. Это демонстрационный набор, тот же, что в тестах. Ключ game
+   пересобирает настоящий движок геймификации. */
+const FALLBACK = {"offline":true,"period":{"label":"Сентябрь 2026","days":30},"spend":{"kopecks":12561820,"text":"125 618,20 ₽"},"income":{"kopecks":30124000,"text":"301 240 ₽"},"avg_per_day":{"kopecks":418727,"text":"4 187,27 ₽"},"prev_spend":{"kopecks":11298300,"text":"112 983 ₽"},"spend_delta":{"kopecks":1263520,"text":"+12 635,20 ₽"},"spend_delta_pct":11.2,"awareness":{"percent":99,"score":0.996,"unclear":{"kopecks":50000,"text":"500 ₽"},"unknown":{"kopecks":50000,"text":"500 ₽"},"uncategorized":{"kopecks":0,"text":"0 ₽"},"unallocated_cash":{"kopecks":0,"text":"0 ₽"}},"categories":[{"code":"housing","title":"Жильё и ЖКХ","emoji":"🏠","essential":true,"amount":{"kopecks":7680000,"text":"76 800 ₽"},"share":0.6114,"prev_amount":{"kopecks":7680000,"text":"76 800 ₽"},"delta":{"kopecks":0,"text":"+0 ₽"},"delta_pct":0.0},{"code":"groceries","title":"Продукты","emoji":"🛒","essential":true,"amount":{"kopecks":2392490,"text":"23 924,90 ₽"},"share":0.1905,"prev_amount":{"kopecks":1875900,"text":"18 759 ₽"},"delta":{"kopecks":516590,"text":"+5 165,90 ₽"},"delta_pct":27.5},{"code":"taxi","title":"Такси","emoji":"🚕","essential":false,"amount":{"kopecks":696710,"text":"6 967,10 ₽"},"share":0.0555,"prev_amount":{"kopecks":578800,"text":"5 788 ₽"},"delta":{"kopecks":117910,"text":"+1 179,10 ₽"},"delta_pct":20.4},{"code":"cafe","title":"Кафе и рестораны","emoji":"🍽","essential":false,"amount":{"kopecks":675140,"text":"6 751,40 ₽"},"share":0.0537,"prev_amount":{"kopecks":399500,"text":"3 995 ₽"},"delta":{"kopecks":275640,"text":"+2 756,40 ₽"},"delta_pct":69.0},{"code":"delivery","title":"Доставка еды","emoji":"🛵","essential":false,"amount":{"kopecks":528680,"text":"5 286,80 ₽"},"share":0.0421,"prev_amount":{"kopecks":485300,"text":"4 853 ₽"},"delta":{"kopecks":43380,"text":"+433,80 ₽"},"delta_pct":8.9},{"code":"home","title":"Товары для дома","emoji":"🪑","essential":false,"amount":{"kopecks":310000,"text":"3 100 ₽"},"share":0.0247,"prev_amount":{"kopecks":0,"text":"0 ₽"},"delta":{"kopecks":310000,"text":"+3 100 ₽"},"delta_pct":null},{"code":"subscriptions","title":"Подписки","emoji":"🔁","essential":false,"amount":{"kopecks":188800,"text":"1 888 ₽"},"share":0.015,"prev_amount":{"kopecks":188800,"text":"1 888 ₽"},"delta":{"kopecks":0,"text":"+0 ₽"},"delta_pct":0.0},{"code":"connection","title":"Связь и интернет","emoji":"📶","essential":true,"amount":{"kopecks":90000,"text":"900 ₽"},"share":0.0072,"prev_amount":{"kopecks":90000,"text":"900 ₽"},"delta":{"kopecks":0,"text":"+0 ₽"},"delta_pct":0.0}],"essential":{"kopecks":10162490,"text":"101 624,90 ₽"},"optional":{"kopecks":2399330,"text":"23 993,30 ₽"},"weeks":[{"label":"1–6 сентября","amount":{"kopecks":8264470,"text":"82 644,70 ₽"}},{"label":"7–13 сентября","amount":{"kopecks":2563110,"text":"25 631,10 ₽"}},{"label":"14–20 сентября","amount":{"kopecks":322160,"text":"3 221,60 ₽"}},{"label":"21–27 сентября","amount":{"kopecks":1412080,"text":"14 120,80 ₽"}},{"label":"28–30 сентября","amount":{"kopecks":0,"text":"0 ₽"}}],"questions":[{"id":2,"kind":"incoming_unknown","question":"Пришло 500 ₽ от Катя Н., назначение «за обед» — что это?","options":[{"code":"share","label":"Вернули долю"},{"code":"debt_back","label":"Вернули долг"},{"code":"gift","label":"Подарок"},{"code":"income","label":"Это доход"}],"explanation":"Поступление от физлица без зафиксированного долга. В назначении есть пометка про совместную трату, но подходящего счёта не нашлось. Пока не отнесено ни к доходу, ни к возврату — иначе цифры бы соврали.","amount":{"kopecks":50000,"text":"500 ₽"},"occurred_at":"2026-09-22T13:37:00"},{"id":3,"kind":"cash_spent_on","question":"Из снятых 5 000 ₽ от 09.09 не объяснено 3 000 ₽. На что ушли?","options":[{"code":"groceries","label":"Продукты"},{"code":"cafe","label":"Кафе и рестораны"},{"code":"taxi","label":"Такси"},{"code":"clothes","label":"Одежда и обувь"},{"code":"electronics","label":"Техника и гаджеты"},{"code":"health","label":"Здоровье"},{"code":"home","label":"Товары для дома"},{"code":"other","label":"Прочее"}],"explanation":"Снятие в банкомате — перемещение денег между моими активами, а не трата. Тратой они станут, когда будет известно, на что ушли.","amount":{"kopecks":500000,"text":"5 000 ₽"},"occurred_at":"2026-09-09T08:50:00"},{"id":1,"kind":"shared_bill_heads","question":"«WHITE RABBIT RESTORAN» на 8 000 ₽ — на скольких человек делили? Пока считаю, что на 5.","options":[{"code":"2","label":"2 чел."},{"code":"3","label":"3 чел."},{"code":"4","label":"4 чел."},{"code":"5","label":"5 чел."},{"code":"more","label":"Больше"}],"explanation":"Счёт 8000 ₽ разделён на 5 чел.: моя доля 1600 ₽, остальные 6400 ₽ — долг компании. В расходы попадает только моя доля.","amount":{"kopecks":800000,"text":"8 000 ₽"},"occurred_at":"2026-09-14T21:30:00"}],"open_questions":3,"insights":[{"title":"Проездной выгоднее такси","detail":"8 поездок на 6 967,10 ₽, из них 5 — короткие, на 3 602,90 ₽. Месячный проездной стоит 3 070 ₽: при такой частоте он окупается.","saving":{"kopecks":53290,"text":"532,90 ₽"}},{"title":"Продукты: рост на 28%","detail":"Было 18 759 ₽, стало 23 924,90 ₽ — плюс 5 165,90 ₽ к прошлому периоду.","saving":null},{"title":"Подписок: 4","detail":"APPLE ICLOUD STORAGE, МТС услуги связи, ЯНДЕКС ПЛЮС, VK MUSIC PODPISKA — 2 788 ₽ в месяц, 33 456 ₽ в год. Списываются сами, поэтому и не замечаются.","saving":null},{"title":"Доставка догоняет продукты","detail":"Доставка 5 286,80 ₽ при тратах на продукты 23 924,90 ₽ — это 22% сверху. Наценка доставки обычно съедает разницу в цене продуктов.","saving":{"kopecks":158604,"text":"1 586,04 ₽"}},{"title":"YANDEX GO: 8 раз за период","detail":"Средний чек 870,88 ₽, в сумме 6 967,10 ₽. По одной покупке это незаметно, за период — ощутимо.","saving":null},{"title":"Наличными на руках 3 000 ₽","detail":"Пока не сказано, на что они ушли, эти деньги не попадают в статистику. Одно голосовое — и они разложатся по категориям.","saving":null},{"title":"Осознанность 99%","detail":"Непонятно, куда относится неразобранных поступлений на 500 ₽. Это единственное, что мешает цифрам быть точными.","saving":null}],"streak":{"days":12,"best":18,"actions_per_day":1.67},"operations_count":48,"debts_owed_to_me":{"kopecks":0,"text":"0 ₽"},"debts_i_owe":{"kopecks":0,"text":"0 ₽"},"game":{"level":{"number":4,"title":"Знаток своих денег","xp":1240,"xp_total_next":1500,"progress":0.82},"quests":[{"code":"resolve_unknown","kind":"system","title":"Разобрать поступления","detail":"1 операция на 500 ₽","progress":0.0,"xp":10,"done":false,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"close_questions","kind":"system","title":"Закрыть очередь вопросов","detail":"3 вопроса ждут ответа","progress":0.0,"xp":30,"done":false,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"streak_14","kind":"system","title":"Дойти до 14 дней подряд","detail":"12 из 14 дней","progress":0.857,"xp":28,"done":false,"sponsor":null,"reward":null,"deadline":null},{"code":"sponsor_yandex_go","kind":"sponsor","title":"Поездки на 1 000 ₽ за месяц","detail":"засчитано 6 967,10 ₽ из 1 000 ₽ — по вашим поездкам в выписке","progress":1.0,"xp":40,"done":true,"sponsor":"Яндекс Go","reward":"Промокод на 300 ₽ на следующую поездку","deadline":"2026-09-30"},{"code":"sponsor_surf_coffee","kind":"sponsor","title":"Кофе на 500 ₽ за месяц","detail":"0 ₽ из 500 ₽ — трат в Surf Coffee за сентябрь не нашлось","progress":0.0,"xp":20,"done":false,"sponsor":"Surf Coffee","reward":"Двойной эспрессо в подарок","deadline":"2026-09-30"}],"achievements":[{"code":"first_statement","title":"Первая выписка","detail":"Загрузили выписку и увидели настоящие цифры","earned":true,"earned_at":"2026-09-01","progress":1.0,"hint":null},{"code":"streak_7","title":"Неделя честности","detail":"Семь дней подряд без пропусков","earned":true,"earned_at":"2026-09-15","progress":1.0,"hint":null},{"code":"subs_found","title":"Нашлись подписки","detail":"Четыре регулярных списания на 1 888 ₽ в месяц","earned":true,"earned_at":"2026-09-10","progress":1.0,"hint":null},{"code":"clean_month","title":"Месяц без белых пятен","detail":"Осознанность 100%: объяснён весь оборот","earned":false,"earned_at":null,"progress":0.99,"hint":"Осталось разобрать 500 ₽"},{"code":"streak_30","title":"Месяц честности","detail":"Тридцать дней подряд без пропусков","earned":false,"earned_at":null,"progress":0.4,"hint":"Ещё 18 дней подряд"},{"code":"all_clear","title":"Очередь пуста","detail":"Ни одного открытого вопроса","earned":false,"earned_at":null,"progress":0.0,"hint":"Ответьте на 3 вопроса на вкладке «Вопросы»"},{"code":"no_loose_cash","title":"Наличные под контролем","detail":"Нет снятий без назначения","earned":false,"earned_at":null,"progress":0.4,"hint":"Расскажите, на что ушли снятые 3 000 ₽"},{"code":"under_forecast","title":"Уложились в прогноз","detail":"Потратили не больше, чем предсказывал темп","earned":false,"earned_at":null,"progress":0.0,"hint":"Прогноз считается, когда пройдёт больше половины месяца"}],"map":[{"code":"w1","kind":"week","state":"done","title":"Неделя 1","detail":"1–6 сентября","amount":{"kopecks":8264470,"text":"82 644,70 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"w2","kind":"week","state":"done","title":"Неделя 2","detail":"7–13 сентября","amount":{"kopecks":2563110,"text":"25 631,10 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"w3","kind":"week","state":"done","title":"Неделя 3","detail":"14–20 сентября","amount":{"kopecks":322160,"text":"3 221,60 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"w4","kind":"week","state":"done","title":"Неделя 4","detail":"21–27 сентября","amount":{"kopecks":1412080,"text":"14 120,80 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"q2","kind":"question","state":"current","title":"Поступление 500 ₽","detail":"от Кати Н. — надо решить, что это","amount":{"kopecks":50000,"text":"500 ₽"},"action":{"type":"question","id":2}},{"code":"q3","kind":"question","state":"locked","title":"Наличные 5 000 ₽","detail":"не объяснено 3 000 ₽","amount":{"kopecks":500000,"text":"5 000 ₽"},"action":{"type":"question","id":3}},{"code":"q1","kind":"question","state":"locked","title":"Счёт 8 000 ₽","detail":"на скольких делили","amount":{"kopecks":800000,"text":"8 000 ₽"},"action":{"type":"question","id":1}},{"code":"sp1","kind":"quest","state":"locked","title":"Задание Surf Coffee","detail":"кофе на 500 ₽ — подарок за выполнение","amount":null,"action":{"type":"tab","tab":"awards"}},{"code":"chest","kind":"chest","state":"locked","title":"Сундук «Две недели правды»","detail":"откроется на 14-й день · сейчас 12","amount":null,"action":null},{"code":"finish","kind":"finish","state":"locked","title":"Финиш сентября","detail":"осталось пройти 28–30 сентября","amount":null,"action":null}]}};
+
+/* ==========================================================================
+   2. МЕЛОЧЬ
+   ========================================================================== */
+const $ = (id) => document.getElementById(id);
+const el = (h) => { const t = document.createElement('template'); t.innerHTML = h.trim(); return t.content.firstElementChild; };
+
+/* формат денег: узкий пробел U+2009 + word joiner, чтобы сумма не рвалась */
+const NB = ' ⁠';
+const num = (n) => Math.round(n).toLocaleString('ru-RU').replace(/[\s  ]/g, NB);
+const money = (n) => num(n) + NB + '₽';
+const fixed = (t) => String(t == null ? '' : t).replace(/[\s  ]/g, NB);
+/* деньги с бэкенда приходят объектом {kopecks, text} — текст уже посчитан */
+const m = (v) => fixed(v && v.text ? v.text : '0 ₽');
+const kop = (v) => (v && typeof v.kopecks === 'number' ? v.kopecks : 0);
+
+/* Внутри готовых фраз бэкенда сумма обязана оставаться на одной строке:
+   «3 000 ₽», разорванное переносом, читается как две разные цифры.
+   Склеиваем только пробелы внутри чисел и перед знаком валюты. */
+function nobreakMoney(s) {
+  return String(s)
+    .replace(/(\d)[\s   ](?=\d)/g, '$1 ⁠')
+    .replace(/(\d)[\s   ](?=[₽%])/g, '$1 ⁠');
+}
+const txt = (s) => nobreakMoney(esc(s));
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
+    ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+}
+function plural(n, one, few, many) {
+  if (n % 100 >= 11 && n % 100 <= 14) return many;
+  const l = n % 10;
+  return l === 1 ? one : l >= 2 && l <= 4 ? few : many;
+}
+function haptic(kind = 'light') {
+  try { tg?.HapticFeedback?.impactOccurred(kind); } catch (e) {}
+}
+const MONTHS = ['января','февраля','марта','апреля','мая','июня',
+                'июля','августа','сентября','октября','ноября','декабря'];
+const WEEKDAYS = ['вс','пн','вт','ср','чт','пт','сб'];
+function shortDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return d.getDate() + ' ' + MONTHS[d.getMonth()];
+}
+const pct01 = (v) => Math.max(0, Math.min(100, Math.round((Number(v) || 0) * 100)));
+
+/* ==========================================================================
+   3. ИКОНКИ. Эмодзи в интерфейсе нет ни одного: категории — готовые PNG,
+   остальное — инлайновый SVG.
+   ========================================================================== */
+const ART = 'art/';
+const SVG_IC = {
+  delivery: '<path d="M16 24 h32 l-3 30 a6 6 0 0 1 -6 5 H25 a6 6 0 0 1 -6 -5 z" fill="#FF7A59"/><path d="M25 24 v-4 a7 7 0 0 1 14 0 v4" fill="none"/><path d="M20 34 h24" stroke-width="4"/>',
+  inbox: '<path d="M12 34 h11 l4 7 h10 l4 -7 h11 v14 a5 5 0 0 1 -5 5 H17 a5 5 0 0 1 -5 -5 z" fill="#4CC86A"/><path d="M32 9 v17"/><path d="M24 19 l8 8 8 -8" fill="none"/>',
+  cash: '<rect x="8" y="19" width="48" height="27" rx="5" fill="#4CC86A"/><circle cx="32" cy="32.5" r="8" fill="#FBF0D9"/><path d="M16 26 h4"/><path d="M44 39 h4"/>',
+  chest: '<path d="M10 30 a22 14 0 0 1 44 0 z" fill="#FF7A59"/><rect x="10" y="30" width="44" height="22" rx="4" fill="#F5B93A"/><rect x="27" y="26" width="10" height="14" rx="3" fill="#FBF0D9"/>',
+  flag: '<path d="M18 56 V10"/><path d="M18 12 h30 l-6 9 6 9 H18 z" fill="#4CC86A"/>',
+  check: '<circle cx="32" cy="32" r="22" fill="#4CC86A"/><path d="M22 33 l7 8 14 -16" fill="none" stroke="#FBF0D9" stroke-width="6"/>',
+  flame: '<path d="M32 58 C 12 58, 8 42, 16 30 C 21 22, 30 20, 27 6 C 44 15, 50 26, 49 33 C 53 29, 54 24, 53 20 C 61 32, 58 58, 32 58 Z" fill="#FF7A59"/><path d="M32 54 C 22 54, 19 45, 24 38 C 27 33, 33 31, 32 23 C 42 29, 45 37, 44 42 C 47 39, 47 36, 47 33 C 51 42, 47 54, 32 54 Z" fill="#F5B93A" stroke="none"/>',
+  gem: '<path d="M20 12 h24 l12 15 -24 26 -24 -26 z" fill="#4CC86A"/><path d="M8 27 h48"/><path d="M20 12 l12 15 12 -15" fill="none"/>',
+  nhome: '<path d="M10 30 L32 10 L54 30" fill="none"/><path d="M17 28 v24 h30 V28" fill="#F5B93A"/><rect x="26" y="36" width="12" height="16" rx="2" fill="#FBF0D9"/>',
+  nchart: '<rect x="9" y="34" width="11" height="20" rx="3" fill="#F5B93A"/><rect x="26" y="22" width="11" height="32" rx="3" fill="#4CC86A"/><rect x="43" y="12" width="11" height="42" rx="3" fill="#FF7A59"/>',
+  nask: '<circle cx="32" cy="32" r="22" fill="#FF7A59"/><path d="M25 26 a7.5 7.5 0 1 1 8.4 11.2 q-2.2 1.6 -2.2 4.5" fill="none" stroke="#FBF0D9" stroke-width="5"/><circle cx="31.4" cy="47" r="3.2" fill="#FBF0D9" stroke="none"/>',
+  ncup: '<path d="M20 10 h24 v14 a12 12 0 0 1 -24 0 z" fill="#F5B93A"/><path d="M20 14 h-7 a7 7 0 0 0 7 10"/><path d="M44 14 h7 a7 7 0 0 1 -7 10"/><path d="M32 36 v10"/><path d="M22 52 h20" stroke-width="7"/>',
+  clock: '<circle cx="32" cy="32" r="22" fill="#4CC86A"/><path d="M32 18 v15 l10 7" fill="none" stroke="#FBF0D9" stroke-width="5"/>',
+  sheet: '<path d="M14 8 h26 l12 12 v36 a4 4 0 0 1 -4 4 H14 a4 4 0 0 1 -4 -4 V12 a4 4 0 0 1 4 -4 z" fill="#4CC86A"/><path d="M40 8 v12 h12" fill="none"/><path d="M20 34 h17"/><path d="M20 43 h21"/><path d="M20 52 h12"/>',
+  cam: '<path d="M7 22 h13 l5 -7 h14 l5 7 h13 a4 4 0 0 1 4 4 v24 a4 4 0 0 1 -4 4 H7 a4 4 0 0 1 -4 -4 V26 a4 4 0 0 1 4 -4 z" fill="#FF7A59"/><circle cx="32" cy="38" r="11" fill="#FBF0D9"/>',
+  coins: '<path d="M12 18 v24 a20 8 0 0 0 40 0 V18 z" fill="#F5B93A"/><ellipse cx="32" cy="18" rx="20" ry="8" fill="#FFD37A"/><path d="M12 30 a20 8 0 0 0 40 0" fill="none"/>',
+  mic: '<rect x="24" y="7" width="16" height="30" rx="8" fill="#4CC86A"/><path d="M15 32 a17 17 0 0 0 34 0" fill="none"/><path d="M32 49 v8"/><path d="M23 57 h18"/>',
+  warn: '<circle cx="32" cy="32" r="22" fill="#FF7A59"/><path d="M32 19 v15" stroke="#FBF0D9" stroke-width="6"/><circle cx="32" cy="44.5" r="3.4" fill="#FBF0D9" stroke="none"/>',
+  lock: '<rect x="13" y="29" width="38" height="27" rx="7" fill="#C9BFA8"/><path d="M22 29 v-7 a10 10 0 0 1 20 0 v7" fill="none"/><circle cx="32" cy="40" r="4.4" fill="#1B2430" stroke="none"/><path d="M32 42 v6"/>',
+  star: '<path d="M32 6 l8.2 16.6 18.3 2.7 -13.2 12.9 3.1 18.2 -16.4 -8.6 -16.4 8.6 3.1 -18.2 -13.2 -12.9 18.3 -2.7 z" fill="#F5B93A"/>',
+  bulb: '<path d="M32 7 a18 18 0 0 1 10 33 v4 H22 v-4 A18 18 0 0 1 32 7 z" fill="#F5B93A"/><path d="M23 50 h18"/><path d="M26 57 h12"/>',
+  cal: '<rect x="7" y="15" width="50" height="41" rx="7" fill="#4CC86A"/><path d="M7 27 h50"/><path d="M19 8 v11"/><path d="M45 8 v11"/><rect x="17" y="35" width="11" height="10" rx="3" fill="#FBF0D9" stroke="none"/>',
+  wallet: '<path d="M10 16 h34 a7 7 0 0 1 7 7 v26 a7 7 0 0 1 -7 7 H10 a4 4 0 0 1 -4 -4 V20 a4 4 0 0 1 4 -4 z" fill="#F5B93A"/><path d="M41 30 h17 v12 H41 a6 6 0 0 1 0 -12 z" fill="#FBF0D9"/>',
+  gift: '<rect x="9" y="27" width="46" height="29" rx="5" fill="#FF7A59"/><rect x="5" y="17" width="54" height="11" rx="4" fill="#F5B93A"/><path d="M32 17 v39"/><path d="M32 17 c -13 0 -15 -12 -6 -12 5 0 6 6 6 12 z" fill="#FBF0D9"/><path d="M32 17 c 13 0 15 -12 6 -12 -5 0 -6 6 -6 12 z" fill="#FBF0D9"/>',
+  scales: '<path d="M32 10 v44"/><path d="M13 20 h38"/><path d="M13 20 l-8 17 h16 z" fill="#4CC86A"/><path d="M51 20 l-8 17 h16 z" fill="#FF7A59"/><path d="M21 56 h22"/>',
+  target: '<circle cx="32" cy="32" r="24" fill="#FFE8E1"/><circle cx="32" cy="32" r="15" fill="#FF7A59"/><circle cx="32" cy="32" r="6" fill="#FBF0D9" stroke="none"/>',
+  up: '<path d="M32 15 l19 25 H13 z" fill="#FF7A59"/>',
+  down: '<path d="M32 49 l19 -25 H13 z" fill="#4CC86A"/>',
+};
+const icon = (name, isSvg) => isSvg
+  ? '<svg class="ic" viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke="#1B2430" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">' + (SVG_IC[name] || SVG_IC.gem) + '</svg>'
+  : '<img class="ic" src="' + ART + 'icon-' + name + '.png" alt="" loading="lazy" decoding="async">';
+
+/* Категории, для которых нарисован свой значок. Эмодзи в запасном варианте
+   не используем — правило продукта: в интерфейсе их нет. Для остальных
+   кодов подставляем близкий по смыслу инлайновый SVG. */
+const HAS_ICON = new Set([
+  'beauty','cafe','car','clothes','connection','delivery',
+  'education','electronics','entertainment','fees','gifts','groceries',
+  'health','home','housing','kids','other','pets',
+  'sport','subscriptions','taxes','taxi','transport','travel'
+]);
+const SVG_FOR_CAT = {
+  cash_unallocated: 'coins', salary: 'inbox', freelance: 'inbox',
+  cashback: 'gem', interest: 'gem', gift_income: 'gift', other_income: 'inbox',
+};
+function catIcon(code) {
+  if (HAS_ICON.has(code)) return icon(code, false);
+  return icon(SVG_FOR_CAT[code] || 'coins', true);
+}
+
+/* ==========================================================================
+   4. МАСКОТ ГРОШ
+   ========================================================================== */
+function MASCOT(uid) { return `
+<svg class="mas s-proud" viewBox="0 0 200 200" role="img" aria-label="Грош — маскот приложения">
+ <defs>
+   <clipPath id="MID-eL"><ellipse cx="86" cy="86" rx="11.2" ry="15.2"/></clipPath>
+   <clipPath id="MID-eR"><ellipse cx="114" cy="86" rx="11.2" ry="15.2"/></clipPath>
+   <clipPath id="MID-sL"><ellipse cx="86" cy="88" rx="10.2" ry="13.2"/></clipPath>
+   <clipPath id="MID-sR"><ellipse cx="114" cy="88" rx="10.2" ry="13.2"/></clipPath>
+   <clipPath id="MID-mo"><path d="M85 106 Q100 132 115 106 Q100 114 85 106 Z"/></clipPath>
+ </defs>
+
+ <ellipse class="m-shadow" cx="100" cy="184" rx="42" ry="7.5" fill="#1B2430" opacity=".15"/>
+
+ <g class="v p-ask">
+   <g transform="translate(168,50)"><g class="qm">
+     <circle cx="0" cy="0" r="17" fill="#FF7A59" stroke="#1B2430" stroke-width="4"/>
+     <path d="M-5.6 -6 a5.9 5.9 0 1 1 6.6 8.8 q-1.7 1.2 -1.7 3.5" fill="none" stroke="#FBF0D9" stroke-width="3.8" stroke-linecap="round"/>
+     <circle cx="-0.5" cy="10.4" r="2.5" fill="#FBF0D9"/>
+   </g></g>
+ </g>
+ <g class="v p-dots" fill="#FBF0D9" stroke="#1B2430" stroke-width="3">
+   <circle cx="152" cy="46" r="4"/><circle cx="166" cy="34" r="4.4"/><circle cx="181" cy="21" r="4.8"/>
+ </g>
+ <g class="v p-spark" fill="#F5B93A" stroke="#1B2430" stroke-width="3.4" stroke-linejoin="round">
+   <g transform="translate(30,54) scale(1.5)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+   <g transform="translate(172,52) scale(1.2)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+   <g transform="translate(158,20) scale(.95)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+ </g>
+
+ <g class="m-lean"><g class="m-bounce"><g class="m-breath"><g class="m-squash">
+
+   <g class="m-legs">
+     <path d="M86 130 V160" stroke="#1B2430" stroke-width="14" stroke-linecap="round"/>
+     <path d="M114 130 V160" stroke="#1B2430" stroke-width="14" stroke-linecap="round"/>
+     <rect x="64" y="155" width="34" height="21" rx="10.5" fill="#1B2430"/>
+     <rect x="102" y="155" width="34" height="21" rx="10.5" fill="#1B2430"/>
+     <path d="M86 130 V158" stroke="#F5B93A" stroke-width="7.6" stroke-linecap="round"/>
+     <path d="M114 130 V158" stroke="#F5B93A" stroke-width="7.6" stroke-linecap="round"/>
+     <rect x="67.4" y="158.4" width="27.2" height="14.2" rx="7.1" fill="#F5B93A"/>
+     <rect x="105.4" y="158.4" width="27.2" height="14.2" rx="7.1" fill="#F5B93A"/>
+   </g>
+
+   <g class="arm arm-l">
+     <g class="a-idle-l">
+       <path d="M50 102 C 30 108, 24 128, 38 138" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M38 138 L27 130" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="38" cy="138" r="11.5" fill="#1B2430"/>
+       <path d="M50 102 C 30 108, 24 128, 38 138" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M38 138 L27 130" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="38" cy="138" r="8.2" fill="#F5B93A"/>
+     </g>
+     <g class="v a-hold">
+       <path d="M50 104 C 32 110, 30 124, 47 128" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M47 128 L37 121" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="47" cy="128" r="11.5" fill="#1B2430"/>
+       <path d="M50 104 C 32 110, 30 124, 47 128" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M47 128 L37 121" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="47" cy="128" r="8.2" fill="#F5B93A"/>
+     </g>
+   </g>
+   <g class="arm arm-r">
+     <g class="a-idle-r">
+       <path d="M150 102 C 168 108, 173 126, 160 134" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M160 134 L170 126" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="160" cy="134" r="11.5" fill="#1B2430"/>
+       <path d="M150 102 C 168 108, 173 126, 160 134" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M160 134 L170 126" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="160" cy="134" r="8.2" fill="#F5B93A"/>
+     </g>
+     <g class="v a-point">
+       <path d="M150 102 C 164 106, 170 114, 170 122" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <circle cx="170" cy="122" r="11.5" fill="#1B2430"/>
+       <path d="M179 118 h11" stroke="#1B2430" stroke-width="12" stroke-linecap="round"/>
+       <path d="M150 102 C 164 106, 170 114, 170 122" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <circle cx="170" cy="122" r="8.2" fill="#F5B93A"/>
+       <path d="M179 118 h10" stroke="#F5B93A" stroke-width="6" stroke-linecap="round"/>
+     </g>
+   </g>
+
+   <circle cx="89" cy="90" r="52" fill="#E3A526" stroke="#1B2430" stroke-width="4.4"/>
+   <path d="M47 79 A 44 44 0 0 0 47 101" fill="none" stroke="#C98E1C" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+   <circle cx="100" cy="92" r="52" fill="#F5B93A" stroke="#1B2430" stroke-width="4.4"/>
+   <circle cx="100" cy="92" r="43" fill="none" stroke="#E0A32A" stroke-width="3.4"/>
+   <circle cx="100" cy="92" r="37.5" fill="none" stroke="#E0A32A" stroke-width="2"/>
+   <circle class="tapring" cx="100" cy="92" r="52" fill="none" stroke="#FBF0D9" stroke-width="6"/>
+
+   <g class="v e-open">
+     <g class="eye">
+       <ellipse cx="86" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g class="pupils" clip-path="url(#MID-eL)">
+         <ellipse cx="87" cy="89" rx="8" ry="10.6" fill="#1B2430"/>
+         <circle cx="84" cy="83.6" r="3.2" fill="#FFFDF5"/><circle cx="90.4" cy="94.6" r="1.7" fill="#FFFDF5" opacity=".8"/>
+       </g>
+     </g>
+     <g class="eye">
+       <ellipse cx="114" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g class="pupils" clip-path="url(#MID-eR)">
+         <ellipse cx="115" cy="89" rx="8" ry="10.6" fill="#1B2430"/>
+         <circle cx="112" cy="83.6" r="3.2" fill="#FFFDF5"/><circle cx="118.4" cy="94.6" r="1.7" fill="#FFFDF5" opacity=".8"/>
+       </g>
+     </g>
+   </g>
+
+   <g class="v e-happy" fill="none" stroke="#1B2430" stroke-width="5.6" stroke-linecap="round">
+     <path d="M74 94 q12 -18 24 0"/><path d="M102 94 q12 -18 24 0"/>
+   </g>
+
+   <g class="v e-star">
+     <ellipse cx="86" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+     <ellipse cx="114" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+     <g fill="none" stroke="#1B2430" stroke-width="3.6" stroke-linecap="round">
+       <path d="M83 78 v16"/><path d="M83 78 h4.8 a4.4 4.4 0 0 1 0 8.8 H83"/><path d="M79.2 90.4 h9"/>
+       <path d="M111 78 v16"/><path d="M111 78 h4.8 a4.4 4.4 0 0 1 0 8.8 H111"/><path d="M107.2 90.4 h9"/>
+     </g>
+   </g>
+
+   <g class="v e-sad">
+     <g class="eye">
+       <ellipse cx="86" cy="88" rx="12" ry="15" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g clip-path="url(#MID-sL)">
+         <ellipse cx="86" cy="94" rx="7.4" ry="9.4" fill="#1B2430"/>
+         <circle cx="83.4" cy="90" r="2.8" fill="#FFFDF5"/>
+         <rect x="66" y="56" width="42" height="24" fill="#1B2430" transform="rotate(-14 86 88)"/>
+       </g>
+     </g>
+     <g class="eye">
+       <ellipse cx="114" cy="88" rx="12" ry="15" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g clip-path="url(#MID-sR)">
+         <ellipse cx="114" cy="94" rx="7.4" ry="9.4" fill="#1B2430"/>
+         <circle cx="111.4" cy="90" r="2.8" fill="#FFFDF5"/>
+         <rect x="92" y="56" width="42" height="24" fill="#1B2430" transform="rotate(14 114 88)"/>
+       </g>
+     </g>
+   </g>
+
+   <g class="mouth">
+     <path class="v mo mo-grin" d="M91 111 q9 9 18 0"/>
+     <g class="v mo-open">
+       <path d="M85 106 Q100 132 115 106 Q100 114 85 106 Z" fill="#1B2430"/>
+       <g clip-path="url(#MID-mo)"><ellipse cx="100" cy="124" rx="7.5" ry="6" fill="#FF7A59"/></g>
+     </g>
+     <path class="v mo mo-frown" d="M91 119 q9 -9 18 0"/>
+     <path class="v mo mo-wave" d="M90 113 q5 -6 10 0 q5 6 10 0" stroke-width="4"/>
+     <path class="v mo mo-flat" d="M92 114 q8 4 16 -1" stroke-width="4"/>
+   </g>
+
+   <g class="v a-chin">
+     <path d="M156 116 C 158 136, 140 146, 124 140" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+     <circle cx="122" cy="138" r="11.5" fill="#1B2430"/>
+     <path d="M156 116 C 158 136, 140 146, 124 140" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+     <circle cx="122" cy="138" r="8.2" fill="#F5B93A"/>
+   </g>
+
+   <g class="v a-glass">
+     <path d="M46 124 L38 104" stroke="#1B2430" stroke-width="11.5" stroke-linecap="round"/>
+     <path d="M46 124 L38 104" stroke="#C98E1C" stroke-width="5.6" stroke-linecap="round"/>
+     <circle cx="33" cy="88" r="18.5" fill="#FBF0D9" stroke="#1B2430" stroke-width="4.6"/>
+     <path d="M24 80 a12.5 12.5 0 0 1 9 -5" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+   </g>
+
+   <g class="v p-tear">
+     <path class="tear" d="M126 100 c 0 0 7 8 7 12.5 a7 7 0 0 1 -14 0 c 0 -4.5 7 -12.5 7 -12.5 Z"
+       fill="#FBF0D9" stroke="#1B2430" stroke-width="3.4" stroke-linejoin="round"/>
+   </g>
+
+   <g class="v p-flame">
+     <path class="fl" d="M100 46 C 76 34, 100 24, 90 3 C 122 12, 126 36, 100 46 Z" fill="#FF7A59" stroke="#1B2430" stroke-width="4" stroke-linejoin="round"/>
+     <path class="fl" d="M100 42 C 88 35, 99 29, 95 16 C 112 23, 113 36, 100 42 Z" fill="#F5B93A"/>
+   </g>
+
+ </g></g></g></g>
+
+ <g class="v p-conf" stroke="#1B2430" stroke-width="2.6">
+   <rect class="conf" x="22"  y="44" width="10" height="13" rx="3" fill="#4CC86A"/>
+   <rect class="conf" x="52"  y="18" width="9"  height="12" rx="3" fill="#FF7A59"/>
+   <rect class="conf" x="92"  y="4"  width="10" height="13" rx="3" fill="#F5B93A"/>
+   <rect class="conf" x="132" y="12" width="9"  height="12" rx="3" fill="#4CC86A"/>
+   <rect class="conf" x="168" y="34" width="10" height="13" rx="3" fill="#FF7A59"/>
+   <rect class="conf" x="182" y="70" width="9"  height="12" rx="3" fill="#F5B93A"/>
+   <rect class="conf" x="8"   y="84" width="9"  height="12" rx="3" fill="#4CC86A"/>
+ </g>
+</svg>`.replace(/MID-/g, uid + '-'); }
+
+/* Состояние маскота. setAttribute('class', ...) целиком — это заодно
+   сбрасывает .tap, оставшийся от предыдущего касания. */
+const mstate = {cur: null};
+function setMascot(s) {
+  mstate.cur = s;
+  document.querySelectorAll('.mas').forEach((n) => n.setAttribute('class', 'mas s-' + s));
+}
+function reapplyMascot() { setMascot(mstate.cur || autoMascot()); }
+/* Состояние по умолчанию — это обратная связь, а не украшение: пока есть
+   неразобранное, Грош озадачен, когда всё сходится — доволен. */
+function autoMascot() {
+  if (!SUM) return 'think';
+  if (busyUpload) return 'think';
+  if (kop(SUM.awareness?.unclear) > 0 || (SUM.open_questions || 0) > 0) return 'curious';
+  return 'proud';
+}
+function mascotFor(ms, back) {
+  setMascot(ms);
+  clearTimeout(mascotFor._t);
+  mascotFor._t = setTimeout(() => setMascot(autoMascot()), back || 2000);
+}
+let tapT = null;
+function tapMascot() {
+  haptic('light');
+  document.querySelectorAll('.mas').forEach((svg) => {
+    svg.classList.remove('tap'); void svg.getBoundingClientRect(); svg.classList.add('tap');
+  });
+  clearTimeout(tapT);
+  tapT = setTimeout(() => document.querySelectorAll('.mas').forEach((s) => s.classList.remove('tap')), 620);
+  say(null, tapLine());
+}
+/* Реплики собраны из настоящих чисел: маскот не болтает, а пересказывает
+   состояние счёта. */
+function tapLine() {
+  if (!SUM) return 'Секунду, считаю…';
+  const open = SUM.open_questions || 0;
+  const un = kop(SUM.awareness?.unclear);
+  if (un > 0 && open > 0) {
+    return 'Не понимаю <b>' + m(SUM.awareness.unclear) + '</b>. Осталось ' +
+      open + ' ' + plural(open, 'вопрос', 'вопроса', 'вопросов') + '.';
+  }
+  if (un > 0) return 'Не понимаю <b>' + m(SUM.awareness.unclear) + '</b>. Разберём?';
+  const lines = [
+    'Месяц честный. Можно выдохнуть.',
+    'Понятно <b>' + (SUM.awareness?.percent ?? 0) + '%</b> оборота — почти идеально.',
+    'Серия <b>' + (SUM.streak?.days ?? 0) + '</b> ' +
+      plural(SUM.streak?.days ?? 0, 'день', 'дня', 'дней') + '. Так держать.',
+  ];
+  return lines[Math.floor(Math.random() * lines.length)];
+}
+/* Реплика переживает перерисовку: иначе обратная связь на ответ или
+   загрузку исчезала бы ровно в тот момент, когда экран обновил цифры. */
+let pendingSay = null;
+function say(lines, forced) {
+  const html = forced || (lines ? lines[Math.floor(Math.random() * lines.length)] : '');
+  pendingSay = html;
+  const b = $('bubble');
+  if (!b) return;
+  b.innerHTML = html;
+  b.style.animation = 'none'; void b.offsetWidth; b.style.animation = '';
+}
+const bubbleText = () => pendingSay || tapLine();
+
+/* ==========================================================================
+   5. ИНСТРУКЦИЯ «ЗАПУСК ДВОЙНЫМ КАСАНИЕМ»
+   ========================================================================== */
+
+/* Кнопка установки — настоящая <a href target="_blank" rel="noopener
+   noreferrer">, и вне Telegram отрабатывает именно она: ничего не
+   перехватываем. Внутри клиента обычная ссылка уходит во встроенное окно, из
+   которого iCloud не передаст управление приложению «Команды», — поэтому там
+   отдаём адрес системе через openLink. Проверять наличие метода бесполезно:
+   openLink определён и в браузере, где вести ему некуда. Порядок важен:
+   preventDefault вызывается только после успешного openLink, иначе остаётся
+   обычный переход по href. */
+function openShortcutLink(event) {
+  if (!inTelegram) return;
+  try {
+    if (typeof tg.openLink === 'function') {
+      tg.openLink($('howtoInstall').href);
+      event?.preventDefault();
+      haptic('light');
+    }
+  } catch (e) {
+    console.warn('openLink недоступен, открываю обычной ссылкой:', e.message);
+  }
+}
+
+/* Куда вернуть человека после закрытия: экран длинный, и «назад» обязан
+   вернуть ровно на то место, откуда инструкцию открыли. */
+let howtoScrollY = 0;
+
+function telegramBack(show) {
+  try {
+    const back = tg?.BackButton;
+    if (!back) return;
+    if (show) { back.onClick(closeHowto); back.show(); } else { back.offClick(closeHowto); back.hide(); }
+  } catch (e) {}
+}
+
+function openHowto() {
+  howtoScrollY = window.scrollY;
+  $('howto').classList.remove('hidden');
+  $('howto').scrollTop = 0;
+  $('howto').focus({preventScroll: true});
+  document.body.style.overflow = 'hidden';
+  /* Один aria-modal не мешает Tab уйти на кнопки под оверлеем — а там живые
+     ответы на спорные операции, которые человек отправил бы вслепую. */
+  $('app').setAttribute('inert', '');
+  /* Bot API 7.7+: движение пальцем по оверлею иначе сворачивает Mini App
+     вместо прокрутки инструкции. */
+  try { tg?.disableVerticalSwipes?.(); } catch (e) {}
+  telegramBack(true);
+  haptic('light');
+}
+
+function closeHowto() {
+  if ($('howto').classList.contains('hidden')) return;
+  $('howto').classList.add('hidden');
+  document.body.style.overflow = '';
+  $('app').removeAttribute('inert');
+  try { tg?.enableVerticalSwipes?.(); } catch (e) {}
+  telegramBack(false);
+  window.scrollTo(0, howtoScrollY);
+  // preventScroll: возврат делает window.scrollTo, фокус не должен его перебивать
+  $('howtoOpen').focus({preventScroll: true});
+  haptic('light');
+}
+
+/* Через ?. — иначе переименованный в разметке id роняет весь инлайновый
+   скрипт, load() не вызывается, и экран остаётся пустым целиком. */
+$('howtoOpen')?.addEventListener('click', openHowto);
+$('howtoDone')?.addEventListener('click', closeHowto);
+$('howtoClose')?.addEventListener('click', closeHowto);
+$('howtoInstall')?.addEventListener('click', openShortcutLink);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeHowto();
+});
+
+/* ==========================================================================
+   6. СОСТОЯНИЕ
+   ========================================================================== */
+let SUM = null;        // ответ /me/summary
+let GAME = null;       // ответ /me/game (или посчитанное из summary)
+let TAB = 'month';
+let busyUpload = false;
+let busyAnswer = false;
+let netError = '';
+let lastXp = null;
+
+const SCREEN = $('screen');
+
+/* ==========================================================================
+   7. КОЛЬЦО ОСОЗНАННОСТИ
+   ========================================================================== */
+const RR = 64, RC = 2 * Math.PI * RR;
+function ring() {
+  return `<svg width="150" height="150" viewBox="0 0 150 150" aria-hidden="true">
+    <defs><linearGradient id="a-arc" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#FBF0D9"/><stop offset="70%" stop-color="#FFE0A0"/><stop offset="100%" stop-color="#F5B93A"/>
+    </linearGradient></defs>
+    <g transform="rotate(-90 75 75)">
+      <circle cx="75" cy="75" r="${RR}" fill="none" stroke="#1B2430" stroke-width="20" opacity=".22"/>
+      <circle id="arc" cx="75" cy="75" r="${RR}" fill="none" stroke="url(#a-arc)" stroke-width="14" stroke-linecap="round"
+        stroke-dasharray="${RC.toFixed(1)}" stroke-dashoffset="${RC.toFixed(1)}"
+        style="transition:stroke-dashoffset 1.15s cubic-bezier(.22,1.42,.36,1)"/>
+    </g>
+    <g id="arcDot" style="transition:transform 1.15s cubic-bezier(.22,1.42,.36,1);transform-box:view-box;transform-origin:75px 75px">
+      <circle cx="75" cy="11" r="7.5" fill="#FBF0D9" stroke="#1B2430" stroke-width="3"/>
+    </g>
+  </svg>`;
+}
+/* Число докручивается счётчиком: так видно, что показатель изменился именно
+   сейчас и именно на столько. */
+function setAwareness(p, first) {
+  const arc = $('arc'), dot = $('arcDot');
+  if (arc) arc.setAttribute('stroke-dashoffset', (RC * (1 - p / 100)).toFixed(1));
+  if (dot) dot.style.transform = 'rotate(' + (p / 100 * 360) + 'deg)';
+  const node = $('ringVal');
+  if (!node) return;
+  const from = first ? 0 : parseInt(node.textContent, 10) || 0;
+  const t0 = performance.now(), dur = first ? 1150 : 700;
+  (function step(t) {
+    const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    node.textContent = Math.round(from + (p - from) * e);
+    if (k < 1) requestAnimationFrame(step);
+  })(t0);
+}
+/* Общий приём: ширина пишется в data-w, потом одним проходом переносится в
+   стиль — только так CSS-переход действительно проигрывается. */
+const growBars = () => requestAnimationFrame(() =>
+  document.querySelectorAll('[data-w]').forEach((i) => { i.style.width = i.dataset.w; }));
+const growBarsH = () => requestAnimationFrame(() =>
+  document.querySelectorAll('[data-h]').forEach((i) => { i.style.height = i.dataset.h; }));
+
+/* ==========================================================================
+   8. ГЕЙМИФИКАЦИЯ: чего нет в ответе — считаем из настоящих цифр summary,
+   а не выдумываем. Если данных не хватает, поле остаётся пустым.
+   ========================================================================== */
+const MILESTONES = [3, 7, 14, 21, 30, 60, 100];
+function nextMilestone(days) {
+  for (const x of MILESTONES) if (x > days) return x;
+  return days + 30;
+}
+
+function deriveGame(d) {
+  const a = d.awareness || {};
+  const streak = d.streak || {days: 0, best: 0};
+  const quests = [];
+  const push = (code, title, detail, left, xp) => quests.push({
+    code, kind: 'system', title, detail,
+    progress: left > 0 ? 0 : 1, xp, done: left === 0,
+    sponsor: null, reward: null, deadline: null,
+  });
+  if (kop(a.unknown) > 0) push('resolve_unknown', 'Разобрать поступления',
+    'Непонятных зачислений на ' + m(a.unknown), kop(a.unknown), 10);
+  if (kop(a.uncategorized) > 0) push('sort_categories', 'Раскидать траты по категориям',
+    'Без категории ' + m(a.uncategorized), kop(a.uncategorized), 15);
+  if (kop(a.unallocated_cash) > 0) push('explain_cash', 'Объяснить наличные',
+    'Снято и не объяснено ' + m(a.unallocated_cash), kop(a.unallocated_cash), 25);
+  const open = d.open_questions || 0;
+  if (open > 0) {
+    quests.push({code: 'close_questions', kind: 'system', title: 'Закрыть очередь вопросов',
+      detail: open + ' ' + plural(open, 'вопрос ждёт', 'вопроса ждут', 'вопросов ждут') + ' ответа',
+      progress: 0, xp: 10 * open, done: false, sponsor: null, reward: null, deadline: null});
+  }
+  const goal = nextMilestone(streak.days || 0);
+  quests.push({code: 'streak_' + goal, kind: 'system', title: 'Дойти до ' + goal + ' дней подряд',
+    detail: (streak.days || 0) + ' из ' + goal + ' дней',
+    progress: Math.min(1, (streak.days || 0) / goal), xp: goal * 2,
+    done: (streak.days || 0) >= goal, sponsor: null, reward: null, deadline: null});
+
+  return {
+    level: null,                  /* XP считает бэкенд по daily_activity — не выдумываем */
+    quests,
+    achievements: deriveAchievements(d),
+    map: null,                    /* соберём из недель и вопросов ниже */
+    derived: true,
+  };
+}
+
+/* Достижения выводятся из фактических данных, а не хранятся флагами. */
+function deriveAchievements(d) {
+  const a = d.awareness || {};
+  const streak = d.streak || {days: 0, best: 0};
+  const ops = d.operations_count || 0;
+  const subs = (d.categories || []).find((c) => c.code === 'subscriptions');
+  const out = [];
+  const add = (code, title, detail, earned, progress, hint) => out.push({
+    code, title, detail, earned, earned_at: null,
+    progress: earned ? 1 : Math.max(0, Math.min(1, progress || 0)),
+    hint: earned ? null : hint,
+  });
+  add('first_statement', 'Первая выписка', 'Загрузили выписку и увидели настоящие цифры',
+    ops > 0, ops > 0 ? 1 : 0, 'Загрузите CSV из интернет-банка на вкладке «Месяц»');
+  add('streak_7', 'Неделя честности', 'Семь дней подряд без пропусков',
+    (streak.best || 0) >= 7, (streak.days || 0) / 7, 'Отвечайте на вопросы 7 дней подряд');
+  add('streak_30', 'Месяц честности', 'Тридцать дней подряд без пропусков',
+    (streak.best || 0) >= 30, (streak.days || 0) / 30, 'Ещё ' +
+      Math.max(0, 30 - (streak.days || 0)) + ' ' +
+      plural(Math.max(0, 30 - (streak.days || 0)), 'день', 'дня', 'дней') + ' подряд');
+  add('clean_month', 'Месяц без белых пятен', 'Осознанность 100%: объяснён весь оборот',
+    (a.percent || 0) >= 100, (a.percent || 0) / 100, 'Закройте все спорные операции за месяц');
+  const cashAsked = (d.questions || []).some((q) => q.kind === 'cash_spent_on');
+  add('no_loose_cash', 'Наличные под контролем', 'Нет снятий без назначения',
+    ops > 0 && kop(a.unallocated_cash) === 0 && !cashAsked,
+    kop(a.unallocated_cash) === 0 && !cashAsked ? 1 : 0,
+    'Расскажите, на что ушли снятые наличные');
+  add('subs_found', 'Нашлись подписки', 'Регулярные списания видны и посчитаны',
+    !!(subs && kop(subs.amount) > 0), subs ? 1 : 0, 'Подписки появятся, когда в выписке будут регулярные списания');
+  add('all_clear', 'Очередь пуста', 'Ни одного открытого вопроса',
+    ops > 0 && (d.open_questions || 0) === 0, (d.open_questions || 0) === 0 ? 1 : 0,
+    'Ответьте на все вопросы на вкладке «Вопросы»');
+  /* Посреди месяца «уложился в прогноз» выполнено у всех — это не
+     достижение, а арифметика. Засчитываем только когда период закончился. */
+  const f = d.forecast;
+  const over = !!(f && f.days_passed >= f.days_total);
+  add('under_forecast', 'Уложились в прогноз', 'Потратили не больше, чем предсказывал темп',
+    over && kop(d.spend) <= kop(f.projected),
+    f && f.days_total ? Math.min(1, f.days_passed / f.days_total) : 0,
+    f && f.show ? 'Проверим в конце месяца: по темпу выходит ' + m(f.projected)
+      : 'Прогноз считается, когда пройдёт больше половины месяца');
+  add('ten_answers', 'Разобрал десяток', 'Закрыто десять спорных операций',
+    false, 0, 'Считается на сервере — появится, когда подключим счётчик ответов');
+  return out;
+}
+
+/* Станции тропы. Если бэкенд прислал свою карту — берём её, иначе собираем
+   из настоящих недель, открытых вопросов, вехи серии и конца периода. */
+function mapStations() {
+  if (GAME && Array.isArray(GAME.map) && GAME.map.length) return GAME.map;
+  if (!SUM) return [];
+  const out = [];
+  const weeks = SUM.weeks || [];
+  /* Текущая неделя — последняя, в которой есть хоть одна трата. Всё после
+     неё ещё не наступило, и рисовать её «пройденной» было бы неправдой. */
+  let lastWithData = -1;
+  weeks.forEach((w, i) => { if (kop(w.amount) > 0) lastWithData = i; });
+  weeks.forEach((w, i) => {
+    out.push({
+      code: 'w' + (i + 1), kind: 'week',
+      state: i < lastWithData ? 'done' : (i === lastWithData ? 'current' : 'locked'),
+      title: 'Неделя ' + (i + 1), detail: w.label,
+      amount: kop(w.amount) > 0 ? w.amount : null,
+      action: {type: 'tab', tab: 'reports'},
+    });
+  });
+  /* Первый вопрос — текущая станция, остальные ждут своей очереди: три
+     пульсирующих кружка подряд читались бы как три «сделай сейчас». */
+  (SUM.questions || []).slice(0, 3).forEach((q, i) => {
+    out.push({
+      code: 'q' + q.id, kind: 'question', state: i === 0 ? 'current' : 'locked',
+      title: q.amount ? m(q.amount) + ' — надо решить' : 'Спорная операция',
+      detail: shortDate(q.occurred_at) || 'ждёт одного тапа',
+      amount: null, action: {type: 'question', id: q.id},
+    });
+  });
+  const st = SUM.streak || {days: 0};
+  const goal = nextMilestone(st.days || 0);
+  out.push({
+    code: 'chest', kind: 'chest', state: (st.days || 0) >= goal ? 'done' : 'locked',
+    title: 'Сундук на ' + goal + '-й день', detail: 'сейчас серия ' + (st.days || 0) + ' ' +
+      plural(st.days || 0, 'день', 'дня', 'дней'),
+    amount: null, action: null,
+  });
+  const f = SUM.forecast;
+  out.push({
+    code: 'finish', kind: 'finish', state: 'locked', title: 'Финиш месяца',
+    detail: f && f.show
+      ? 'прогноз ' + m(f.projected) + ' · осталось ' + m(f.remaining)
+      : (SUM.period?.label || 'конец периода'),
+    amount: null, action: null,
+  });
+  return out;
+}
+const STATION_ICON = {week: 'cal', question: 'nask', chest: 'chest', quest: 'target', finish: 'flag'};
+let showPast = false;
+
+/* ==========================================================================
+   9. ОБЩИЕ КУСКИ РАЗМЕТКИ
+   ========================================================================== */
+function topbar() {
+  if (!SUM) { $('topbar').innerHTML = ''; return; }
+  const st = SUM.streak || {days: 0};
+  const xp = GAME && GAME.level ? GAME.level.xp : null;
+  $('topbar').innerHTML =
+    `<div class="pill"><span class="icbox">${icon('flame', true)}</span><span>${st.days || 0}</span></div>` +
+    (xp !== null ? `<div class="pill" id="xpPill"><span class="icbox">${icon('gem', true)}</span>${num(xp)}</div>` : '') +
+    `<div class="sp"></div>` +
+    `<div class="pill">${esc(SUM.period?.label || '')}</div>`;
+}
+
+function banners() {
+  let html = '';
+  if (netError) {
+    html += `<div class="banner err"><span class="icbox">${icon('warn', true)}</span>
+      <span>${esc(netError)}<br><button class="again" type="button" id="againBtn">Попробовать ещё раз</button></span></div>`;
+  } else if (SUM && SUM.offline) {
+    html += `<div class="banner"><span class="icbox">${icon('sheet', true)}</span>
+      <span>Демонстрационные данные: API недоступен, показываю сохранённый набор.</span></div>`;
+  }
+  return html;
+}
+
+function intakeCard() {
+  return `<div class="card intake" id="intake">
+    <div class="h"><h2>Добавить операции</h2><span class="sp"></span><span class="tag">три способа</span></div>
+    <div class="ways">
+      <label class="way" data-way="csv">
+        <input type="file" accept=".csv,text/csv" id="csvFile" hidden>
+        <span class="icbox">${icon('sheet', true)}</span>
+        <span class="tx"><b>Загрузить выписку</b><i>CSV из интернет-банка — разберу все операции сразу</i></span>
+        <span class="go">&rsaquo;</span>
+      </label>
+      <label class="way" data-way="shot">
+        <input type="file" accept="image/*" multiple id="shotFile" hidden>
+        <span class="icbox">${icon('cam', true)}</span>
+        <span class="tx"><b>Прислать скриншот или чек</b><i>Сфотографируйте чек или пришлите скрин из банка</i></span>
+        <span class="go">&rsaquo;</span>
+      </label>
+      <div class="way cash">
+        <span class="icbox">${icon('coins', true)}</span>
+        <span class="tx"><b>Записать наличные</b>
+          <span class="cashrow">
+            <input type="text" id="cashText" inputmode="text" autocomplete="off"
+                   placeholder="кофе 300" aria-label="Что и на сколько потратили">
+            <button type="button" id="cashBtn">Записать</button>
+          </span>
+          <span class="cashhint"><span class="icbox">${icon('mic', true)}</span>
+            То же самое можно надиктовать голосом в чат бота</span>
+        </span>
+      </div>
+    </div>
+    <div id="istatus"></div>
+  </div>`;
+}
+
+/* ==========================================================================
+   10. ВКЛАДКА «МЕСЯЦ»
+   ========================================================================== */
+function viewMonth() {
+  const d = SUM, a = d.awareness || {}, st = d.streak || {days: 0, best: 0};
+  const lvl = GAME && GAME.level ? GAME.level : null;
+  const f = d.forecast;
+  const goal = nextMilestone(st.days || 0);
+  const deltaUp = kop(d.spend_delta) > 0;
+
+  let html = banners();
+
+  /* реплика Гроша + тропа месяца */
+  html += `<div class="saybox"><div class="bubble" id="bubble">${bubbleText()}</div></div>`;
+  html += `<div class="route" id="route"><svg class="line" id="routeLine" aria-hidden="true"></svg>
+    <div id="nodes"></div>
+    <div class="flagline"><span class="icbox">${icon('flag', true)}</span>
+      <span>${esc(d.period?.label || 'Тропа месяца')}${f && f.show ? ' · день ' + f.days_passed + ' из ' + f.days_total : ''}</span></div>
+  </div>`;
+
+  /* кольцо осознанности + уровень */
+  html += `<div class="hero">
+    <div class="tex"></div>
+    <div class="hero-top"><span class="lbl">Осознанность</span>
+      ${lvl ? `<span class="lv">ур. ${lvl.number} · ${esc(lvl.title)}</span>` : ''}</div>
+    <div class="hero-body">
+      <div class="ringbox">${ring()}
+        <div class="in"><div class="v"><span id="ringVal">0</span><i>%</i></div>
+        <div class="c">денег объяснено</div></div>
+      </div>
+      <div class="lvlbox">
+        ${lvl ? `<div class="num"><b>${lvl.number}</b><span>уровень</span></div>
+          <div class="ttl">${esc(lvl.title)}</div>
+          <div class="xptrack"><i data-w="${pct01(lvl.progress)}%"></i></div>
+          <div class="xpk">${num(lvl.xp)} / ${num(lvl.xp_total_next)} XP</div>`
+        : `<div class="num"><b>${d.open_questions || 0}</b><span>${plural(d.open_questions || 0, 'вопрос', 'вопроса', 'вопросов')}</span></div>
+           <div class="ttl">${(d.open_questions || 0) > 0 ? 'Ждут одного тапа' : 'Очередь пуста'}</div>
+           <div class="xpk" style="margin-top:10px">Серия ${st.days || 0} ${plural(st.days || 0, 'день', 'дня', 'дней')} · рекорд ${st.best || 0}</div>`}
+      </div>
+    </div>
+    <div class="hero-foot">
+      <div><div class="k">Потрачено</div><div class="v">${m(d.spend)}</div></div>
+      <div><div class="k">Не разобрано</div><div class="v ${kop(a.unclear) ? 'bad' : 'up'}">${m(a.unclear)}</div></div>
+      <div><div class="k">К прошлому</div><div class="v ${deltaUp ? 'bad' : 'up'}">${m(d.spend_delta)}</div></div>
+    </div>
+  </div>`;
+
+  /* серия */
+  html += `<div class="streak-card" id="streakCard">
+    <div class="streak-top">
+      <div class="flamebox icbox" id="flameBox">${icon('flame', true)}</div>
+      <div><div class="n">${st.days || 0}</div><div class="t">${plural(st.days || 0, 'день', 'дня', 'дней')} подряд</div></div>
+      <div class="rec">рекорд<br>${st.best || 0} ${plural(st.best || 0, 'день', 'дня', 'дней')}</div>
+    </div>
+    <div class="week">${weekStrip(st.days || 0)}</div>
+    <div class="reward"><span class="icbox">${icon('chest', true)}</span>
+      <span class="rn">Сундук на ${goal}-й день</span>
+      <span class="track"><i data-w="${Math.min(100, Math.round((st.days || 0) / goal * 100))}%"></i></span>
+      <span>${st.days || 0}/${goal}</span></div>
+  </div>`;
+
+  html += intakeCard();
+
+  /* забег до конца месяца — только когда прогноз осмыслен */
+  if (f && f.show) {
+    const racePct = Math.max(2, Math.min(100, Math.round(f.days_passed / Math.max(1, f.days_total) * 100)));
+    html += `<div class="race">
+      <div class="h"><h2>Забег до конца месяца</h2><span class="sp"></span>
+        <span class="tag">день ${f.days_passed} из ${f.days_total}</span></div>
+      <div class="cap">Если темп не изменится, к концу периода будет</div>
+      <div class="big">${m(f.projected)}</div>
+      <div class="lane">
+        <div class="fill" id="raceFill"></div>
+        <div class="pin" id="racePin">${COIN_SVG}</div>
+        <span class="flag">${icon('flag', true)}</span>
+      </div>
+      <div class="race-foot">
+        <div><div class="k">Осталось потратить</div><div class="v">${m(f.remaining)}</div></div>
+        <div><div class="k">Это по</div><div class="v">${m(f.daily_rate)}<span style="font-size:11px;color:var(--hint)"> / день</span></div></div>
+      </div>
+      <input type="hidden" id="racePct" value="${racePct}">
+    </div>`;
+  }
+
+  html += `<div class="foot">Переводы себе, долги и доли за компанию в расходы не попадают</div>`;
+  return html;
+}
+
+const COIN_SVG = `<svg class="coin" viewBox="0 0 100 100" aria-hidden="true">
+  <circle cx="44" cy="49" r="43" fill="#E3A526" stroke="#1B2430" stroke-width="6"/>
+  <circle cx="52" cy="50" r="43" fill="#F5B93A" stroke="#1B2430" stroke-width="6"/>
+  <circle cx="52" cy="50" r="34" fill="none" stroke="#E0A32A" stroke-width="4"/>
+  <ellipse cx="41" cy="45" rx="8.5" ry="11" fill="#FFFDF5" stroke="#1B2430" stroke-width="4"/>
+  <ellipse cx="63" cy="45" rx="8.5" ry="11" fill="#FFFDF5" stroke="#1B2430" stroke-width="4"/>
+  <ellipse cx="42" cy="47" rx="5" ry="6.6" fill="#1B2430"/><ellipse cx="64" cy="47" rx="5" ry="6.6" fill="#1B2430"/>
+  <circle cx="40" cy="43.5" r="2" fill="#FFFDF5"/><circle cx="62" cy="43.5" r="2" fill="#FFFDF5"/>
+  <path d="M45 66 q7 7 14 0" fill="none" stroke="#1B2430" stroke-width="4.4" stroke-linecap="round"/>
+</svg>`;
+
+/* Серия в днях — это и есть факт: последние N дней подряд были действия.
+   Рисуем последние семь дней, отмечая те, что попали в серию. */
+function weekStrip(days) {
+  const today = new Date();
+  let out = '';
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const inStreak = i < days;
+    out += `<div class="d ${inStreak ? 'on' : ''} ${i === 0 ? 'today' : ''}">
+      <div class="n">${WEEKDAYS[d.getDay()]}</div>
+      <div class="b">${inStreak ? '<span class="icbox">' + icon('check', true) + '</span>' : ''}</div></div>`;
+  }
+  return out;
+}
+
+/* ---------- тропа ---------- */
+function renderPath() {
+  const box = $('nodes');
+  if (!box) return;
+  const nodes = mapStations();
+  /* Грош стоит там, где от человека действительно ждут действия: сперва
+     открытый вопрос, потом текущая станция, потом первая непройденная. */
+  let nowIdx = nodes.findIndex((n) => n.kind === 'question' && n.state !== 'done');
+  if (nowIdx < 0) nowIdx = nodes.findIndex((n) => n.state === 'current');
+  if (nowIdx < 0) nowIdx = nodes.findIndex((n) => n.state !== 'done');
+  if (nowIdx < 0) nowIdx = nodes.length - 1;
+
+  /* Длинную тропу не режем, но пройденное по умолчанию сворачиваем: иначе
+     до кольца осознанности пришлось бы прокрутить два экрана истории. */
+  let from = 0;
+  const hiddenPast = (!showPast && nodes.length > 10 && nowIdx > 2) ? nowIdx - 1 : 0;
+  from = hiddenPast;
+  let nextIdx = nodes.findIndex((n, i) => i !== nowIdx && n.state === 'current');
+  if (nextIdx < 0) nextIdx = nodes.findIndex((n, i) => i > nowIdx && n.state !== 'done');
+
+  box.innerHTML = (hiddenPast
+    ? `<button class="pastbtn" type="button" id="pastBtn"><span class="icbox">${icon('check', true)}</span>
+       <span>Показать пройденное · ${hiddenPast}</span></button>`
+    : '') + nodes.slice(from).map((n, k) => {
+    const i = k + from;
+    /* Смещение считается формулой, а не литералом: станций может быть
+       сколько угодно, змейка обязана держаться. */
+    const off = Math.round(7 + 7 * Math.sin(i * 0.9));
+    const cls = [n.state === 'current' ? 'live' : n.state === 'done' ? 'done' : 'locked'];
+    if (i === nowIdx) cls.push('now');
+    if (i === nextIdx) cls.push('next');
+    if (n.action) cls.push('go');
+    /* Пройдено — галочка, закрытый сундук — замок, всё остальное показывает
+       свой значок и гасится классом .locked: сплошные замки читаются хуже. */
+    const ic = n.state === 'done' ? icon('check', true)
+      : (n.state === 'locked' && n.kind === 'chest') ? icon('lock', true)
+        : icon(STATION_ICON[n.kind] || 'cal', true);
+    return `<div class="node ${cls.join(' ')}" data-i="${i}" style="margin-left:${off}px">
+      ${i === nowIdx ? '<button class="mapman" id="masTap" type="button" aria-label="Потрогать Гроша">' + MASCOT('map') + '</button>' : ''}
+      <div class="dot" style="animation-delay:${i * 70}ms"><span class="icbox">${ic}</span></div>
+      <div class="lbl" style="animation-delay:${i * 70 + 60}ms">
+        <div class="lt"><div class="t">${txt(n.title)}</div><div class="s">${txt(n.detail || '')}</div></div>
+        ${n.amount ? `<div class="a">${m(n.amount)}</div>` : ''}</div>
+    </div>`;
+  }).join('');
+
+  const mt = $('masTap');
+  if (mt) mt.onclick = tapMascot;
+  const past = $('pastBtn');
+  if (past) past.onclick = () => { showPast = true; haptic('light'); renderPath(); };
+  box.querySelectorAll('.node.go').forEach((node) => {
+    const n = nodes[Number(node.dataset.i)];
+    node.querySelectorAll('.lbl').forEach((lbl) => {
+      lbl.onclick = () => {
+        haptic('light');
+        if (n.action.type === 'tab') go(n.action.tab);
+        else if (n.action.type === 'question') go('questions', n.action.id);
+      };
+    });
+  });
+  reapplyMascot();
+  requestAnimationFrame(drawLine);
+}
+
+/* Кривая рисуется по фактическим центрам кружков: она не зависит ни от числа
+   станций, ни от длины подписей, ни от переносов текста. */
+function drawLine() {
+  const route = $('route'), svg = $('routeLine');
+  if (!route || !svg) return;
+  const rb = route.getBoundingClientRect();
+  const pts = [...route.querySelectorAll('.node .dot')].map((n) => {
+    const b = n.getBoundingClientRect();
+    return [b.left - rb.left + b.width / 2, b.top - rb.top + b.height / 2];
+  });
+  if (pts.length < 2) { svg.innerHTML = ''; return; }
+  svg.setAttribute('viewBox', '0 0 ' + Math.round(rb.width) + ' ' + Math.round(rb.height));
+  svg.setAttribute('width', Math.round(rb.width));
+  svg.setAttribute('height', Math.round(rb.height));
+  let dstr = 'M' + pts[0][0] + ' ' + pts[0][1];
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i], my = (y0 + y1) / 2;
+    dstr += ' C ' + x0 + ' ' + my + ', ' + x1 + ' ' + my + ', ' + x1 + ' ' + y1;
+  }
+  svg.innerHTML = '<path d="' + dstr + '"/>';
+}
+window.addEventListener('resize', () => requestAnimationFrame(drawLine));
+/* Высота тропы меняется от шрифтов, переносов и новых станций — без
+   наблюдателя пунктир разъезжается. */
+let routeRO = null;
+try {
+  routeRO = new ResizeObserver(() => requestAnimationFrame(drawLine));
+} catch (e) {}
+
+/* ==========================================================================
+   11. ВКЛАДКА «ОТЧЁТЫ»
+   ========================================================================== */
+function viewReports() {
+  const d = SUM;
+  const cats = d.categories || [];
+  const weeks = d.weeks || [];
+  const wsum = weeks.reduce((s, w) => s + kop(w.amount), 0);
+  const peak = Math.max(1, ...weeks.map((w) => kop(w.amount)));
+  const maxCat = Math.max(1, ...cats.map((c) => kop(c.amount)));
+  const deltaUp = kop(d.spend_delta) > 0;
+  const optShare = kop(d.spend) ? Math.round(kop(d.optional) / kop(d.spend) * 100) : 0;
+
+  let html = banners();
+
+  html += `<div class="card">
+    <div class="h"><h2>Потрачено · ${esc(d.period?.label || '')}</h2><span class="sp"></span>
+      <span class="tag">${d.operations_count || 0} ${plural(d.operations_count || 0, 'операция', 'операции', 'операций')}</span></div>
+    <div class="sum-row">
+      <div class="big-sum">${m(d.spend)}</div>
+      <div class="badge ${deltaUp ? '' : 'g'}">${m(d.spend_delta)}${d.spend_delta_pct !== null && d.spend_delta_pct !== undefined
+        ? ' · ' + Math.abs(d.spend_delta_pct).toFixed(0) + '%' : ''}</div>
+      <div class="sub">получено ${m(d.income)}</div>
+    </div>
+    <div class="need">
+      <div class="a"><div class="k">Так было надо</div><div class="v">${m(d.essential)}</div></div>
+      <div class="b"><div class="k">Можно было не (${optShare}%)</div><div class="v">${m(d.optional)}</div></div>
+    </div>
+    <div class="note" style="margin-top:11px">В среднем ${m(d.avg_per_day)} в день. В прошлом периоде было ${m(d.prev_spend)}.</div>
+  </div>`;
+
+  html += `<div class="card">
+    <div class="h"><h2>По неделям</h2><span class="sp"></span>
+      <span class="tag">${weeks.length} ${plural(weeks.length, 'срез', 'среза', 'срезов')}</span></div>
+    <div class="weeks">${weeks.map((w) => {
+      const v = kop(w.amount);
+      const h = v > 0 ? Math.max(8, Math.round(v / peak * 86)) : 4;
+      return `<div class="wk">
+        <div class="wv">${v > 0 ? num(Math.round(v / 100000)) + 'к' : '—'}</div>
+        <div class="bar ${v === peak && v > 0 ? 'max' : ''} ${v === 0 ? 'zero' : ''}" data-h="${h}px"></div>
+        <div class="lb">${esc(String(w.label).replace(/ [а-яё]+$/i, ''))}</div></div>`;
+    }).join('')}</div>
+    <div class="wcheck ${wsum === kop(d.spend) ? 'ok' : 'bad'}">
+      <span class="icbox">${icon(wsum === kop(d.spend) ? 'check' : 'warn', true)}</span>
+      <span>${wsum === kop(d.spend)
+        ? 'Сумма недель в точности равна месяцу'
+        : 'Расхождение: ' + money((wsum - kop(d.spend)) / 100)}</span></div>
+  </div>`;
+
+  html += `<div class="card">
+    <div class="h"><h2>Куда ушли деньги</h2><span class="sp"></span>
+      <span class="tag">${cats.length} ${plural(cats.length, 'категория', 'категории', 'категорий')}</span></div>
+    <div>${cats.map((c) => {
+      const up = c.delta_pct !== null && c.delta_pct !== undefined && c.delta_pct > 0;
+      const down = c.delta_pct !== null && c.delta_pct !== undefined && c.delta_pct < 0;
+      const showDelta = c.delta_pct !== null && c.delta_pct !== undefined && Math.abs(c.delta_pct) >= 5;
+      return `<div class="catrow">
+        <div class="icbox">${catIcon(c.code)}</div>
+        <div style="flex:1;min-width:0">
+          <div class="n">${esc(c.title)} <span>${Math.round((c.share || 0) * 100)}%${c.essential ? ' · обяз.' : ''}</span></div>
+          <div class="tr"><i data-w="${Math.max(5, Math.round(kop(c.amount) / maxCat * 100))}%"
+            style="background:${c.essential ? 'var(--green)' : 'var(--coral)'}"></i></div>
+        </div>
+        <div class="r"><div class="v">${m(c.amount)}</div>
+          <div class="d ${up ? 'up' : down ? 'down' : ''}">${showDelta
+            ? '<span class="icbox">' + icon(up ? 'up' : 'down', true) + '</span>' + Math.abs(c.delta_pct).toFixed(0) + '%'
+            : 'как в прошлом'}</div></div>
+      </div>`;
+    }).join('')}</div>
+    <div class="note" style="margin-top:9px">Зелёным — обязательные траты, коралловым — те, от которых можно отказаться.</div>
+  </div>`;
+
+  /* Кошелёк маркетплейса: показываем, что деньги не «ушли в Озон»,
+     а разложились по настоящим полкам. */
+  const wallets = d.wallets || [];
+  if (wallets.length) {
+    html += `<div class="card">
+      <div class="h"><h2>Кошельки маркетплейсов</h2><span class="sp"></span><span class="tag g">разложено</span></div>
+      ${wallets.map((w) => `<div class="wal">
+        <div class="wh"><span class="icbox">${icon('wallet', true)}</span>
+          <span><span class="nm">${esc(w.name)}</span></span>
+          <span class="tp">завели ${m(w.topped_up)}</span></div>
+        <div class="flow">${(w.by_category || []).map((pair) => `<div class="fr">
+          <span class="nm">${esc(pair[0])}</span><span class="vv">${m(pair[1])}</span></div>`).join('')}</div>
+        <div class="rest"><span class="icbox">${icon('coins', true)}</span>
+          <span>остаток на кошельке</span><span class="vv">${m(w.balance)}</span></div>
+      </div>`).join('')}
+      <div class="note" style="margin-top:10px">Пополнение кошелька — не трата: тратой оно становится, когда с кошелька что-то купили.</div>
+    </div>`;
+  }
+
+  /* Долги и остатки */
+  const owed = kop(d.debts_owed_to_me), iOwe = kop(d.debts_i_owe);
+  const balances = d.balances || {};
+  const bKeys = Object.keys(balances);
+  if (owed || iOwe || bKeys.length) {
+    html += `<div class="card">
+      <div class="h"><h2>Долги и остатки</h2><span class="sp"></span>
+        <span class="icbox" style="width:22px;height:22px">${icon('scales', true)}</span></div>
+      <div class="facts">
+        <div><div class="fv" style="color:var(--green-d)">${m(d.debts_owed_to_me)}</div><div class="fk">вам должны</div></div>
+        <div><div class="fv" style="color:var(--coral-d)">${m(d.debts_i_owe)}</div><div class="fk">должны вы</div></div>
+      </div>
+      <div class="bal">
+        ${d.net ? `<div class="br lead"><span>Доход минус расход</span><span class="vv">${m(d.net)}</span></div>` : ''}
+        ${bKeys.map((k) => `<div class="br"><span>${esc(k)}</span><span class="vv">${m(balances[k])}</span></div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  const tips = d.insights || [];
+  if (tips.length) {
+    const saved = tips.reduce((s, t) => s + kop(t.saving), 0);
+    html += `<div class="card">
+      <div class="h"><h2>Советы Гроша</h2><span class="sp"></span>
+        ${saved ? `<span class="tag g">до −${money(saved / 100)}</span>` : ''}</div>
+      ${tips.map((t, i) => `<div class="tipcard ${i === 0 ? 'lead' : ''}">
+        <div class="icbox">${icon(i === 0 ? 'bulb' : t.saving ? 'coins' : 'gem', true)}</div>
+        <div><div class="t">${txt(t.title)}</div><div class="d">${txt(t.detail)}</div>
+        ${t.saving ? `<span class="g">экономия ${m(t.saving)}</span>` : ''}</div></div>`).join('')}
+    </div>`;
+  }
+
+  html += `<div class="foot">Все цифры посчитаны по вашим операциям. Переводы себе, долги<br>и доли за компанию в расходы не попадают.</div>`;
+  return html;
+}
+
+/* ==========================================================================
+   12. ВКЛАДКА «ВОПРОСЫ»
+   ========================================================================== */
+const KIND_BADGE = {
+  incoming_unknown: 'Поступление',
+  cash_spent_on: 'Наличные',
+  shared_bill_heads: 'Общий счёт',
+  uncategorized: 'Без категории',
+  transfer_purpose: 'Перевод',
+};
+const KIND_ICON = {
+  incoming_unknown: 'inbox', cash_spent_on: 'cash', shared_bill_heads: 'cafe',
+  uncategorized: 'other', transfer_purpose: 'coins',
+};
+const KIND_SVG = {incoming_unknown: true, cash_spent_on: true, shared_bill_heads: false,
+  uncategorized: false, transfer_purpose: true};
+
+function viewQuestions() {
+  const d = SUM;
+  const list = d.questions || [];
+  let html = banners();
+
+  html += `<div class="hero">
+    <div class="tex"></div>
+    <div class="hero-top"><span class="lbl">Спорные операции</span>
+      <span class="lv" data-live="openpill">${liveOpen()}</span></div>
+    <div class="hero-body">
+      <div class="ringbox">${ring()}
+        <div class="in"><div class="v"><span id="ringVal">0</span><i>%</i></div>
+        <div class="c">денег объяснено</div></div>
+      </div>
+      <div class="mascotbox">
+        <div class="bubble" id="bubble">${bubbleText()}</div>
+        <button class="mas-tap" id="masTap" type="button" aria-label="Потрогать Гроша">${MASCOT('ask')}</button>
+      </div>
+    </div>
+    <div class="hero-foot">
+      <div><div class="k">Не разобрано</div>
+        <div class="v ${kop(d.awareness?.unclear) ? 'bad' : 'up'}" data-live="unclear">${m(d.awareness?.unclear)}</div></div>
+      <div><div class="k">Серия</div><div class="v" data-live="streakdays">${liveStreak()}</div></div>
+    </div>
+  </div>`;
+
+  html += `<div id="queue"></div>`;
+  html += `<div class="foot">Каждый ответ — один тап. Ответы меняют цифры на всех экранах.</div>`;
+  return html;
+}
+
+const liveOpen = () => {
+  const n = SUM ? (SUM.open_questions || 0) : 0;
+  return n ? n + ' ' + plural(n, 'вопрос', 'вопроса', 'вопросов') : 'очередь пуста';
+};
+const liveStreak = () => {
+  const n = SUM && SUM.streak ? (SUM.streak.days || 0) : 0;
+  return n + ' ' + plural(n, 'день', 'дня', 'дней');
+};
+/* После ответа меняются всего несколько чисел. Перерисовывать ради них
+   весь экран нельзя: заново поехал бы каскад карточек и счётчик кольца. */
+function syncLive() {
+  document.querySelectorAll('[data-live]').forEach((n) => {
+    if (n.dataset.live === 'openpill') n.textContent = liveOpen();
+    else if (n.dataset.live === 'streakdays') n.textContent = liveStreak();
+    else if (n.dataset.live === 'unclear') {
+      n.textContent = m(SUM.awareness?.unclear);
+      n.classList.toggle('bad', kop(SUM.awareness?.unclear) > 0);
+      n.classList.toggle('up', kop(SUM.awareness?.unclear) === 0);
+    }
+  });
+}
+
+function renderQueue(focusId) {
+  const box = $('queue');
+  if (!box) return;
+  const list = (SUM.questions || []);
+  box.innerHTML = '';
+  if (!list.length) {
+    box.appendChild(el(`<div class="alldone"><div class="icbox">${icon('check', true)}</div>
+      Спорных операций нет.<br>Все цифры за период разобраны.</div>`));
+    return;
+  }
+  list.forEach((q, idx) => {
+    const kind = q.kind || '';
+    const isIn = kind === 'incoming_unknown';
+    const narrow = (q.options || []).every((o) => String(o.label).length <= 8);
+    const opts = narrow
+      ? '<div class="numrow">' + (q.options || []).map((o) =>
+          `<button class="ans" type="button" data-id="${q.id}" data-code="${esc(o.code)}">${esc(o.label)}</button>`).join('') + '</div>'
+      : (q.options || []).map((o) =>
+          `<button class="ans" type="button" data-id="${q.id}" data-code="${esc(o.code)}"><span>${esc(o.label)}</span><span class="plus">&rsaquo;</span></button>`).join('');
+    const wrap = el(`
+      <div class="qwrap" data-id="${q.id}"><div class="qin"><div class="quiz pop" style="animation-delay:${idx * 70}ms">
+        <div class="qh"><span class="badge">${esc(KIND_BADGE[kind] || 'Вопрос')}</span>
+          <span class="cnt">${list.length} в очереди · 1 тап</span></div>
+        <div class="who"><div class="av">${icon(KIND_ICON[kind] || 'inbox', KIND_SVG[kind] !== false)}</div>
+          <div style="min-width:0"><div class="nm">${esc(KIND_BADGE[kind] || 'Операция')}</div>
+            <div class="dt">${esc(shortDate(q.occurred_at))}</div></div>
+          ${q.amount ? `<div class="am ${isIn ? 'in' : ''}">${isIn ? '+' : '−'}${m(q.amount)}</div>` : ''}</div>
+        <div class="q">${txt(q.question)}</div>
+        ${q.explanation ? `<div class="qn">${txt(q.explanation)}</div>` : ''}
+        ${opts}
+        <button class="qskip" type="button" data-skip="${q.id}">Отложить вопрос</button>
+        <div class="qhere"></div>
+      </div></div></div>`);
+    wrap.querySelectorAll('.ans').forEach((b) => { b.onclick = () => answer(q, wrap, b); });
+    const sk = wrap.querySelector('[data-skip]');
+    if (sk) sk.onclick = () => skipQuestion(q, wrap);
+    box.appendChild(wrap);
+  });
+  if (focusId) {
+    const target = box.querySelector(`.qwrap[data-id="${focusId}"]`);
+    if (target) setTimeout(() => target.scrollIntoView({behavior: 'smooth', block: 'center'}), 120);
+  }
+}
+
+function qerror(wrap, text) {
+  const slot = wrap.querySelector('.qhere');
+  if (!slot) return;
+  slot.innerHTML = `<div class="qerr">${esc(text)}</div>`;
+}
+
+async function answer(q, wrap, btn) {
+  if (busyAnswer) return;
+  busyAnswer = true;
+  haptic('medium');
+  btn.classList.add('picked');
+  wrap.querySelectorAll('.ans').forEach((b) => { b.disabled = true; });
+  setMascot('party');
+  flashStreak();
+
+  if (SUM.offline) {
+    /* Демонстрационный набор: ответ некуда отправлять, но и врать про
+       «сохранено» нельзя. */
+    qerror(wrap, 'Демонстрационный режим: ответ не сохранится, пока нет связи с сервером.');
+    wrap.querySelectorAll('.ans').forEach((b) => { b.disabled = false; });
+    btn.classList.remove('picked');
+    busyAnswer = false;
+    setTimeout(() => setMascot(autoMascot()), 1200);
+    return;
+  }
+
+  try {
+    const out = await api(`/me/questions/${q.id}/answer`, {
+      method: 'POST', body: JSON.stringify({code: btn.dataset.code}),
+    });
+    setAwareness(out.awareness_percent);
+    setTimeout(() => {
+      wrap.classList.add('gone');
+      setTimeout(async () => {
+        SUM.questions = (SUM.questions || []).filter((x) => x.id !== q.id);
+        SUM.open_questions = out.open_questions;
+        if (SUM.streak) SUM.streak.days = out.streak_days;
+        renderQueue();
+        navBadge();
+        syncLive();
+        busyAnswer = false;
+        const left = out.open_questions;
+        say(null, left
+          ? 'Записал! Остался ещё <b>' + left + ' ' + plural(left, 'вопрос', 'вопроса', 'вопросов') + '</b>.'
+          : 'Красота — всё объяснили. Понятно <b>' + out.awareness_percent + '%</b>.');
+        /* Тихо подтягиваем свежие цифры: XP, категории и тропа обязаны
+           сойтись с тем, что теперь в базе. */
+        await refresh(true, true);
+        setTimeout(() => setMascot(autoMascot()), 1200);
+      }, 460);
+    }, 300);
+  } catch (e) {
+    busyAnswer = false;
+    wrap.querySelectorAll('.ans').forEach((b) => { b.disabled = false; });
+    btn.classList.remove('picked');
+    mascotFor('sad', 2200);
+    haptic('heavy');
+    qerror(wrap, 'Не удалось сохранить ответ. ' + humanError(e));
+  }
+}
+
+async function skipQuestion(q, wrap) {
+  if (busyAnswer) return;
+  haptic('light');
+  if (SUM.offline) { qerror(wrap, 'Демонстрационный режим: откладывать нечего.'); return; }
+  busyAnswer = true;
+  try {
+    const out = await api(`/me/questions/${q.id}/skip`, {method: 'POST'});
+    wrap.classList.add('gone');
+    setTimeout(async () => {
+      SUM.questions = (SUM.questions || []).filter((x) => x.id !== q.id);
+      SUM.open_questions = out.open_questions;
+      renderQueue();
+      navBadge();
+      syncLive();
+      busyAnswer = false;
+      say(null, 'Отложил. Вернусь к нему позже.');
+      await refresh(true, true);
+    }, 460);
+  } catch (e) {
+    busyAnswer = false;
+    qerror(wrap, 'Не удалось отложить. ' + humanError(e));
+  }
+}
+
+function flashStreak() {
+  [$('streakCard'), $('flameBox')].forEach((n) => {
+    if (!n) return; n.classList.remove('flash'); void n.offsetWidth; n.classList.add('flash');
+  });
+}
+
+/* ==========================================================================
+   13. ВКЛАДКА «НАГРАДЫ»
+   ========================================================================== */
+function viewAwards() {
+  const g = GAME || {};
+  const lvl = g.level;
+  const quests = (g.quests || []).filter((q) => q.kind !== 'sponsor');
+  const sponsors = (g.quests || []).filter((q) => q.kind === 'sponsor');
+  const achs = g.achievements || [];
+  const got = achs.filter((a) => a.earned).length;
+
+  let html = banners();
+
+  if (lvl) {
+    html += `<div class="lvlcard">
+      <div class="top">
+        <button class="mas-tap" id="masTap" type="button" aria-label="Потрогать Гроша">${MASCOT('cup')}</button>
+        <div style="min-width:0">
+          <div class="num">${lvl.number}<span> уровень</span></div>
+          <div class="ttl">${esc(lvl.title)}</div>
+        </div>
+      </div>
+      <div class="xptrack"><i data-w="${pct01(lvl.progress)}%"></i></div>
+      <div class="xpk"><span>${num(lvl.xp)} XP</span><span class="sp"></span>
+        <span>до ${lvl.number + 1} уровня ${num(Math.max(0, lvl.xp_total_next - lvl.xp))} XP</span></div>
+    </div>`;
+  } else {
+    html += `<div class="card"><div class="h"><h2>Уровень</h2></div>
+      <div class="note">XP считаются по вашим действиям на сервере. Как только счётчик подключится, уровень появится здесь — выдуманных чисел мы не показываем.</div></div>`;
+  }
+
+  if (quests.length) {
+    const totalXp = quests.reduce((s, q) => s + (q.done ? 0 : (q.xp || 0)), 0);
+    html += `<div class="card">
+      <div class="h"><h2>Задания</h2><span class="sp"></span>
+        ${totalXp ? `<span class="tag">+${num(totalXp)} XP за все</span>` : '<span class="tag g">всё сделано</span>'}</div>
+      ${quests.map((q) => `<div class="quest ${q.done ? 'done' : ''}">
+        <div class="icbox">${icon(q.done ? 'check' : 'target', true)}</div>
+        <div style="flex:1;min-width:0">
+          <div class="t">${esc(q.title)}</div>
+          ${q.detail ? `<div class="s">${txt(q.detail)}</div>` : ''}
+          <div class="track"><i data-w="${q.done ? 100 : pct01(q.progress)}%"></i></div>
+        </div>
+        <div><div class="a">${q.done ? 'готово' : pct01(q.progress) + '%'}</div>
+          <span class="xp">+${num(q.xp || 0)} XP</span></div>
+      </div>`).join('')}
+    </div>`;
+  }
+
+  html += `<div class="card">
+    <div class="h"><h2>Партнёрские задания</h2><span class="sp"></span><span class="tag c">от спонсоров</span></div>
+    ${sponsors.length ? sponsors.map((q) => `<div class="sponsor ${q.done ? 'done' : ''}">
+      <div class="sh"><span class="icbox">${icon(q.done ? 'check' : 'gift', true)}</span>
+        <div style="flex:1;min-width:0">
+          <div class="nm">${esc(q.sponsor || 'партнёр')}</div>
+          <div class="t">${txt(q.title)}</div></div></div>
+      ${q.detail ? `<div class="s">${txt(q.detail)}</div>` : ''}
+      <div class="track"><i data-w="${q.done ? 100 : pct01(q.progress)}%"></i></div>
+      ${q.reward ? `<div class="rw"><span class="icbox">${icon('gift', true)}</span>
+        <span>${esc(q.reward)}${q.xp ? ' · +' + num(q.xp) + ' XP' : ''}</span></div>` : ''}
+      ${q.deadline ? `<div class="dl">до ${esc(fmtDeadline(q.deadline))}</div>` : ''}
+    </div>`).join('') : `<div class="note">Партнёрских заданий сейчас нет. Когда появятся, прогресс по ним будет считаться по вашим настоящим тратам — не по нажатию кнопки.</div>`}
+    <div class="note" style="margin-top:11px">Прогресс считается по операциям в выписке. Ничего отмечать вручную не нужно.</div>
+  </div>`;
+
+  html += `<div class="card">
+    <div class="h"><h2>Достижения</h2><span class="sp"></span>
+      <span class="tag ${got ? 'g' : ''}">${got} из ${achs.length}</span></div>
+    <div class="achgrid" id="achGrid">${achs.map((a, i) => `
+      <button class="ach ${a.earned ? 'on' : 'off'}" type="button" data-i="${i}" style="animation-delay:${i * 45}ms">
+        <span class="icbox">${icon(a.earned ? 'star' : 'lock', true)}</span>
+        <span class="t">${esc(a.title)}</span>
+        ${!a.earned && a.progress > 0 ? `<span class="mini"><i data-w="${pct01(a.progress)}%"></i></span>` : ''}
+      </button>`).join('')}</div>
+    <div id="achNote"></div>
+  </div>`;
+
+  html += `<div class="foot">Достижения не выдаются «за красивые глаза»: каждое выводится<br>из ваших операций и серии. Нечего показать — значит, ещё не заработано.</div>`;
+  return html;
+}
+
+function fmtDeadline(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return String(iso);
+  return d.getDate() + ' ' + MONTHS[d.getMonth()];
+}
+
+function bindAwards() {
+  const grid = $('achGrid');
+  if (!grid) return;
+  const achs = (GAME && GAME.achievements) || [];
+  grid.querySelectorAll('.ach').forEach((btn) => {
+    btn.onclick = () => {
+      const a = achs[Number(btn.dataset.i)];
+      if (!a) return;
+      haptic('light');
+      grid.querySelectorAll('.ach').forEach((n) => n.classList.remove('sel'));
+      btn.classList.add('sel');
+      const note = $('achNote');
+      note.innerHTML = `<div class="achnote ${a.earned ? 'on' : ''}">
+        <span class="icbox">${icon(a.earned ? 'star' : 'lock', true)}</span>
+        <span><div class="t">${esc(a.title)}</div>
+        <div class="d">${txt(a.earned ? a.detail : (a.hint || a.detail))}${
+          a.earned && a.earned_at ? ' · получено ' + esc(fmtDeadline(a.earned_at)) : ''}</div></span></div>`;
+      if (a.earned) mascotFor('hype', 1600);
+    };
+  });
+  celebrateNew(achs);
+}
+
+/* Празднуем только по-настоящему новое достижение: список полученных
+   запоминаем между запусками. Хранилище может быть недоступно — тогда
+   просто не празднуем, экран от этого не ломается. */
+function celebrateNew(achs) {
+  let seen = [];
+  try { seen = JSON.parse(localStorage.getItem('hm.achievements') || '[]'); } catch (e) { return; }
+  const earned = achs.filter((a) => a.earned).map((a) => a.code);
+  const fresh = earned.filter((c) => seen.indexOf(c) < 0);
+  try { localStorage.setItem('hm.achievements', JSON.stringify(earned)); } catch (e) {}
+  if (!fresh.length || !seen.length) return;
+  const one = achs.find((a) => a.code === fresh[0]);
+  haptic('medium');
+  mascotFor('party', 3200);
+  say(null, 'Новое достижение: <b>' + esc(one.title) + '</b>!');
+}
+
+/* ==========================================================================
+   14. ДОБАВЛЕНИЕ ОПЕРАЦИЙ
+   ========================================================================== */
+/* Итог загрузки обязан пережить перерисовку экрана: сразу после успеха мы
+   перечитываем цифры, и без этого человек не успевал бы прочитать, что
+   именно разобралось. */
+let lastStatus = null;
+function istatus(kind, html) {
+  lastStatus = kind ? {kind, html} : null;
+  const box = $('istatus');
+  if (!box) return;
+  if (!kind) { box.innerHTML = ''; return; }
+  const ic = kind === 'wait' ? '<span class="spin"></span>'
+    : kind === 'ok' ? '<span class="icbox">' + icon('check', true) + '</span>'
+      : '<span class="icbox">' + icon('warn', true) + '</span>';
+  box.innerHTML = '<div class="istatus ' + kind + '">' + ic + '<span>' + html + '</span></div>'
+    + (kind === 'wait' ? '<div class="iprog"><i id="iprog"></i></div>' : '');
+  const r = box.querySelector('.retry');
+  if (r) r.onclick = () => { istatus(null); $('csvFile')?.click(); };
+}
+function iprog(frac) {
+  const bar = $('iprog');
+  if (bar) bar.style.width = Math.round(Math.max(3, Math.min(100, frac * 100))) + '%';
+}
+
+/* Сообщение об отказе бэкенда пересказываем так, чтобы из него был понятен
+   следующий шаг. Технический текст оставляем второй строкой — он помогает,
+   когда что-то действительно необычное. */
+function humanIngest(raw) {
+  const s = String(raw || '');
+  let lead = 'Не получилось разобрать файл.';
+  if (/формат|колонк|заголов/i.test(s)) {
+    lead = 'Не узнал формат выписки. Нужен CSV ровно такой, каким его отдаёт интернет-банк, без правок в редакторе.';
+  } else if (/пуст/i.test(s)) {
+    lead = 'В файле не нашлось ни одной операции.';
+  } else if (/сумм|дат/i.test(s)) {
+    lead = 'В файле не разобрались суммы или даты. Проверьте, что это выгрузка операций, а не отчёт.';
+  }
+  const why = s && s.length <= 160 ? '<span class="why">' + esc(s) + '</span>' : '';
+  return esc(lead) + why;
+}
+
+/* Ответ бэкенда (IngestResultOut) пересказываем словами, а не полями. */
+function ingestText(res, what) {
+  if (!res || res.ok === false) return null;
+  const bits = [];
+  if (res.added) bits.push('<b>' + res.added + ' ' + plural(res.added, 'операция', 'операции', 'операций') + '</b>');
+  if (res.duplicates) bits.push(res.duplicates + ' ' + plural(res.duplicates, 'повтор', 'повтора', 'повторов') + ' пропустил');
+  if (res.questions) bits.push('вопросов в очереди: <b>' + res.questions + '</b>');
+  if (res.unresolved && kop(res.unresolved) > 0) bits.push('не разобрано ' + m(res.unresolved));
+  if (!bits.length) bits.push('новых операций не нашлось');
+  return (res.source ? esc(res.source) : what) + ': ' + bits.join(', ') + '.';
+}
+
+function bindIntake() {
+  const csv = $('csvFile'), shot = $('shotFile');
+  const cashBtn = $('cashBtn'), cashText = $('cashText');
+
+  if (csv) csv.onchange = async () => {
+    const f = csv.files && csv.files[0];
+    csv.value = '';
+    if (!f || busyUpload) return;
+    if (!/\.csv$/i.test(f.name)) {
+      haptic('heavy'); mascotFor('sad', 2400);
+      istatus('err', 'Это не похоже на выписку — нужен файл <b>.csv</b> из интернет-банка. ' +
+        '<button class="retry" type="button">Выбрать другой</button>');
+      return;
+    }
+    const form = new FormData();
+    form.append('file', f, f.name);
+    await runUpload('/me/statements', form, 'Читаю «' + esc(f.name) + '»…', 'Выписка');
+  };
+
+  if (shot) shot.onchange = async () => {
+    const files = shot.files ? [...shot.files] : [];
+    shot.value = '';
+    if (!files.length || busyUpload) return;
+    const form = new FormData();
+    files.slice(0, 10).forEach((f) => form.append('files', f, f.name));
+    await runUpload('/me/images', form,
+      files.length > 1 ? 'Распознаю ' + files.length + ' картинки…' : 'Распознаю картинку…', 'Картинка');
+  };
+
+  function submitCash() {
+    if (busyUpload) return;
+    const v = (cashText.value || '').trim();
+    if (!v) {
+      haptic('heavy');
+      istatus('err', 'Напишите, что и на сколько. Например: <b>кофе 300</b>.');
+      cashText.focus(); return;
+    }
+    if (!/\d/.test(v)) {
+      haptic('heavy'); mascotFor('think', 2000);
+      istatus('err', 'Не вижу суммы. Напишите так: <b>кофе 300</b>.');
+      return;
+    }
+    sendCash(v);
+  }
+  if (cashBtn) cashBtn.onclick = submitCash;
+  if (cashText) cashText.onkeydown = (e) => { if (e.key === 'Enter') submitCash(); };
+}
+
+async function sendCash(text) {
+  if (SUM.offline) {
+    istatus('err', 'Демонстрационный режим: записывать некуда, пока нет связи с сервером.');
+    return;
+  }
+  busyUpload = true;
+  setMascot('think');
+  istatus('wait', 'Записываю «' + esc(text) + '»…');
+  iprog(0.4);
+  try {
+    const res = await api('/me/expenses', {method: 'POST', body: JSON.stringify({text})});
+    iprog(1);
+    busyUpload = false;
+    if (res.ok === false) {
+      haptic('heavy'); mascotFor('think', 2200);
+      istatus('err', esc(res.error || 'Не понял запись. Напишите так: кофе 300.'));
+      return;
+    }
+    haptic('medium'); mascotFor('party', 2200);
+    istatus('ok', ingestText(res, 'Записал') || 'Записал.');
+    const field = $('cashText'); if (field) field.value = '';
+    await refresh(true);
+    say(null, 'Записал «' + esc(text) + '».');
+  } catch (e) {
+    busyUpload = false;
+    haptic('heavy'); mascotFor('sad', 2400);
+    istatus('err', humanError(e));
+  }
+}
+
+async function runUpload(path, form, waitLabel, what) {
+  if (SUM.offline) {
+    istatus('err', 'Демонстрационный режим: загружать некуда, пока нет связи с сервером.');
+    return;
+  }
+  busyUpload = true;
+  setMascot('think');
+  istatus('wait', waitLabel);
+  iprog(0.03);
+  try {
+    const res = await upload(path, form, (frac) => iprog(frac * 0.9));
+    iprog(1);
+    busyUpload = false;
+    if (res && res.ok === false) {
+      haptic('heavy'); mascotFor('sad', 2400);
+      istatus('err', humanIngest(res.error) +
+        ' <button class="retry" type="button">Попробовать другой</button>');
+      return;
+    }
+    haptic('medium');
+    const text = ingestText(res, what);
+    istatus('ok', text || 'Готово.');
+    /* Реакция по делу: новые вопросы — Грош озадачен, вопросов нет — радуется. */
+    mascotFor(res && res.questions ? 'curious' : 'party', 2400);
+    await refresh(true);
+    say(null, res && res.questions
+      ? 'Нашёл <b>' + res.questions + ' ' + plural(res.questions, 'новый вопрос', 'новых вопроса', 'новых вопросов') + '</b>. Глянем?'
+      : 'Всё разобрал, новых вопросов нет.');
+  } catch (e) {
+    busyUpload = false;
+    haptic('heavy'); mascotFor('sad', 2400);
+    istatus('err', humanError(e) + ' <button class="retry" type="button">Попробовать ещё раз</button>');
+  }
+}
+
+/* ==========================================================================
+   15. РЕНДЕР И НАВИГАЦИЯ
+   ========================================================================== */
+function navBadge() {
+  const btn = document.querySelector('.nav button[data-tab="questions"]');
+  if (!btn) return;
+  const old = btn.querySelector('.cnt');
+  if (old) old.remove();
+  const n = SUM ? (SUM.open_questions || 0) : 0;
+  if (n > 0) btn.insertAdjacentHTML('beforeend', `<span class="cnt">${n > 99 ? '99+' : n}</span>`);
+}
+
+function render(focusId) {
+  if (!SUM) return;
+  if (routeRO) { try { routeRO.disconnect(); } catch (e) {} }
+
+  topbar();
+  const view = TAB === 'reports' ? viewReports
+    : TAB === 'questions' ? viewQuestions
+      : TAB === 'awards' ? viewAwards : viewMonth;
+  SCREEN.innerHTML = view();
+
+  /* каскад появления карточек */
+  [...SCREEN.children].forEach((n, i) => { n.style.animationDelay = (i * 45) + 'ms'; });
+
+  $('howtoOpen').classList.toggle('hidden', TAB !== 'month');
+  $('againBtn')?.addEventListener('click', () => { netError = ''; render(); refresh(); });
+  navBadge();
+
+  if (TAB === 'month') {
+    bindIntake();
+    if (lastStatus) istatus(lastStatus.kind, lastStatus.html);
+    renderPath();
+    if (routeRO && $('route')) { try { routeRO.observe($('route')); } catch (e) {} }
+  }
+  if (TAB === 'questions') renderQueue(focusId);
+  if (TAB === 'awards') bindAwards();
+
+  const mt = $('masTap');
+  if (mt && TAB !== 'month') mt.onclick = tapMascot;
+
+  requestAnimationFrame(() => {
+    if ($('arc')) setAwareness(SUM.awareness?.percent || 0, true);
+    const rp = $('racePct');
+    if (rp) {
+      const v = rp.value + '%';
+      if ($('raceFill')) $('raceFill').style.width = v;
+      if ($('racePin')) $('racePin').style.left = v;
+    }
+    growBars();
+    growBarsH();
+    reapplyMascot();
+  });
+}
+
+function go(tab, focusId) {
+  if (!SUM) return;
+  if (tab === TAB && !focusId) return;
+  haptic('light');
+  TAB = tab;
+  pendingSay = null;
+  document.querySelectorAll('.nav button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  window.scrollTo(0, 0);
+  render(focusId);
+}
+
+document.querySelectorAll('.nav button').forEach((b) => {
+  b.addEventListener('click', () => go(b.dataset.tab));
+});
+/* иконки в статической разметке подставляем один раз */
+document.querySelectorAll('[data-ic]').forEach((n) => { n.innerHTML = icon(n.dataset.ic, true); });
+
+/* ==========================================================================
+   16. ЗАГРУЗКА
+   ========================================================================== */
+function adoptGame(g, d) {
+  /* Если бэкенд ещё не отдаёт геймификацию — считаем то, что можно честно
+     вывести из summary, и не показываем того, чего не знаем. */
+  const base = deriveGame(d);
+  if (!g) return base;
+  return {
+    level: g.level || base.level,
+    quests: (g.quests && g.quests.length) ? g.quests : base.quests,
+    achievements: (g.achievements && g.achievements.length) ? g.achievements : base.achievements,
+    map: (g.map && g.map.length) ? g.map : null,
+  };
+}
+
+/* Тихое обновление: перечитать цифры и перерисовать, не мигая скелетом.
+   quiet — обновить только шапку, счётчик и очередь: полная перерисовка
+   посреди ответа на вопрос заново проигрывала бы весь каскад карточек. */
+async function refresh(silent, quiet) {
+  try {
+    const d = await api('/me/summary?period=auto');
+    SUM = d;
+    netError = '';
+    let g = null;
+    try { g = await api('/me/game?period=auto'); } catch (e) { g = null; }
+    const prevXp = GAME && GAME.level ? GAME.level.xp : lastXp;
+    GAME = adoptGame(g, d);
+    if (GAME.level) {
+      if (prevXp !== null && prevXp !== undefined && GAME.level.xp > prevXp) {
+        const gained = GAME.level.xp - prevXp;
+        setTimeout(() => {
+          $('xpPill')?.classList.add('bump');
+          say(null, 'Записал! <b>+' + num(gained) + ' XP</b>.');
+        }, 200);
+      }
+      lastXp = GAME.level.xp;
+    }
+    if (quiet) {
+      topbar();
+      navBadge();
+      syncLive();
+      if (TAB === 'questions') { renderQueue(); setAwareness(SUM.awareness?.percent || 0); }
+    } else {
+      render();
+    }
+  } catch (e) {
+    if (!silent) throw e;
+    netError = humanError(e);
+    render();
+  }
+}
+
+async function load() {
+  try {
+    await refresh(false);
+  } catch (e) {
+    console.warn('API недоступен, показываю демонстрационные данные:', e.message);
+    SUM = FALLBACK;
+    GAME = adoptGame(FALLBACK.game, FALLBACK);
+    netError = '';
+    render();
+  }
+}
+
+load();
+</script>
+</body>
+</html>

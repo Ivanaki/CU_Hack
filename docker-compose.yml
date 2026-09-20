@@ -1,0 +1,28 @@
+# Один сервис: бот и API живут в одном процессе (см. app/main.py).
+services:
+  app:
+    build: .
+    image: honest-month:latest
+    container_name: honest-month
+    env_file: .env
+    # Порт снаружи и внутри одинаковый: внутри uvicorn слушает API_PORT из
+    # .env, поэтому подставляем ту же переменную с обеих сторон.
+    ports:
+      - "${API_PORT:-8080}:${API_PORT:-8080}"
+    # Именованные тома: база и файлы пользователя переживают пересборку
+    # образа и docker compose down. Загрузки держим отдельно от базы —
+    # их можно чистить и бэкапить, не трогая операции.
+    volumes:
+      - honest-data:/app/data/runtime
+      - honest-uploads:/app/data/uploads
+    restart: unless-stopped
+    # Без лимита json-file пухнет до размера диска — на VPS это отказ сервиса.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  honest-data:
+  honest-uploads:
