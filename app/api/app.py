@@ -70,7 +70,9 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
-        allow_methods=["GET", "POST", "OPTIONS"],
+        # DELETE — для «убрать моё название места»: без него браузер не
+        # пропускает даже предполётный запрос, и кнопка в Mini App молчит.
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
 

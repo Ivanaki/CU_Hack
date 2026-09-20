@@ -13,6 +13,7 @@ import re
 from sqlalchemy.orm import Session
 
 from app.classify import categories as cats
+from app.classify import places
 from app.ledger.accounts import AccountRegistry, norm_key
 from app.models import CounterpartyKind, RawTransaction
 
@@ -138,7 +139,35 @@ def category_from_text(text: str) -> str | None:
 def enrich(session: Session, reg: AccountRegistry, rows: list[RawTransaction]) -> None:
     """Проставляет контрагента, теги назначения и подсказку категории."""
     _enrich_basic(session, reg, rows)
+    _enrich_with_places(session, rows)
     _enrich_with_llm(session, reg, rows)
+
+
+def _enrich_with_places(session: Session, rows: list[RawTransaction]) -> None:
+    """Категория из «моих мест» — если человек её назвал.
+
+    Идёт после MCC и словаря и перебивает их: код MCC ставит банк, а место
+    назвал человек, и он про свой ларёк знает больше. Перебить человека
+    может только решение по конкретной операции — оно применяется позже,
+    уже в правилах классификации.
+
+    Название места здесь не трогаем: оно принадлежит операции, а не сырой
+    строке, и ставится после того, как операции собраны (post_places).
+    """
+    spends = [row for row in rows if row.amount < 0]
+    if not spends:
+        return
+    rules = [
+        rule
+        for rule in places.user_places(session, spends[0].user_id)
+        if rule.category_code
+    ]
+    if not rules:
+        return
+    for row in spends:
+        rule = places.match(rules, clean_merchant(row.counterparty_raw or row.description))
+        if rule is not None:
+            row.mcc_category = rule.category_code
 
 
 def _enrich_basic(

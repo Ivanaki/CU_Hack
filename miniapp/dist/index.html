@@ -376,6 +376,17 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
   box-shadow:0 3px 0 var(--stroke);transition:transform .08s,box-shadow .08s}
 .qfree-ok:active{transform:translateY(3px);box-shadow:none}
 .ans.own{border-style:dashed}
+/* «Назвать по-своему» — действие второго плана: оно не должно спорить за
+   внимание с суммой, ради которой человек и открыл список. */
+.rename{appearance:none;font:inherit;font-size:10.5px;font-weight:800;cursor:pointer;
+  margin-top:5px;padding:3px 8px;color:var(--hint);background:transparent;
+  border:2px dashed var(--stroke);border-radius:999px;opacity:.75}
+.rename:active{opacity:1;transform:translateY(1px)}
+.renamebox{border:3px solid var(--stroke);border-radius:16px;background:var(--gold-soft);
+  padding:12px;margin:0 0 10px}
+.renamebox .rn-h{font-size:14px;font-weight:900}
+.renamebox .rn-was{font-size:12px;font-weight:700;color:var(--hint);margin-top:2px}
+.renamebox .rn-note{font-size:11.5px;margin-top:8px}
 .quiz.pop{animation:q-pop .45s cubic-bezier(.3,1.4,.5,1) both}
 .alldone.pop{animation:q-pop .45s cubic-bezier(.3,1.4,.5,1) both}
 @keyframes q-pop{0%{opacity:0;transform:translateY(14px) scale(.96)}100%{opacity:1;transform:none}}
@@ -2653,8 +2664,77 @@ function opRow(o) {
         <span>${esc(src.source || 'загрузка')}${src.filename ? ' · ' + esc(src.filename) : ''}</span></div>` : ''}
     </div>
     <div class="r"><div class="a">${m(o.amount)}</div>
-      <div class="s2 ${sp === 0 ? 'zero' : sp < 0 ? 'neg' : ''}">${esc(note)}</div></div>
+      <div class="s2 ${sp === 0 ? 'zero' : sp < 0 ? 'neg' : ''}">${esc(note)}</div>
+      ${PLACES ? `<button class="rename" type="button"
+        data-merchant="${esc(o.merchant || o.title || '')}"
+        data-title="${esc(o.title || '')}">Назвать по-своему</button>` : ''}</div>
   </div>`;
+}
+
+/* --------------------------------------------------------------------------
+   Мои места. Человек один раз называет магазин по-своему — «Узбечка» вместо
+   «InterFood» — и это имя ложится на все траты в нём, прошлые и будущие.
+
+   PLACES === null означает, что сервер этого ещё не умеет: тогда кнопки нет
+   вовсе. Рисовать действие, которого на сервере нет, — значит привести
+   человека к ошибке после набранного названия.
+   -------------------------------------------------------------------------- */
+let PLACES = null;
+
+async function loadPlaces() {
+  try { PLACES = await api('/me/places'); } catch (e) { PLACES = null; }
+}
+
+function openRename(row, merchant, current) {
+  const sheet = $('opsheet');
+  if (!sheet || sheet.querySelector('.renamebox')) return;
+  const box = el(`<div class="renamebox">
+    <div class="rn-h">Как называть это место?</div>
+    <div class="rn-was">В выписке: <b>${esc(merchant)}</b></div>
+    <div class="qfree">
+      <input type="text" class="qfree-in rn-in" maxlength="60" autocomplete="off"
+             placeholder="Например: Узбечка" aria-label="Своё название места">
+      <button type="button" class="qfree-ok rn-ok">Сохранить</button>
+    </div>
+    <div class="note rn-note">Название встанет на все траты в этом месте — и на прошлые тоже.</div>
+  </div>`);
+  row.after(box);
+  const input = box.querySelector('.rn-in');
+  input.value = current && current !== merchant ? current : '';
+  const save = async () => {
+    const title = (input.value || '').trim();
+    if (!title) {
+      input.focus();
+      input.classList.add('bad');
+      setTimeout(() => input.classList.remove('bad'), 700);
+      return;
+    }
+    box.querySelector('.rn-ok').disabled = true;
+    input.disabled = true;
+    box.querySelector('.rn-note').textContent = 'Переименовываю…';
+    try {
+      const out = await api('/me/places', {
+        method: 'POST',
+        body: JSON.stringify({merchant, title, category: null}),
+      });
+      haptic('medium');
+      const n = out.applied || 0;
+      box.querySelector('.rn-note').textContent = n
+        ? 'Готово: переименовано ' + n + ' ' + plural(n, 'операция', 'операции', 'операций') + '.'
+        : 'Готово.';
+      await loadPlaces();
+      await refresh(true, true);
+      setTimeout(() => { closeOps(); }, 900);
+    } catch (e) {
+      box.querySelector('.rn-ok').disabled = false;
+      input.disabled = false;
+      box.querySelector('.rn-note').textContent = humanError(e);
+    }
+  };
+  box.querySelector('.rn-ok').onclick = save;
+  input.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } };
+  haptic('light');
+  setTimeout(() => input.focus(), 30);
 }
 
 let opsScrollY = 0;
@@ -2694,7 +2774,9 @@ function openOps(title, subtitle, list) {
     </div></div>`);
   document.body.appendChild(sheet);
   sheet.addEventListener('click', (e) => {
-    if (e.target.closest('[data-opsclose]')) closeOps();
+    if (e.target.closest('[data-opsclose]')) { closeOps(); return; }
+    const rn = e.target.closest('.rename');
+    if (rn) openRename(rn.closest('.oprow'), rn.dataset.merchant, rn.dataset.title);
   });
   sheet.scrollTop = 0;
   sheet.focus({preventScroll: true});
@@ -3122,7 +3204,19 @@ function renderQueue(focusId) {
       Спорных операций нет.<br>Все цифры за период разобраны.</div>`));
     return;
   }
-  list.forEach((q, idx) => {
+  list.forEach((q, idx) => box.appendChild(questionCard(q, idx, list.length)));
+  if (focusId) {
+    const target = box.querySelector(`.qwrap[data-id="${focusId}"]`);
+    if (target) setTimeout(() => target.scrollIntoView({behavior: 'smooth', block: 'center'}), 120);
+  }
+}
+
+/* Одна карточка вопроса. Вынесена отдельно, потому что рисуется из двух
+   мест: при полной отрисовке очереди и когда после ответа сервер присылает
+   следующий вопрос — его нужно добавить снизу, не трогая остальные. */
+function questionCard(q, idx, total) {
+  {
+    const list = {length: total};   // счётчик «N в очереди» в шапке карточки
     const kind = q.kind || '';
     const isIn = kind === 'incoming_unknown';
     /* «Своими словами» — последним и отдельной кнопкой, но только если
@@ -3162,11 +3256,7 @@ function renderQueue(focusId) {
     if (own) own.onclick = () => openOwnAnswer(q, wrap, own);
     const sk = wrap.querySelector('[data-skip]');
     if (sk) sk.onclick = () => skipQuestion(q, wrap);
-    box.appendChild(wrap);
-  });
-  if (focusId) {
-    const target = box.querySelector(`.qwrap[data-id="${focusId}"]`);
-    if (target) setTimeout(() => target.scrollIntoView({behavior: 'smooth', block: 'center'}), 120);
+    return wrap;
   }
 }
 
@@ -3244,6 +3334,35 @@ function queueMatches() {
   const drawn = [...box.querySelectorAll('.qwrap')].map((n) => Number(n.dataset.id));
   const wanted = (SUM.questions || []).map((q) => q.id);
   return drawn.length === wanted.length && drawn.every((id, i) => id === wanted[i]);
+}
+
+/* Подтягивает очередь к тому, что пришло с сервера, не трогая то, что уже
+   нарисовано. Вопросов бывает под сотню, а показываем мы десяток: ответил
+   на один — сервер присылает следующий, и при полной перерисовке весь
+   экран моргает, а на месте отвеченного оказывается точно такой же с виду
+   вопрос. Человек уверен, что ничего не произошло.
+
+   Здесь исчезает ровно отвеченный, остальные стоят на месте, а новый
+   приходит снизу — как и должно быть у очереди. */
+function syncQueue() {
+  const box = $('queue');
+  if (!box) return;
+  const wanted = SUM.questions || [];
+  if (!wanted.length || !box.querySelector('.qwrap')) { renderQueue(); return; }
+
+  const ids = new Set(wanted.map((q) => q.id));
+  box.querySelectorAll('.qwrap').forEach((node) => {
+    if (!ids.has(Number(node.dataset.id))) node.remove();
+  });
+
+  const drawn = new Set(
+    [...box.querySelectorAll('.qwrap')].map((n) => Number(n.dataset.id))
+  );
+  const fresh = wanted.filter((q) => !drawn.has(q.id));
+  /* Новые рисуем тем же кодом, что и всю очередь: две похожие отрисовки
+     неизбежно разъезжаются. */
+  fresh.forEach((q, i) => box.appendChild(questionCard(q, i, wanted.length)));
+  dropQueueCard();
 }
 
 async function answer(q, wrap, btn, ownText) {
@@ -3819,7 +3938,7 @@ async function refresh(silent, quiet) {
          перерисовка переигрывает появление всех карточек и выглядит как
          мигание экрана сразу после ответа. */
       if (TAB === 'questions') {
-        if (!queueMatches()) renderQueue();
+        if (!queueMatches()) syncQueue();
         setAwareness(SUM.awareness?.percent || 0);
       }
     } else {
@@ -3835,6 +3954,9 @@ async function refresh(silent, quiet) {
 async function load() {
   try {
     await refresh(false);
+    /* Отдельно и молча: список мест не нужен для первого экрана, а его
+       отсутствие не повод показывать человеку ошибку. */
+    loadPlaces();
   } catch (e) {
     console.warn('API недоступен, показываю демонстрационные данные:', e.message);
     SUM = FALLBACK;

@@ -392,8 +392,8 @@ def test_ответ_своими_словами_есть_в_каждом_воп�
     долей за поездку. Без поля ввода человек откладывает вопрос, и деньги
     остаются необъяснёнными — то есть метрика продукта не растёт.
     """
-    queue = re.search(r"function renderQueue\(focusId\) \{(.+?)\n\}", HTML, re.DOTALL)
-    assert queue, "отрисовка очереди пропала"
+    queue = re.search(r"function questionCard\(q, idx, total\) \{(.+?)\n\}", HTML, re.DOTALL)
+    assert queue, "отрисовка карточки вопроса пропала"
     code = without_comments(queue.group(1))
     assert 'class="ans own"' in code, "кнопка «своими словами» рисуется"
     # Но только если сервер этот вариант прислал: кнопка, которой на
@@ -431,7 +431,7 @@ def test_отвеченная_карточка_уезжает_одна():
 
     # Тихое обновление тоже не должно перерисовывать очередь без причины.
     refresh = re.search(r"async function refresh\(silent, quiet\) \{(.+?)\n\}", HTML, re.DOTALL)
-    assert refresh and "if (!queueMatches()) renderQueue()" in without_comments(refresh.group(1))
+    assert refresh and "if (!queueMatches()) syncQueue()" in without_comments(refresh.group(1))
 
     # Уход карточки — это схлопывание строки плюс отъезд самой карточки.
     assert ".qwrap.gone{grid-template-rows:0fr}" in FLAT
@@ -442,6 +442,45 @@ def test_отвеченная_карточка_уезжает_одна():
     drop = re.search(r"function dropQueueCard\(\) \{(.+?)\n\}", HTML, re.DOTALL)
     assert drop, "счётчики очереди никто не обновляет"
     assert "alldone pop" in drop.group(1), "пустая очередь показывает итог"
+
+
+def test_очередь_дорисовывается_а_не_перерисовывается():
+    """Вопросов бывает под сотню, а показывается десяток.
+
+    Ответил на один — сервер присылает следующий. При полной перерисовке
+    весь экран моргает, и на месте отвеченного оказывается похожий с виду
+    вопрос: человек уверен, что ничего не произошло. Отвеченный обязан
+    исчезнуть, остальные — остаться на месте, новый — прийти снизу.
+    """
+    sync = re.search(r"function syncQueue\(\) \{(.+?)\n\}", HTML, re.DOTALL)
+    assert sync, "очередь по-прежнему перерисовывается целиком"
+    code = without_comments(sync.group(1))
+    assert "node.remove()" in code, "ушедшие вопросы убираются точечно"
+    assert "box.appendChild(questionCard(" in code, "новые приходят снизу"
+    # Обе отрисовки идут одним кодом: две похожие неизбежно разъезжаются.
+    render = re.search(r"function renderQueue\(focusId\) \{(.+?)\n\}", HTML, re.DOTALL)
+    assert render and "questionCard(" in render.group(1)
+
+
+def test_своё_название_места_применяется_ко_всем_тратам():
+    """Человек один раз называет магазин по-своему — и это имя на всех тратах.
+
+    Кнопка появляется, только если сервер умеет места: действие, которого
+    на сервере нет, приводит человека к ошибке после набранного названия.
+    """
+    assert "let PLACES = null;" in HTML, "признак поддержки мест на сервере"
+    row = re.search(r"function opRow\(o\) \{(.+?)\n\}", HTML, re.DOTALL)
+    assert row and "PLACES ?" in row.group(1), "кнопка рисуется только при поддержке"
+
+    rename = re.search(
+        r"function openRename\(row, merchant, current\) \{(.+?)\n\}", HTML, re.DOTALL
+    )
+    assert rename, "переименование пропало"
+    code = without_comments(rename.group(1))
+    assert "api('/me/places'" in code, "название сохраняется на сервере"
+    assert "if (!title)" in code, "пустое название не сохраняется"
+    # Человек должен заранее знать, что правило заденет и прошлые операции.
+    assert "и на прошлые тоже" in HTML
 
 
 def test_страница_остаётся_самодостаточной():

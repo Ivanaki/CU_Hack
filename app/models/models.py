@@ -436,7 +436,14 @@ class Decision(Base, TimestampMixin):
 
 
 class MerchantRule(Base, TimestampMixin):
-    """Правило категоризации. user_id = NULL — глобальное правило-словарь."""
+    """Правило категоризации. user_id = NULL — глобальное правило-словарь.
+
+    Здесь же живут «мои места»: правила с match_type=CONTAINS и непустым
+    title. Отдельной таблицы у них нет осознанно — «продавец -> что это
+    значит» уже описано здесь, и вторая таблица завела бы второй ключ, вторую
+    нормализацию и второе место, где их надо держать в согласии. Подробности
+    и правила сопоставления — в app/classify/places.py.
+    """
 
     __tablename__ = "merchant_rules"
 
@@ -444,6 +451,14 @@ class MerchantRule(Base, TimestampMixin):
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     match_type: Mapped[MatchType] = mapped_column(String(16))
     pattern: Mapped[str] = mapped_column(String(255), index=True)
+    # Пусто — правило только про категорию (так их пишет языковая модель).
+    # Непусто — как человек называет это место сам; название встаёт на все
+    # его траты в этом месте, и на прошлые тоже.
+    # server_default — база задеплоена, колонка доезжает через upgrade_schema.
+    title: Mapped[str] = mapped_column(String(200), default="", server_default=text("''"))
+    # Для «моего места» пустая строка значит «категорию не трогаем». NULL был
+    # бы честнее, но колонка в задеплоенной базе объявлена NOT NULL, а в
+    # SQLite это меняется только пересборкой таблицы.
     category_code: Mapped[str] = mapped_column(String(64))
     counterparty_kind: Mapped[CounterpartyKind | None] = mapped_column(String(16), nullable=True)
     priority: Mapped[int] = mapped_column(Integer, default=100)

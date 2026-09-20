@@ -34,6 +34,7 @@ from app.api.analytics import PERIOD_HELP, resolve_period
 from app.api.analytics import analytics as analytics_router
 from app.api.auth import current_user, db_session, require_service_key
 from app.api.uploads import file_url, public_base, store_image
+from app.classify.places import PlaceRejected
 from app.config import Settings, get_settings
 from app.ledger.invariants import run_all
 from app.models import ImportBatch, Operation, OperationSource, User
@@ -46,16 +47,19 @@ from app.service import (
     batch_questions,
     batches_by_operation,
     count_open_questions,
+    delete_place,
     get_or_create_user,
     ingest_screenshot,
     ingest_statement,
     issue_upload_token,
     latest_data_month,
+    list_places,
     open_questions,
     recent_imports,
     refresh_streak,
     report_for,
     rotate_upload_token,
+    save_place,
     skip_question,
     user_batch,
 )
@@ -270,6 +274,55 @@ def quick_expense(
     if row is None:
         return s.IngestResultOut(ok=False, error=outcome.error)
     return _ingest_out(outcome)
+
+
+# --------------------------------------------------------------------------
+# Мои места: человек называет продавца по-своему
+# --------------------------------------------------------------------------
+
+
+@me.get("/places", response_model=list[s.PlaceOut], summary="Мои названия мест")
+def places_list(
+    user: User = Depends(current_user),
+    session: Session = Depends(db_session),
+) -> list[s.PlaceOut]:
+    return [s.PlaceOut.of(line) for line in list_places(session, user.id)]
+
+
+@me.post("/places", summary="Назвать место по-своему")
+def places_save(
+    payload: s.PlaceIn,
+    user: User = Depends(current_user),
+    session: Session = Depends(db_session),
+) -> dict:
+    """Создаёт или обновляет правило и пересчитывает книгу.
+
+    `applied` — сколько операций сейчас носят это имя: и будущие, и те, что
+    уже были загружены. Правило меняет название и категорию, но не деньги.
+    """
+    try:
+        place = save_place(
+            session, user, payload.merchant, payload.title, payload.category
+        )
+    except PlaceRejected as rejected:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(rejected)) from rejected
+    return {"ok": True, "applied": place.operations_count, "place": s.PlaceOut.of(place)}
+
+
+@me.delete("/places/{pattern:path}", summary="Убрать название места")
+def places_delete(
+    pattern: str,
+    user: User = Depends(current_user),
+    session: Session = Depends(db_session),
+) -> dict:
+    """Операции возвращаются к тому имени, которое даёт банк.
+
+    Чужое правило отсюда не видно: ищем только среди своих, поэтому попытка
+    удалить не своё неотличима от попытки удалить несуществующее.
+    """
+    if not delete_place(session, user, pattern):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "такого места у вас нет")
+    return {"ok": True, "applied": 0}
 
 
 @me.post(

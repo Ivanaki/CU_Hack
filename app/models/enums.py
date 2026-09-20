@@ -154,6 +154,7 @@ class ReviewKind(StrEnum):
     CONFIRM_SUBSCRIPTION = "confirm_subscription"  # найдено регулярное списание
     OUTGOING_TO_PERSON = "outgoing_to_person"  # перевод человеку: долг, подарок, оплата
     LARGE_UNCATEGORIZED = "large_uncategorized"  # крупная трата без категории
+    UNKNOWN_PLACE = "unknown_place"  # неопознанное место: один вопрос на все траты в нём
 
 
 class ReviewStatus(StrEnum):

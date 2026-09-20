@@ -228,10 +228,15 @@ class OperationOut(BaseModel):
     # Пусто, только если операцию не просили сопроводить следом: считать
     # его на каждый список операций — лишний запрос там, где он не нужен.
     sources: list[SourceRefOut] = []
+    # Ключ «моего места», если название операции пришло оттуда. Само
+    # название уже лежит в title — здесь ключ, чтобы клиент мог открыть это
+    # место на правку и показать, что имя дал человек, а не банк.
+    place: str | None = None
 
     @classmethod
     def of(cls, op: Operation, *, sources: list[SourceRefOut] | None = None) -> OperationOut:
         return cls(
+            place=(op.extra or {}).get("place"),
             id=op.id,
             occurred_at=op.occurred_at,
             kind=str(op.kind),
@@ -328,6 +333,41 @@ class AnswerIn(BaseModel):
 class QuickExpenseIn(BaseModel):
     text: str = Field(min_length=1, max_length=200, examples=["кофе 300"])
     occurred_at: datetime | None = None
+
+
+class PlaceOut(BaseModel):
+    """Одно «моё место»: как продавец подписан у человека."""
+
+    pattern: str
+    title: str
+    category: str | None
+    category_title: str
+    operations_count: int
+
+    @classmethod
+    def of(cls, line) -> PlaceOut:  # noqa: ANN001 — service.PlaceLine
+        from app.classify import categories as _cats  # noqa: PLC0415
+
+        return cls(
+            pattern=line.pattern,
+            title=line.title,
+            category=line.category,
+            category_title=_cats.title(line.category) if line.category else "",
+            operations_count=line.operations_count,
+        )
+
+
+class PlaceIn(BaseModel):
+    """Заявка «назвать место по-своему».
+
+    title без min_length осознанно: пустое название — это 400 с внятной
+    причиной из общего слоя, а не 422 с разбором схемы. Человек должен
+    прочитать, что именно от него хотят, а не «string_too_short».
+    """
+
+    merchant: str = Field(max_length=255, examples=["InterFood"])
+    title: str = Field(max_length=200, examples=["Узбечка"])
+    category: str | None = Field(default=None, examples=["cafe"])
 
 
 class IngestResultOut(BaseModel):

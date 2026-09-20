@@ -25,7 +25,8 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.classify import categories as cats
-from app.classify.enrich import enrich
+from app.classify import places
+from app.classify.enrich import clean_merchant, enrich
 from app.config import Settings, get_settings
 from app.ledger import build
 from app.ledger.accounts import AccountRegistry, norm_key
@@ -60,6 +61,13 @@ _PERSON_IN_TEXT = re.compile(r"\b[А-ЯЁ][а-яё]{2,}\s+[А-ЯЁ]\.(?:\s*[А-�
 AUTO_THRESHOLD = 0.75
 # Трата дороже этого без понятной категории — повод спросить.
 LARGE_UNCATEGORIZED = 500_000  # 5000 ₽
+# Место, в котором за всю книгу набежало меньше этого, спрашивать незачем:
+# вопрос стоит человеку внимания, а метрике такая мелочь почти ничего не
+# стоит. Порог именно по месту, а не по операции: четыре похода по 300–1100 ₽
+# в один и тот же «Bejs-Klab» — это 2 650 ₽ неясных денег, и по отдельности
+# ни одна из этих трат в вопрос не попадала, хотя вместе они заметны.
+# 1000 ₽ — примерно один поход куда-нибудь: ниже этого объяснять нечего.
+UNCLEAR_PLACE_MIN = 100_000  # 1000 ₽
 
 
 class DecisionKind:
@@ -1287,6 +1295,34 @@ def _category_options() -> list[dict]:
     return [{"code": c, "label": cats.title(c)} for c in codes]
 
 
+def _place_options() -> list[dict]:
+    """Кнопки для вопроса «что это за место».
+
+    Без «Прочего»: ответ «прочее» ничего не объясняет, трата осталась бы
+    неясной, и тот же вопрос вернулся бы следующим же пересчётом. Человеку,
+    которому ни одна кнопка не подходит, отвечает «Своими словами» —
+    она есть у каждого вопроса.
+    """
+    codes = (
+        "groceries", "cafe", "delivery", "taxi", "health",
+        "beauty", "entertainment", "sport", "clothes", "home",
+    )
+    return [{"code": c, "label": cats.title(c)} for c in codes]
+
+
+def _times(count: int) -> str:
+    """«за 1 операцию» / «за 4 операции» / «за 7 операций»."""
+    tail = count % 100
+    if 11 <= tail <= 14:
+        return "операций"
+    last = count % 10
+    if last == 1:
+        return "операцию"
+    if 2 <= last <= 4:
+        return "операции"
+    return "операций"
+
+
 # --------------------------------------------------------------------------
 # Пост-обработка
 # --------------------------------------------------------------------------
@@ -1485,6 +1521,55 @@ def post_subscriptions(ctx: Ctx) -> None:
         )
 
 
+def post_places(ctx: Ctx) -> None:
+    """Ставит на траты названия, которые человек дал местам.
+
+    Работает поверх готовых операций, как и ответ своими словами: правило
+    меняет название и контрагента, но не сумму и не проводки — деньги оно
+    не трогает вовсе. Категорию оно тоже здесь не меняет: она уже учтена
+    при обогащении, до того как построились проводки, иначе название
+    разошлось бы со счётом расхода.
+
+    Контрагента переписываем не для красоты: в отчётах имя продавца берётся
+    из контрагента, и без этого «InterFood», «INTERFOOD 12» и «Интерфуд»
+    остались бы тремя строками в разрезе по продавцам, хотя человек назвал
+    их одним местом.
+    """
+    rules = places.user_places(ctx.session, ctx.user_id)
+    if not rules:
+        return
+    row_by_op: dict[int, RawTransaction] = {}
+    for row in ctx.rows:
+        if row.operation_id is not None:
+            row_by_op.setdefault(row.operation_id, row)
+
+    for op in ctx.ops:
+        if op.kind not in (OperationKind.EXPENSE, OperationKind.CASH_EXPENSE):
+            continue
+        row = row_by_op.get(op.id)
+        if row is None:
+            continue
+        merchant = clean_merchant(row.counterparty_raw or row.description)
+        rule = places.match(rules, merchant)
+        if rule is None:
+            continue
+        was = op.title
+        op.title = rule.title[:255]
+        op.counterparty_id = ctx.reg.counterparty(rule.title, CounterpartyKind.MERCHANT).id
+        # Ключ правила — в extra: по нему считается, сколько операций носит
+        # это имя, и Mini App понимает, какое место открывать на правку.
+        op.extra = {**op.extra, "place": rule.pattern}
+        op.rule = "my_place"
+        # Человек назвал это место — значит, знает, что это за деньги. Даже
+        # если категория не назначена, в неясные такую трату записывать
+        # больше нельзя: ровно так же работает ответ своими словами.
+        op.explained = True
+        why = f"«{was}» — это ваше место «{rule.title}», вы его так назвали."
+        if rule.category_code:
+            why += f" Категория «{cats.title(rule.category_code)}» — из того же правила."
+        op.explanation = why
+
+
 def post_free_text(ctx: Ctx) -> None:
     """Подписывает операции словами человека, когда он ответил своими словами.
 
@@ -1519,6 +1604,67 @@ def post_free_text(ctx: Ctx) -> None:
         op.confidence = 1.0
         op.status = OperationStatus.CONFIRMED
         op.explained = True
+
+
+def post_unclear_places(ctx: Ctx) -> None:
+    """Спрашивает про неопознанные места — одним вопросом на продавца.
+
+    Метрика осознанности говорит «этих денег я не понимаю». Пока про них
+    нельзя было спросить, она была приговором: четыре похода в «Bejs-Klab»
+    по 300–1100 ₽ висели в «Прочем», каждый по отдельности не дотягивал до
+    порога крупной траты, и способа объяснить их у человека не было вовсе.
+    Метрика, которую нельзя починить действием, хуже отсутствия метрики.
+
+    Группировка по месту, а не по операции, — не экономия запросов, а
+    условие того, что на вопрос вообще ответят: девяносто девять одинаковых
+    вопросов человек закрывает не ответами, а выходом из приложения. Один
+    ответ становится правилом для продавца и объясняет все его траты разом,
+    включая будущие, — см. app/classify/places.py.
+
+    Идёт последним из пост-обработок: к этому моменту уже применены и мои
+    места, и ответы своими словами, и спрашивать остаётся только про то,
+    что действительно осталось непонятным.
+    """
+    groups: dict[str, dict] = {}
+    for op in ctx.ops:
+        if op.kind not in (OperationKind.EXPENSE, OperationKind.CASH_EXPENSE):
+            continue
+        if op.explained or (op.category_code or cats.OTHER) != cats.OTHER:
+            continue
+        anchor = op.extra.get("anchor")
+        if anchor and ctx.decision(anchor, DecisionKind.SET_CATEGORY):
+            continue  # про эту операцию человек уже сказал отдельно
+        cp = ctx.session.get(Counterparty, op.counterparty_id) if op.counterparty_id else None
+        if cp is None or cp.kind == CounterpartyKind.PERSON:
+            continue  # перевод человеку — это не место, про него спрашивают иначе
+        # Ключ — тот же, которым «мои места» считают два написания одним
+        # местом: иначе «InterFood» и «INTERFOOD 12» дали бы два вопроса.
+        key = places.place_key(cp.display_name)
+        if not key:
+            continue
+        slot = groups.setdefault(
+            key, {"name": cp.display_name, "pattern": cp.norm_key, "amount": 0, "ops": []}
+        )
+        slot["amount"] += op.amount
+        slot["ops"].append(op)
+
+    for slot in groups.values():
+        if slot["amount"] < UNCLEAR_PLACE_MIN:
+            continue
+        count = len(slot["ops"])
+        ctx.ask(
+            ReviewKind.UNKNOWN_PLACE,
+            (
+                f"{slot['name']} — {_rub(slot['amount'])} за {count} {_times(count)}. "
+                f"Что это за место?"
+            ),
+            _place_options(),
+            # Якорь не сырая строка, а место: вопрос про всех сразу, и
+            # ответ на него тоже про всех сразу.
+            anchor=f"place:{slot['pattern']}",
+            priority=_priority(slot["amount"], 80),
+            operation=slot["ops"][0],
+        )
 
 
 # --------------------------------------------------------------------------
@@ -1669,8 +1815,10 @@ def reclassify(session: Session, user_id: int, *, now: datetime | None = None) -
 
     post_writeoff_claims(ctx, now)
     post_unallocated_cash(ctx, now)
+    post_places(ctx)        # мои места: одно имя на все написания продавца
     post_subscriptions(ctx)
     post_free_text(ctx)     # ответы своими словами: имя и пометка «объяснено»
+    post_unclear_places(ctx)  # спрашиваем про то, что так и осталось неясным
 
     _persist_questions(ctx)
     session.flush()

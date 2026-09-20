@@ -19,11 +19,13 @@ from sqlalchemy.orm import Session
 from app.analytics import reports
 from app.analytics.periods import Period, month, week
 from app.classify import categories as cats
+from app.classify import places
 from app.classify.enrich import category_from_text, purpose_tags
 from app.classify.pipeline import DecisionKind, reclassify
 from app.ingest.base import ParsedRow
 from app.ingest.service import ImportResult, add_manual, import_file, import_images
 from app.models import (
+    Counterparty,
     DailyActivity,
     Decision,
     ImportBatch,
@@ -32,6 +34,7 @@ from app.models import (
     OperationSource,
     RawTransaction,
     ReviewItem,
+    ReviewKind,
     ReviewStatus,
     User,
 )
@@ -547,6 +550,33 @@ def parse_quick_entry(text: str, *, when: datetime | None = None) -> ParsedRow |
     )
 
 
+def _name_known_place(session: Session, user_id: int, row: ParsedRow) -> None:
+    """Голос и наличные попадают в ту же систему имён, что и карта.
+
+    «350 на узбечку» — это место, названное словами, и оно должно лечь под
+    то же название, что и операции с карты в этом месте. Сопоставление
+    ровно то же, что у выписки (app/classify/places.py), поэтому падеж и
+    предлог помехой не будут.
+
+    Здесь только УЗНАЁМ уже названное человеком место. Нового правила не
+    заводим и с банковским продавцом ничего не связываем: если человек сам
+    не сказал, что «узбечка» — это «InterFood», связи нет, и выдумывать её
+    нельзя. Свести их может только явное действие человека.
+
+    Слова человека при этом не переписываем: сырая строка — это факт, и он
+    остаётся таким, каким был сказан. Название ставится уже на операцию, при
+    пересчёте, и поэтому снимается вместе с правилом, а не остаётся навсегда
+    вписанным в запись. Здесь берём только категорию — чтобы ответ «записал:
+    350 ₽, кафе» пришёл сразу, а не после первого пересчёта.
+    """
+    rules = [rule for rule in places.user_places(session, user_id) if rule.category_code]
+    if not rules:
+        return
+    rule = places.match(rules, row.counterparty_raw or row.description)
+    if rule is not None:
+        row.category_hint = rule.category_code
+
+
 def add_quick_expense(
     session: Session,
     user: User,
@@ -563,6 +593,7 @@ def add_quick_expense(
     row = parse_quick_entry(text, when=when)
     if row is None:
         return None, IngestOutcome(None, 0, 0, 0, error="не нашёл сумму в сообщении")
+    _name_known_place(session, user.id, row)
     result = add_manual(
         session, user.id, [row], origin=source, channel=channel,
         stored_as=stored_as, content_type=content_type, size_bytes=size_bytes,
@@ -636,20 +667,26 @@ def answer_question(
         return None
 
     text = (text or "").strip()
-    if code == FREE_ANSWER:
-        if not text:
-            raise AnswerRejected(
-                "ответ своими словами не может быть пустым: напишите, что это за операция"
-            )
-        decisions = _free_text_decisions(str(item.kind), text)
-    else:
-        single = _decision_for(str(item.kind), code)
-        if single is None:
-            return None
-        decisions = [single]
+    if code == FREE_ANSWER and not text:
+        raise AnswerRejected(
+            "ответ своими словами не может быть пустым: напишите, что это за операция"
+        )
 
-    for kind, payload in decisions:
-        _remember_decision(session, user, item.anchor_hash, kind, payload)
+    if str(item.kind) == ReviewKind.UNKNOWN_PLACE:
+        # Ответ про место — не решение по одной операции, а правило для
+        # продавца: оно закрывает все его траты разом и остаётся на будущие.
+        if not _remember_place(session, user, item, code, text):
+            return None
+    else:
+        decisions = (
+            _free_text_decisions(str(item.kind), text)
+            if code == FREE_ANSWER
+            else [_decision_for(str(item.kind), code)]
+        )
+        if decisions[0] is None:
+            return None
+        for kind, payload in decisions:
+            _remember_decision(session, user, item.anchor_hash, kind, payload)
 
     item.status = ReviewStatus.RESOLVED
     item.answer_code = code
@@ -659,6 +696,42 @@ def answer_question(
 
     reclassify(session, user.id)
     return item
+
+
+def _remember_place(
+    session: Session, user: User, item: ReviewItem, code: str, text: str
+) -> bool:
+    """Ответ «что это за место» превращается в правило для продавца.
+
+    Кнопка даёт категорию, а названием остаётся то, как продавец подписан в
+    выписке: человек не переименовывал место, он объяснил, что это. Ответ
+    своими словами наоборот: его текст и есть название, а категорию из него
+    вычитает тот же определитель, что работает на выписках. Категории может
+    и не найтись («бейсбольный клуб»), но деньги перестают быть непонятными —
+    место названо, и pipeline.post_places помечает такие траты объяснёнными.
+    """
+    pattern = item.anchor_hash.removeprefix("place:")
+    if not pattern:
+        return False
+    known = session.scalar(
+        select(Counterparty).where(
+            Counterparty.user_id == user.id, Counterparty.norm_key == pattern
+        )
+    )
+    shown = known.display_name if known is not None else pattern
+
+    if code == FREE_ANSWER:
+        title, category = text[0].upper() + text[1:], category_from_text(text)
+    elif code in cats.BY_CODE and not cats.is_income_code(code):
+        title, category = shown, code
+    else:
+        return False  # кнопки такого кода у этого вопроса нет
+
+    try:
+        places.save(session, user.id, pattern, title, category)
+    except places.PlaceRejected:
+        return False
+    return True
 
 
 def _decision_for(question_kind: str, code: str) -> tuple[str, dict] | None:
@@ -763,6 +836,79 @@ def skip_question(session: Session, user: User, review_id: int) -> None:
     if item is not None and item.user_id == user.id:
         item.status = ReviewStatus.SKIPPED
         item.resolved_at = datetime.now()
+
+
+# --- мои места -------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class PlaceLine:
+    """Одно место: как оно названо и сколько операций сейчас носят это имя."""
+
+    pattern: str
+    title: str
+    category: str | None
+    operations_count: int
+
+
+def _place_counts(session: Session, user_id: int) -> dict[str, int]:
+    """Сколько операций носит имя каждого места.
+
+    Считаем по метке, которую ставит pipeline.post_places, а не по совпадению
+    названий: два места человек вполне может назвать одинаково, а метка
+    говорит, какое правило сработало на самом деле.
+    """
+    counts: dict[str, int] = {}
+    for extra in session.scalars(
+        select(Operation.extra).where(Operation.user_id == user_id)
+    ).all():
+        key = (extra or {}).get("place")
+        if key:
+            counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def list_places(session: Session, user_id: int) -> list[PlaceLine]:
+    counts = _place_counts(session, user_id)
+    return [
+        PlaceLine(
+            pattern=rule.pattern,
+            title=rule.title,
+            category=rule.category_code or None,
+            operations_count=counts.get(rule.pattern, 0),
+        )
+        for rule in places.user_places(session, user_id)
+    ]
+
+
+def save_place(
+    session: Session, user: User, merchant: str, title: str, category: str | None
+) -> PlaceLine:
+    """Назвать место по-своему. Пересчитывает книгу: имя встаёт и на прошлое.
+
+    Правило живёт в своей таблице и переживает пересчёт — поэтому оно же
+    применится и ко всему, что приедет потом.
+    """
+    rule = places.save(session, user.id, merchant, title, category)
+    pattern = rule.pattern
+    record_action(session, user, taps=1)
+    session.flush()
+    reclassify(session, user.id)
+    return PlaceLine(
+        pattern=pattern,
+        title=title.strip(),
+        category=(rule.category_code or None),
+        operations_count=_place_counts(session, user.id).get(pattern, 0),
+    )
+
+
+def delete_place(session: Session, user: User, pattern: str) -> bool:
+    """Убрать название. Операции возвращаются к банковскому имени."""
+    if not places.drop(session, user.id, pattern):
+        return False
+    session.flush()
+    reclassify(session, user.id)
+    return True
 
 
 # --- отчёты ----------------------------------------------------------------
