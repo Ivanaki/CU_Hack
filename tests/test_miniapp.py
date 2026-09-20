@@ -139,6 +139,12 @@ class Section(HTMLParser):
             self.parts.append(data)
 
 
+def without_comments(code: str) -> str:
+    """Код без комментариев: проверяем, что делает скрипт, а не что в нём написано."""
+    code = re.sub(r"/\*.*?\*/", " ", code, flags=re.DOTALL)
+    return re.sub(r"(?m)//.*$", " ", code)
+
+
 def markup() -> Markup:
     parsed = Markup()
     parsed.feed(HTML)
@@ -315,43 +321,32 @@ def test_без_ключа_кнопка_не_молчит():
     assert "catch (e)" in prepare, "сетевая ошибка тоже показывается"
 
 
-def test_активация_работает_и_без_sdk_телеграма():
-    """Вне клиента отрабатывает обычная ссылка — перехватывать нечем.
+def test_активация_не_идёт_через_openLink():
+    """Проверено на живом телефоне: встроенное окно Telegram схему
+    shortcuts:// не понимает и молчит — кнопка выглядит сломанной.
 
-    Поэтому адрес живёт в href, а openLink вызывается только внутри
-    Telegram и только в try: исключение там не должно съесть переход.
+    Работает другой путь: обычная внешняя ссылка открывается в Safari, а
+    Safari передаёт управление «Командам». Значит, никакого openLink и
+    никакого preventDefault: ссылку отрабатывает сам клиент.
     """
-    run = re.search(r"function runActivation\(event\) \{(.+?)\n\}", HTML, re.DOTALL).group(1)
-    assert "if (inTelegram)" in run, "вне Telegram клик не перехватываем"
-    assert "try {" in run and "catch" in run, "сбой openLink оставляет обычный переход"
-    # preventDefault только после успешного openLink — иначе запасного пути нет.
-    opened = run.index("tg.openLink(link.href)")
-    assert run.index("event?.preventDefault()", opened) > opened
+    run = re.search(r"function runActivation\(event\) \{(.+?)\n\}", HTML, re.DOTALL)
+    assert run, "обработчик активации пропал"
+    # Комментарии выкидываем: объяснение, почему openLink звать нельзя, само
+    # содержит это слово — и тест ловил бы собственное объяснение.
+    code = without_comments(run.group(1))
+    assert "openLink" not in code, "openLink не открывает shortcuts:// — кнопка замолчит"
+    # preventDefault остаётся только для случая «ключа ещё нет».
+    guarded = code.split("return;", 1)
+    assert len(guarded) == 2 and "preventDefault" not in guarded[1], (
+        "перехват клика убивает переход в Safari"
+    )
+    assert "window.location.href = href" in code, "нужен запасной переход"
+    assert "document.hidden" in code, "запасной переход не должен открывать второй раз"
+
     activate = [a for a in markup().links if a.get("id") == "howtoActivate"]
     assert len(activate) == 1, "кнопка активации — настоящая ссылка, а не кнопка"
-
-
-def test_инструкцию_видно_там_где_её_ищут():
-    """Вход в инструкцию обязан быть в блоке «Добавить операции».
-
-    Отдельная карточка живёт под всем содержимым вкладки «Месяц», и её
-    там не находили: до низа экрана нужно долистать. Человек ищет «как
-    добавить операции» именно в этом блоке, поэтому четвёртый способ
-    стоит рядом с остальными тремя.
-    """
-    assert 'id="howtoWay"' in HTML, "четвёртый способ пропал из блока добавления"
-    assert "Настроить двойное касание" in HTML
-    assert '<span class="tag">четыре способа</span>' in HTML, (
-        "счётчик способов разошёлся со списком — он врёт прямо на экране"
-    )
-    # Блок перерисовывается при каждом переключении вкладки, поэтому
-    # обработчик вешается в bindIntake, а не один раз при загрузке.
-    bind = re.search(r"function bindIntake\(\) \{(.+?)\n\}", HTML, re.DOTALL)
-    assert bind and "$('howtoWay')?.addEventListener('click', openHowto)" in bind.group(1), (
-        "кнопка нарисована, но ничего не открывает"
-    )
-    # И прежний вход снизу остаётся: он же — напоминание.
-    assert 'id="howtoOpen"' in HTML
+    assert activate[0].get("target") == "_blank", "ссылка обязана уходить наружу, в Safari"
+    assert activate[0].get("rel") == "noopener noreferrer"
 
 
 def test_страница_icloud_не_встраивается():

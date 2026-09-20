@@ -986,7 +986,8 @@ img.ic{object-fit:cover}
              система открывает только по живому нажатию, а адрес в href
              подставляется заранее — переход обязан случиться в том же
              событии, иначе iOS его проглотит. -->
-        <a class="cta" id="howtoActivate" href="#" aria-disabled="true">Активировать команду</a>
+        <a class="cta" id="howtoActivate" href="#" aria-disabled="true"
+           target="_blank" rel="noopener noreferrer">Активировать команду</a>
         <div class="note" id="howtoActivateState" style="font-size:12.5px" role="status" aria-live="polite">
           Готовим связь с вашим аккаунтом…
         </div>
@@ -1756,21 +1757,21 @@ function runActivation(event) {
     howtoState('Ключ ещё не готов. Нажмите «Повторить активацию».', {retry: true});
     return;
   }
-  /* Внутри Telegram обычная ссылка уходит во встроенное окно, которое схему
-     shortcuts:// не понимает. Отдаём адрес системе тем же способом, что и
-     ссылку на iCloud, а если клиент не справился — остаётся обычный переход
-     по href, поэтому preventDefault только после успеха. */
-  if (inTelegram) {
-    try {
-      if (typeof tg.openLink === 'function') {
-        tg.openLink(link.href);
-        event?.preventDefault();
-      }
-    } catch (e) {
-      /* Намеренно без подробностей: в адресе лежит ключ. */
-      console.warn('не удалось открыть ссылку активации через клиент');
-    }
-  }
+  /* tg.openLink здесь звать нельзя, и это проверено на живом телефоне:
+     встроенное окно Telegram схему shortcuts:// не понимает и просто
+     молчит — кнопка выглядит сломанной. Работает другой путь: отдать
+     ссылку системе как обычную внешнюю, она открывается в Safari, а
+     Safari уже передаёт управление «Командам».
+
+     Поэтому здесь нет ни preventDefault, ни openLink: ссылка настоящая,
+     с target="_blank", и её отрабатывает сам клиент. Единственное, что мы
+     добавляем, — запасной переход, если через полсекунды ничего не
+     произошло и страница всё ещё перед глазами. */
+  const href = link.href;
+  setTimeout(() => {
+    if (document.hidden) return;   // ушли в Safari — всё сработало
+    try { window.location.href = href; } catch (e) {}
+  }, 600);
   haptic('light');
   howtoState('Откройте приложение «Команды». После активации вы увидите уведомление «Команда активирована».', {retry: true});
 }
