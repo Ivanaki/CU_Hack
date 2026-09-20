@@ -17,7 +17,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.mount("/files", StaticFiles(directory=UPLOAD_DIR), name="files")
 
 ALLOWED_CONTENT_TYPES = {
     "image/jpeg",
@@ -77,3 +76,23 @@ async def upload_file(
         "size": size,
         "url": str(request.url_for("files", path=stored_name)),
     }
+
+
+@app.get("/files")
+def list_files(request: Request) -> dict[str, list[dict[str, str | int]]]:
+    files = []
+
+    for path in sorted(UPLOAD_DIR.iterdir(), key=lambda item: item.stat().st_mtime, reverse=True):
+        if path.is_file():
+            files.append(
+                {
+                    "name": path.name,
+                    "size": path.stat().st_size,
+                    "url": str(request.url_for("files", path=path.name)),
+                }
+            )
+
+    return {"files": files}
+
+
+app.mount("/files", StaticFiles(directory=UPLOAD_DIR), name="files")
