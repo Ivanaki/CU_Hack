@@ -19,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from sqlalchemy import select  # noqa: E402
+from sqlalchemy import func, select  # noqa: E402
 
 from app.analytics import insights as insights_mod  # noqa: E402
 from app.analytics import reports as reports_mod  # noqa: E402
@@ -32,7 +32,7 @@ from app.api import schemas as s  # noqa: E402
 from app.api.game import state_out  # noqa: E402
 from app.db import init_db, session_scope  # noqa: E402
 from app.gamification import game_state  # noqa: E402
-from app.models import User  # noqa: E402
+from app.models import Operation, User  # noqa: E402
 from app.service import average_actions_per_day, count_open_questions, open_questions  # noqa: E402
 
 TARGET = ROOT / "miniapp" / "dist" / "index.html"
@@ -153,14 +153,39 @@ def check(payload: dict) -> list[str]:
     return problems
 
 
+# Чья книга уезжает в запасные данные. Это единственный ответ: блок FALLBACK
+# показывается кому угодно, у кого не открылся API, — то есть это публичные
+# числа. Раньше здесь стоял «первый пользователь по id», и когда в боевую
+# базу залили настоящую выписку, она молча стала запасным набором для всех.
+# Берём демонстрационного человека по имени и никого другого.
+DEMO_TG_ID = 1
+
+
 def main() -> None:
     # Схему подтягиваем сами: скрипт запускают отдельно от приложения,
     # и после добавления колонки старая база иначе падает на чтении.
     init_db()
     with session_scope() as session:
-        user = session.scalars(select(User).order_by(User.id)).first()
+        user = session.scalar(select(User).where(User.tg_id == DEMO_TG_ID))
         if user is None:
-            raise SystemExit("нет пользователей: сначала python -m scripts.seed --reset")
+            raise SystemExit(
+                f"нет демонстрационного пользователя tg_id={DEMO_TG_ID}. "
+                "Соберите набор в отдельной базе, не в боевой:\n"
+                '  DATABASE_URL="sqlite:///./data/runtime/demo_build.db" '
+                "python -m scripts.seed --reset\n"
+                '  DATABASE_URL="sqlite:///./data/runtime/demo_build.db" '
+                "python -m scripts.build_miniapp"
+            )
+        # Пустая книга собирается без единой ошибки и даёт запасной набор
+        # с нулями — экран без сети выглядит сломанным, а понять это можно
+        # только глазами. Проверка дешевле.
+        if not session.scalar(
+            select(func.count()).select_from(Operation).where(Operation.user_id == user.id)
+        ):
+            raise SystemExit(
+                f"у демонстрационного пользователя tg_id={DEMO_TG_ID} нет операций — "
+                "похоже, база не та. Соберите набор в отдельной демонстрационной базе."
+            )
         payload = build_payload(session, user)
 
     problems = check(payload)

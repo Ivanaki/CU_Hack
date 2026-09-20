@@ -17,11 +17,14 @@ from __future__ import annotations
 import re
 from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parent.parent
 INDEX = ROOT / "miniapp" / "dist" / "index.html"
 
-SHORTCUT_URL = "https://www.icloud.com/shortcuts/c7bc0cc38a5d430fbbd609ab2d6dddbf"
+SHORTCUT_URL = "https://www.icloud.com/shortcuts/f98896d3b29f48c6b95fae87187b46cf"
+# Имя команды задано автором шортката и участвует в адресе запуска.
+SHORTCUT_NAME = "бот тг"
 
 HTML = INDEX.read_text(encoding="utf-8")
 FLAT = re.sub(r"\s+", " ", HTML)
@@ -32,24 +35,32 @@ VOID_TAGS = frozenset(
 
 # Тексты согласованы с заказчиком и проверяются дословно: «примерно те же
 # слова» здесь не годятся — по ним человек ищет пункты в чужом интерфейсе.
-STEP_TITLES = ("Установите команду", "Назначьте двойное касание", "Проверьте работу")
+STEP_TITLES = (
+    "Установите команду",
+    "Активируйте команду",
+    "Назначьте двойное касание",
+    "Проверьте работу",
+)
 
 STEP_LINES = (
-    "Нажмите кнопку «Установить команду» ниже.",
-    "На открывшейся странице нажмите «Получить быструю команду» или «Добавить команду».",
-    "Откроется приложение «Команды».",
+    "Нажмите кнопку «Установить команду».",
+    "На открывшейся странице нажмите «Получить быструю команду».",
     "Нажмите «Добавить быструю команду».",
+    "Не переименовывайте команду.",
+    "Вернитесь в приложение.",
     "Откройте «Настройки» на iPhone.",
     "Выберите «Универсальный доступ».",
-    "Откройте раздел «Касание».",
-    "Пролистайте вниз и нажмите «Коснуться сзади».",
+    "Откройте «Касание».",
+    "Нажмите «Коснуться сзади».",
     "Выберите «Двойное касание».",
     "Пролистайте до раздела «Команды».",
-    "Выберите только что добавленную команду.",
+    "Выберите «бот тг».",
 )
 
 TROUBLE_LINES = (
-    "Откройте приложение «Команды» и один раз запустите команду вручную.",
+    "Проверьте, что команда называется «бот тг».",
+    "Снова нажмите «Активировать команду».",
+    "Один раз запустите команду вручную.",
     "Разрешите доступ, если iPhone его запросит.",
     "Попробуйте сделать два более чётких касания.",
     "Толстый чехол может мешать распознаванию.",
@@ -73,7 +84,10 @@ FORBIDDEN_CLAIMS = (
 )
 
 # Идентификаторы, за которые скрипт держится руками.
-WIRED_IDS = ("howtoOpen", "howtoDone", "howtoClose", "howtoInstall")
+WIRED_IDS = (
+    "howtoOpen", "howtoDone", "howtoClose", "howtoInstall",
+    "howtoActivate", "howtoRetry",
+)
 
 
 class Markup(HTMLParser):
@@ -164,10 +178,10 @@ def test_заголовок_и_обещание_одной_настройки():
     ), "человек должен заранее знать, во что ввязывается"
 
 
-def test_все_три_этапа_на_месте_и_пронумерованы():
+def test_все_четыре_этапа_на_месте_и_пронумерованы():
     for title in STEP_TITLES:
         assert title in TEXT, f"этап «{title}» пропал"
-    for number in ("1", "2", "3"):
+    for number in ("1", "2", "3", "4"):
         assert f'<span class="step-n">{number}</span>' in HTML, f"этап {number} без номера"
 
 
@@ -179,15 +193,15 @@ def test_шаги_этапов_приведены_дословно():
 def test_проверка_работы_описана_дословно():
     """Единственный абзац без списка — в разметке он разбит переносом строк."""
     assert (
-        "Дважды постучите пальцем по задней панели iPhone в области логотипа Apple. "
-        "Команда должна запуститься." in TEXT
+        "Откройте нужный экран и дважды постучите по задней панели iPhone "
+        "около логотипа Apple. При первом запуске разрешите запрошенный доступ." in TEXT
     )
 
 
 def test_путь_в_настройках_показан_одной_строкой():
     path = (
         "Настройки → Универсальный доступ → Касание → Коснуться сзади → "
-        "Двойное касание → нужная команда"
+        "Двойное касание → бот тг"
     )
     assert path in TEXT
 
@@ -231,6 +245,90 @@ def test_ссылка_перехватывается_только_внутри_t
     body = re.search(r"function openShortcutLink\(event\) \{(.+?)\n\}", HTML, re.DOTALL)
     assert body, "обработчик кнопки установки пропал"
     assert "inTelegram" in body.group(1), "вне Telegram клик перехватывать нечем и незачем"
+
+
+def test_активация_складывает_адрес_команды_по_спецификации():
+    """Адрес запуска обязан совпасть с тем, что понимает сама команда.
+
+    Имя «бот тг» кодируется целиком: пробел и кириллица в схеме
+    shortcuts:// иначе обрывают адрес на первом небезопасном символе.
+    Обратных слешей в схеме быть не должно — в ТЗ это оговорено отдельно.
+    """
+    body = re.search(r"function activationLink\(token\) \{(.+?)\n\}", HTML, re.DOTALL)
+    assert body, "сборка адреса активации пропала"
+    code = body.group(1)
+
+    assert "'shortcuts://run-shortcut'" in code, "схема запуска команды задана ТЗ"
+    assert "\\" not in code, "обратных слешей в адресе быть не должно"
+    assert "encodeURIComponent(token)" in code, "ключ обязан быть закодирован"
+    assert "encodeURIComponent(SHORTCUT_NAME)" in code, "имя команды обязано быть закодировано"
+    assert "'&input=text'" in code, "команда принимает текст на вход"
+
+    name = re.search(r"const SHORTCUT_NAME = '([^']+)';", HTML)
+    assert name and name.group(1) == SHORTCUT_NAME, "имя команды разошлось с шорткатом"
+    # То же самое, что сделает encodeURIComponent в браузере.
+    assert quote(SHORTCUT_NAME, safe="") == "%D0%B1%D0%BE%D1%82%20%D1%82%D0%B3"
+
+
+def test_ключ_берётся_с_сервера_а_не_из_кода():
+    """Статический ключ означал бы, что чужие траты падают в одну книгу."""
+    assert "test_token" not in HTML, "тестового ключа в бою быть не может"
+    assert "fm_" not in HTML, "ключ не зашивается в страницу ни в каком виде"
+    body = re.search(r"async function prepareActivation\(\) \{(.+?)\n\}", HTML, re.DOTALL)
+    assert body, "получение ключа пропало"
+    code = body.group(1)
+    assert "api('/me/upload-link')" in code, "ключ выдаёт сервер по подписи Telegram"
+    # Клиент не выбирает, за кого он: tg_id в запросе за ключом не участвует.
+    assert "tg_id" not in code, "человека определяет сервер, а не параметр запроса"
+
+
+def test_ключ_не_показывается_и_не_пишется_в_журнал():
+    """Ключ — секрет: в интерфейсе он не нужен, в консоли опасен."""
+    for name in ("prepareActivation", "runActivation"):
+        body = re.search(rf"function {name}\(.*?\) \{{(.+?)\n\}}", HTML, re.DOTALL)
+        assert body, f"обработчик {name} пропал"
+        code = body.group(1)
+        assert "console.log" not in code, "ключ не уходит в журнал"
+        assert "token" not in code or name == "prepareActivation", (
+            "в обработчике нажатия ключа быть не должно: он уже лежит в href"
+        )
+    prepare = re.search(
+        r"async function prepareActivation\(\) \{(.+?)\n\}", HTML, re.DOTALL
+    ).group(1)
+    assert "textContent = " not in prepare.replace("box.textContent = text", ""), (
+        "ключ не попадает в текст на экране"
+    )
+    assert "howtoState(data.token" not in HTML, "ключ не показывается человеку"
+
+
+def test_без_ключа_кнопка_не_молчит():
+    """Нажатие без ключа обязано объяснить себя, а не провалиться в тишину."""
+    prepare = re.search(
+        r"async function prepareActivation\(\) \{(.+?)\n\}", HTML, re.DOTALL
+    ).group(1)
+    assert "!data.token" in prepare, "пустой ответ сервера — отдельный случай"
+    assert "removeAttribute('href')" in prepare, "без ключа ссылке некуда вести"
+
+    run = re.search(r"function runActivation\(event\) \{(.+?)\n\}", HTML, re.DOTALL).group(1)
+    assert "preventDefault" in run, "клик по неготовой кнопке не должен никуда уводить"
+    assert "Повторить активацию" in TEXT, "человеку нужен способ попробовать ещё раз"
+    assert "catch (e)" in prepare, "сетевая ошибка тоже показывается"
+
+
+def test_активация_работает_и_без_sdk_телеграма():
+    """Вне клиента отрабатывает обычная ссылка — перехватывать нечем.
+
+    Поэтому адрес живёт в href, а openLink вызывается только внутри
+    Telegram и только в try: исключение там не должно съесть переход.
+    """
+    run = re.search(r"function runActivation\(event\) \{(.+?)\n\}", HTML, re.DOTALL).group(1)
+    assert "if (inTelegram)" in run, "вне Telegram клик не перехватываем"
+    assert "try {" in run and "catch" in run, "сбой openLink оставляет обычный переход"
+    # preventDefault только после успешного openLink — иначе запасного пути нет.
+    opened = run.index("tg.openLink(link.href)")
+    assert run.index("event?.preventDefault()", opened) > opened
+    activate = [a for a in markup().links if a.get("id") == "howtoActivate"]
+    assert len(activate) == 1, "кнопка активации — настоящая ссылка, а не кнопка"
 
 
 def test_страница_icloud_не_встраивается():

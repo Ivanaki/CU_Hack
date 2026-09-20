@@ -885,6 +885,10 @@ img.ic{object-fit:cover}
   text-align:center;text-decoration:none;transition:transform .08s,box-shadow .08s
 }
 .cta:active{transform:translateY(3px);box-shadow:none}
+/* Пока ключ не приехал, кнопка обязана выглядеть неготовой: иначе человек
+   нажмёт, ничего не случится, и он решит, что сломалось приложение. */
+.cta[aria-disabled="true"]{opacity:.5;pointer-events:auto;cursor:default}
+.cta[aria-disabled="true"]:active{transform:none;box-shadow:0 3px 0 var(--stroke)}
 .faq summary{
   display:flex;align-items:center;justify-content:space-between;gap:10px;
   list-style:none;cursor:pointer;font-weight:900;font-size:14px;
@@ -961,37 +965,58 @@ img.ic{object-fit:cover}
       <li class="card">
         <div class="step-h"><span class="step-n">1</span><h3>Установите команду</h3></div>
         <ol class="step-list">
-          <li>Нажмите кнопку «Установить команду» ниже.</li>
-          <li>На открывшейся странице нажмите «Получить быструю команду» или «Добавить команду».</li>
-          <li>Откроется приложение «Команды».</li>
+          <li>Нажмите кнопку «Установить команду».</li>
+          <li>На открывшейся странице нажмите «Получить быструю команду».</li>
           <li>Нажмите «Добавить быструю команду».</li>
+          <li>Не переименовывайте команду.</li>
+          <li>Вернитесь в приложение.</li>
         </ol>
         <a class="cta" id="howtoInstall"
-           href="https://www.icloud.com/shortcuts/c7bc0cc38a5d430fbbd609ab2d6dddbf"
+           href="https://www.icloud.com/shortcuts/f98896d3b29f48c6b95fae87187b46cf"
            target="_blank" rel="noopener noreferrer">Установить команду</a>
       </li>
 
       <li class="card">
-        <div class="step-h"><span class="step-n">2</span><h3>Назначьте двойное касание</h3></div>
-        <ol class="step-list">
-          <li>Откройте «Настройки» на iPhone.</li>
-          <li>Выберите «Универсальный доступ».</li>
-          <li>Откройте раздел «Касание».</li>
-          <li>Пролистайте вниз и нажмите «Коснуться сзади».</li>
-          <li>Выберите «Двойное касание».</li>
-          <li>Пролистайте до раздела «Команды».</li>
-          <li>Выберите только что добавленную команду.</li>
-        </ol>
-        <!-- Неразрывные пробелы держат стрелку при предыдущем слове: перенос
-             идёт после стрелки, и строка не начинается с «→». -->
-        <div class="path">Настройки&nbsp;→ Универсальный доступ&nbsp;→ Касание&nbsp;→ Коснуться сзади&nbsp;→ Двойное касание&nbsp;→ нужная команда</div>
+        <div class="step-h"><span class="step-n">2</span><h3>Активируйте команду</h3></div>
+        <div style="font-size:13.5px">
+          Нажмите кнопку ниже. Мы автоматически свяжем команду с вашим аккаунтом.
+          Копировать ключ или редактировать команду не потребуется.
+        </div>
+        <!-- Настоящая ссылка, а не кнопка с обработчиком: схему shortcuts://
+             система открывает только по живому нажатию, а адрес в href
+             подставляется заранее — переход обязан случиться в том же
+             событии, иначе iOS его проглотит. -->
+        <a class="cta" id="howtoActivate" href="#" aria-disabled="true">Активировать команду</a>
+        <div class="note" id="howtoActivateState" style="font-size:12.5px" role="status" aria-live="polite">
+          Готовим связь с вашим аккаунтом…
+        </div>
+        <button class="ghost hidden" id="howtoRetry" type="button">Повторить активацию</button>
       </li>
 
       <li class="card">
-        <div class="step-h"><span class="step-n">3</span><h3>Проверьте работу</h3></div>
+        <div class="step-h"><span class="step-n">3</span><h3>Назначьте двойное касание</h3></div>
+        <ol class="step-list">
+          <li>Откройте «Настройки» на iPhone.</li>
+          <li>Выберите «Универсальный доступ».</li>
+          <li>Откройте «Касание».</li>
+          <li>Нажмите «Коснуться сзади».</li>
+          <li>Выберите «Двойное касание».</li>
+          <li>Пролистайте до раздела «Команды».</li>
+          <li>Выберите «бот тг».</li>
+        </ol>
+        <!-- Неразрывные пробелы держат стрелку при предыдущем слове: перенос
+             идёт после стрелки, и строка не начинается с «→». -->
+        <div class="path">Настройки&nbsp;→ Универсальный доступ&nbsp;→ Касание&nbsp;→ Коснуться сзади&nbsp;→ Двойное касание&nbsp;→ бот&nbsp;тг</div>
+        <div class="note" style="font-size:12.5px">
+          Этот шаг делается вручную: назначить касание за вас приложение не может.
+        </div>
+      </li>
+
+      <li class="card">
+        <div class="step-h"><span class="step-n">4</span><h3>Проверьте работу</h3></div>
         <div style="font-size:13.5px;font-weight:700">
-          Дважды постучите пальцем по задней панели iPhone в области логотипа Apple.
-          Команда должна запуститься.
+          Откройте нужный экран и дважды постучите по задней панели iPhone
+          около логотипа Apple. При первом запуске разрешите запрошенный доступ.
         </div>
       </li>
     </ol>
@@ -999,7 +1024,9 @@ img.ic{object-fit:cover}
     <details class="card faq">
       <summary>Не получилось?</summary>
       <ul>
-        <li>Откройте приложение «Команды» и один раз запустите команду вручную.</li>
+        <li>Проверьте, что команда называется «бот тг».</li>
+        <li>Снова нажмите «Активировать команду».</li>
+        <li>Один раз запустите команду вручную.</li>
         <li>Разрешите доступ, если iPhone его запросит.</li>
         <li>Попробуйте сделать два более чётких касания.</li>
         <li>Толстый чехол может мешать распознаванию.</li>
@@ -1662,6 +1689,92 @@ function openShortcutLink(event) {
   }
 }
 
+/* --------------------------------------------------------------------------
+   Активация: команда должна узнать, чей это телефон.
+
+   Ключ мы кладём прямо в адрес запуска команды, и команда сохраняет его у
+   себя. Поэтому здесь есть два жёстких правила.
+
+   Первое: ключ берётся только с сервера, который опознал человека по
+   подписи Telegram. Никакого выбора tg_id на стороне клиента и никакого
+   тестового ключа в коде — иначе любой, кто откроет страницу, зальёт
+   операции в чужую книгу.
+
+   Второе: ключ не показывается в интерфейсе и не уходит в console.log, в
+   ошибки и в аналитику. Человеку он не нужен: в этом весь смысл кнопки.
+   -------------------------------------------------------------------------- */
+
+/* Имя команды в адресе — «бот тг». Кодируем целиком: пробел и кириллица в
+   схеме shortcuts:// иначе обрываются на первом же небезопасном символе. */
+const SHORTCUT_NAME = 'бот тг';
+
+function activationLink(token) {
+  return 'shortcuts://run-shortcut'
+    + '?name=' + encodeURIComponent(SHORTCUT_NAME)
+    + '&input=text'
+    + '&text=' + encodeURIComponent(token);
+}
+
+function howtoState(text, {retry = false} = {}) {
+  const box = $('howtoActivateState');
+  if (box) box.textContent = text;
+  $('howtoRetry')?.classList.toggle('hidden', !retry);
+}
+
+/* Ссылка живёт в href, а не строится в обработчике: переход по схеме
+   shortcuts:// система разрешает только как прямое следствие нажатия, а
+   поход за ключом по сети таким следствием уже не является. */
+async function prepareActivation() {
+  const link = $('howtoActivate');
+  if (!link) return;
+  link.setAttribute('aria-disabled', 'true');
+  link.removeAttribute('href');
+  howtoState('Готовим связь с вашим аккаунтом…');
+  try {
+    const data = await api('/me/upload-link');
+    if (!data || !data.token) {
+      /* Ключа нет — значит нечего вкладывать в команду. Молчать здесь
+         нельзя: человек нажмёт, ничего не произойдёт, и он решит, что
+         сломалось приложение. */
+      howtoState('Не удалось получить доступ к вашему аккаунту. Откройте приложение из бота и попробуйте снова.', {retry: true});
+      return;
+    }
+    link.href = activationLink(data.token);
+    link.removeAttribute('aria-disabled');
+    howtoState('Нажмите «Активировать команду».');
+  } catch (e) {
+    /* В сообщение уходит только код ответа: текст ошибки сервера может
+       содержать что угодно, а ключ не должен утечь даже случайно. */
+    howtoState('Связь с сервером не установилась' + (e.status ? ` (код ${e.status})` : '') + '. Попробуйте ещё раз.', {retry: true});
+  }
+}
+
+function runActivation(event) {
+  const link = $('howtoActivate');
+  if (!link || link.getAttribute('aria-disabled') === 'true' || !link.getAttribute('href')) {
+    event?.preventDefault();
+    howtoState('Ключ ещё не готов. Нажмите «Повторить активацию».', {retry: true});
+    return;
+  }
+  /* Внутри Telegram обычная ссылка уходит во встроенное окно, которое схему
+     shortcuts:// не понимает. Отдаём адрес системе тем же способом, что и
+     ссылку на iCloud, а если клиент не справился — остаётся обычный переход
+     по href, поэтому preventDefault только после успеха. */
+  if (inTelegram) {
+    try {
+      if (typeof tg.openLink === 'function') {
+        tg.openLink(link.href);
+        event?.preventDefault();
+      }
+    } catch (e) {
+      /* Намеренно без подробностей: в адресе лежит ключ. */
+      console.warn('не удалось открыть ссылку активации через клиент');
+    }
+  }
+  haptic('light');
+  howtoState('Откройте приложение «Команды». После активации вы увидите уведомление «Команда активирована».', {retry: true});
+}
+
 /* Куда вернуть человека после закрытия: экран длинный, и «назад» обязан
    вернуть ровно на то место, откуда инструкцию открыли. */
 let howtoScrollY = 0;
@@ -1687,6 +1800,10 @@ function openHowto() {
      вместо прокрутки инструкции. */
   try { tg?.disableVerticalSwipes?.(); } catch (e) {}
   telegramBack(true);
+  /* Ключ запрашивается при открытии инструкции, а не при загрузке экрана:
+     до неё он не нужен, а лишний поход за секретом — лишний повод ему
+     утечь. */
+  prepareActivation();
   haptic('light');
 }
 
@@ -1709,6 +1826,8 @@ $('howtoOpen')?.addEventListener('click', openHowto);
 $('howtoDone')?.addEventListener('click', closeHowto);
 $('howtoClose')?.addEventListener('click', closeHowto);
 $('howtoInstall')?.addEventListener('click', openShortcutLink);
+$('howtoActivate')?.addEventListener('click', runActivation);
+$('howtoRetry')?.addEventListener('click', prepareActivation);
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeHowto();
 });
