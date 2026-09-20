@@ -2147,7 +2147,7 @@ function banners() {
 
 function intakeCard() {
   return `<div class="card intake" id="intake">
-    <div class="h"><h2>Добавить операции</h2><span class="sp"></span><span class="tag">три способа</span></div>
+    <div class="h"><h2>Добавить операции</h2><span class="sp"></span><span class="tag">четыре способа</span></div>
     <div class="ways">
       <label class="way" data-way="csv">
         <input type="file" accept=".csv,text/csv" id="csvFile" hidden>
@@ -2173,6 +2173,15 @@ function intakeCard() {
             То же самое можно надиктовать голосом в чат бота</span>
         </span>
       </div>
+      <!-- Четвёртый способ живёт здесь, а не только отдельной карточкой внизу
+           экрана: человек ищет «как добавить операции» именно в этом блоке, а
+           до низа вкладки ещё нужно долистать — и его там не находили. -->
+      <button type="button" class="way" id="howtoWay" aria-haspopup="dialog" aria-controls="howto">
+        <span class="icbox">${icon('clock', true)}</span>
+        <span class="tx"><b>Настроить двойное касание</b>
+          <i>Быстрая команда для iPhone: скриншот банка улетает сам, настроить один раз</i></span>
+        <span class="go">&rsaquo;</span>
+      </button>
     </div>
     <div id="istatus"></div>
   </div>`;
@@ -3429,6 +3438,10 @@ function ingestText(res, what) {
 function bindIntake() {
   const csv = $('csvFile'), shot = $('shotFile');
   const cashBtn = $('cashBtn'), cashText = $('cashText');
+
+  /* Карточка перерисовывается на каждом переключении вкладки, поэтому
+     обработчик вешается здесь, а не один раз при загрузке. */
+  $('howtoWay')?.addEventListener('click', openHowto);
 
   if (csv) csv.onchange = async () => {
     const f = csv.files && csv.files[0];
