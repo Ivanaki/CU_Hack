@@ -25,7 +25,9 @@ from app.analytics import insights as insights_mod  # noqa: E402
 from app.analytics import reports as reports_mod  # noqa: E402
 from app.analytics.periods import month, split_into_weeks  # noqa: E402
 from app.api import schemas as s  # noqa: E402
+from app.api.game import state_out  # noqa: E402
 from app.db import session_scope  # noqa: E402
+from app.gamification import game_state  # noqa: E402
 from app.models import User  # noqa: E402
 from app.service import average_actions_per_day, count_open_questions, open_questions  # noqa: E402
 
@@ -84,6 +86,14 @@ def build_payload(session, user: User) -> dict:
         "operations_count": report.operations_count,
         "debts_owed_to_me": s.MoneyOut.of(report.debts_owed_to_me).model_dump(),
         "debts_i_owe": s.MoneyOut.of(report.debts_i_owe).model_dump(),
+        # Уровень, задания, достижения и карта месяца — тем же движком и той
+        # же формой ответа, что отдаёт GET /me/game. Руками этот блок писать
+        # нельзя: прогресс партнёрских заданий и суммы станций считаются из
+        # проводок, и любая рукопись разъехалась бы с живым API в первый же
+        # день. model_dump_json заодно приводит даты к строкам, как в HTTP.
+        "game": json.loads(
+            state_out(game_state(session, user, DEMO_PERIOD)).model_dump_json()
+        ),
     }
 
 
@@ -100,6 +110,24 @@ def check(payload: dict) -> list[str]:
         problems.append(f"категории {cats} != месяц {spend}")
     if split != spend:
         problems.append(f"обязательные+необязательные {split} != месяц {spend}")
+
+    # Карта месяца — тот же месяц, что и всё остальное: сумма станций-недель
+    # обязана сойтись с итогом. Если разъедется, экран сам себя опровергнет.
+    game = payload["game"]
+    stations = sum(
+        st["amount"]["kopecks"]
+        for st in game["map"]
+        if st["kind"] == "week" and st["amount"]
+    )
+    if stations != spend:
+        problems.append(f"станции-недели {stations} != месяц {spend}")
+    if not game["quests"]:
+        problems.append("заданий нет ни одного")
+    if not game["achievements"]:
+        problems.append("достижений нет ни одного")
+    for quest in game["quests"]:
+        if not 0.0 <= quest["progress"] <= 1.0:
+            problems.append(f"задание {quest['code']}: прогресс {quest['progress']}")
     return problems
 
 
@@ -129,6 +157,15 @@ def main() -> None:
     )
     print(f"  недель: {len(payload['weeks'])}, категорий: {len(payload['categories'])}, "
           f"вопросов: {len(payload['questions'])}, советов: {len(payload['insights'])}")
+    level = payload["game"]["level"]
+    earned = sum(1 for a in payload["game"]["achievements"] if a["earned"])
+    print(
+        f"  уровень {level['number']} «{level['title']}», "
+        f"{level['xp']}/{level['xp_total_next']} XP; "
+        f"заданий: {len(payload['game']['quests'])}, "
+        f"достижений: {earned} из {len(payload['game']['achievements'])}, "
+        f"станций: {len(payload['game']['map'])}"
+    )
     print("  инварианты сошлись")
 
 

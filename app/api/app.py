@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from app.api.game import game
 from app.api.quick import quick
 from app.api.routes import ingest, me, public
 from app.api.uploads import uploads
@@ -67,6 +68,7 @@ def create_app() -> FastAPI:
     # маршруты, зарегистрированные после него, недостижимы.
     app.include_router(uploads)
     app.include_router(quick)
+    app.include_router(game)
 
     if MINIAPP_DIR.exists():
         app.mount("/", StaticFiles(directory=MINIAPP_DIR, html=True), name="miniapp")

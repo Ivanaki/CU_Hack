@@ -192,3 +192,50 @@ def test_заливка_траты_за_пользователя_заводит_
 
     users = client.get("/api/v1/ingest/users", headers={"X-API-Key": SERVICE_KEY}).json()
     assert any(u["tg_id"] == 424_242 for u in users)
+
+
+def test_игровое_состояние_доступно_в_собранном_приложении(client):
+    """Роутер игры зарегистрирован ДО StaticFiles на корне.
+
+    Проверка не про расчёт — он покрыт в tests/test_gamification.py, где
+    роутер поднят отдельным приложением. Здесь важно ровно одно: маршрут
+    достижим в том приложении, которое поднимается на демонстрации. Если
+    include_router(game) уедет ниже app.mount("/", StaticFiles(...)),
+    статика перехватит адрес и ответит 405 — молча, без единого падения
+    в остальных тестах.
+    """
+    assert client.get("/api/v1/me/game").status_code == 401, (
+        "адрес перехвачен статикой: без подписи должен отвечать сам роутер"
+    )
+
+    response = client.get("/api/v1/me/game?period=2026-09", headers=auth())
+    assert response.status_code == 200, response.text
+    data = response.json()
+
+    # Форма — дословно по утверждённому контракту: по нему написан фронт.
+    assert set(data) == {"level", "quests", "achievements", "map"}
+    assert set(data["level"]) == {"number", "title", "xp", "xp_total_next", "progress"}
+    assert 0.0 <= data["level"]["progress"] <= 1.0
+    for quest in data["quests"]:
+        assert set(quest) == {
+            "code", "kind", "title", "detail", "progress",
+            "xp", "done", "sponsor", "reward", "deadline",
+        }
+        assert quest["kind"] in {"system", "sponsor"}
+    for achievement in data["achievements"]:
+        assert set(achievement) == {
+            "code", "title", "detail", "earned", "earned_at", "progress", "hint",
+        }
+    for station in data["map"]:
+        assert set(station) == {"code", "kind", "state", "title", "detail", "amount", "action"}
+        assert station["kind"] in {"week", "question", "chest", "quest", "finish"}
+        assert station["state"] in {"done", "current", "locked"}
+
+
+def test_карта_и_сводка_открываются_на_одном_месяце(client):
+    """Иначе сумма станций на карте не сойдётся с суммой на главном экране."""
+    game = client.get("/api/v1/me/game?period=2026-09", headers=auth()).json()
+    summary = client.get("/api/v1/me/summary?period=2026-09", headers=auth()).json()
+
+    weeks = [st for st in game["map"] if st["kind"] == "week"]
+    assert sum(st["amount"]["kopecks"] for st in weeks) == summary["spend"]["kopecks"]

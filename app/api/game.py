@@ -134,25 +134,18 @@ def _resolve_period(session: Session, user_id: int, spec: str | None) -> Period:
 
 
 # --------------------------------------------------------------------------
-# Эндпоинт
+# Форма ответа из расчёта
 # --------------------------------------------------------------------------
 
 
-@game.get("/game", response_model=GameStateOut, summary="Уровень, задания, ачивки и карта")
-def state(
-    period: str | None = Query(default=None, description="auto|today|week|month|year|2026-09"),
-    user: User = Depends(current_user),
-    session: Session = Depends(db_session),
-) -> GameStateOut:
-    """Игровое состояние целиком.
+def state_out(snapshot: game_mod.GameState) -> GameStateOut:
+    """Расчёт движка -> форма ответа.
 
-    Ни одно число здесь не хранится: опыт, достижения и прогресс заданий
-    выводятся из фактических данных при каждом запросе. Поэтому ответ
-    идемпотентен, а показать прогресс, которого не было, физически нечем.
+    Отдельной функцией, потому что тот же ответ вшивается в Mini App
+    запасными данными (scripts/build_miniapp.py). Две сборки одной формы
+    неизбежно разъехались бы, а разъехавшись — молча: офлайн-экран
+    показывал бы поля не так, как живой API.
     """
-    window = _resolve_period(session, user.id, period)
-    snapshot = game_mod.game_state(session, user, window)
-
     return GameStateOut(
         level=LevelOut(
             number=snapshot.level.number,
@@ -203,3 +196,24 @@ def state(
             for station in snapshot.map
         ],
     )
+
+
+# --------------------------------------------------------------------------
+# Эндпоинт
+# --------------------------------------------------------------------------
+
+
+@game.get("/game", response_model=GameStateOut, summary="Уровень, задания, ачивки и карта")
+def state(
+    period: str | None = Query(default=None, description="auto|today|week|month|year|2026-09"),
+    user: User = Depends(current_user),
+    session: Session = Depends(db_session),
+) -> GameStateOut:
+    """Игровое состояние целиком.
+
+    Ни одно число здесь не хранится: опыт, достижения и прогресс заданий
+    выводятся из фактических данных при каждом запросе. Поэтому ответ
+    идемпотентен, а показать прогресс, которого не было, физически нечем.
+    """
+    window = _resolve_period(session, user.id, period)
+    return state_out(game_mod.game_state(session, user, window))
