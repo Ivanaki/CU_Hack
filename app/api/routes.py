@@ -38,6 +38,7 @@ from app.config import Settings, get_settings
 from app.ledger.invariants import run_all
 from app.models import ImportBatch, Operation, OperationSource, User
 from app.service import (
+    AnswerRejected,
     add_quick_expense,
     answer_question,
     average_actions_per_day,
@@ -174,7 +175,11 @@ def answer(
     user: User = Depends(current_user),
     session: Session = Depends(db_session),
 ) -> dict:
-    item = answer_question(session, user, review_id, payload.code)
+    try:
+        item = answer_question(session, user, review_id, payload.code, text=payload.text or "")
+    except AnswerRejected as rejected:
+        # 400, а не 404: вопрос жив и ждёт нормального ответа.
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(rejected)) from rejected
     if item is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "вопрос не найден или уже закрыт")
     window = latest_data_month(session, user.id)

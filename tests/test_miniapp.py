@@ -83,6 +83,9 @@ FORBIDDEN_CLAIMS = (
     "изменит настройки",
 )
 
+# Обработчик ответа на вопрос — к нему обращаются два теста.
+ANSWER_FN = r"async function answer\(q, wrap, btn, ownText\) \{(.+?)\n\}"
+
 # Идентификаторы, за которые скрипт держится руками.
 WIRED_IDS = (
     "howtoOpen", "howtoDone", "howtoClose", "howtoInstall",
@@ -380,6 +383,65 @@ def test_обработчики_не_роняют_страницу():
 def test_идентификаторы_не_дублируются():
     ids = markup().ids
     assert len(ids) == len(set(ids)), "getElementById нашёл бы не тот узел"
+
+
+def test_ответ_своими_словами_есть_в_каждом_вопросе():
+    """Готовые варианты закрывают частые случаи, но не все.
+
+    «Перевод Дмитрий К. на 25 000 ₽» бывает арендой, возвратом за ремонт,
+    долей за поездку. Без поля ввода человек откладывает вопрос, и деньги
+    остаются необъяснёнными — то есть метрика продукта не растёт.
+    """
+    queue = re.search(r"function renderQueue\(focusId\) \{(.+?)\n\}", HTML, re.DOTALL)
+    assert queue, "отрисовка очереди пропала"
+    code = without_comments(queue.group(1))
+    assert 'class="ans own"' in code, "кнопка «своими словами» рисуется"
+    # Но только если сервер этот вариант прислал: кнопка, которой на
+    # сервере нет, приводит человека к ошибке после набранного ответа.
+    assert "o.code === 'free'" in code, "вариант берётся из ответа сервера"
+    assert "(free" in code, "без варианта с сервера кнопка не рисуется"
+
+    open_own = re.search(r"function openOwnAnswer\(q, wrap, btn\) \{(.+?)\n\}", HTML, re.DOTALL)
+    assert open_own, "поле ввода не открывается"
+    body = without_comments(open_own.group(1))
+    assert "qfree-in" in body and "maxlength=\"200\"" in body
+    assert "input.focus()" in body, "поле должно сразу принимать ввод"
+    # Пустой ответ не отправляется: молча закрыть вопрос — обмануть человека.
+    assert "if (!text)" in body
+    assert "'Enter'" in body, "ввод завершается с клавиатуры, а не только кнопкой"
+
+    answer = re.search(ANSWER_FN, HTML, re.DOTALL)
+    assert answer, "обработчик ответа пропал"
+    sent = without_comments(answer.group(1))
+    assert "{code: 'free', text: ownText}" in sent, "свободный ответ уходит своим кодом"
+
+
+def test_отвеченная_карточка_уезжает_одна():
+    """Ответ обязан выглядеть как «карточка уехала», а не как мигание списка.
+
+    Раньше после ответа очередь перерисовывалась целиком, и все оставшиеся
+    карточки заново проигрывали своё появление — дважды, потому что за
+    перерисовкой шло тихое обновление данных.
+    """
+    answer = re.search(ANSWER_FN, HTML, re.DOTALL)
+    code = without_comments(answer.group(1))
+    assert "wrap.classList.add('gone')" in code, "уход карточки анимируется"
+    assert "wrap.remove()" in code, "ушедшая карточка убирается точечно"
+    assert "renderQueue()" not in code, "полная перерисовка переигрывает весь список"
+
+    # Тихое обновление тоже не должно перерисовывать очередь без причины.
+    refresh = re.search(r"async function refresh\(silent, quiet\) \{(.+?)\n\}", HTML, re.DOTALL)
+    assert refresh and "if (!queueMatches()) renderQueue()" in without_comments(refresh.group(1))
+
+    # Уход карточки — это схлопывание строки плюс отъезд самой карточки.
+    assert ".qwrap.gone{grid-template-rows:0fr}" in FLAT
+    assert ".qwrap.gone .quiz{" in FLAT
+
+    # Счётчики в оставшихся карточках правятся на месте, а пустая очередь
+    # показывает итог — иначе на экране остаётся «3 в очереди» при нуле.
+    drop = re.search(r"function dropQueueCard\(\) \{(.+?)\n\}", HTML, re.DOTALL)
+    assert drop, "счётчики очереди никто не обновляет"
+    assert "alldone pop" in drop.group(1), "пустая очередь показывает итог"
 
 
 def test_страница_остаётся_самодостаточной():

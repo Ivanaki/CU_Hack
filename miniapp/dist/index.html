@@ -361,7 +361,23 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .quiz{border:3px solid var(--stroke);border-radius:20px;background:var(--card);padding:15px;margin-bottom:14px;
   box-shadow:0 5px 0 var(--stroke);transition:transform .42s cubic-bezier(.5,-.2,.7,.4), opacity .34s ease}
 .qwrap.gone .quiz{transform:translateX(120%) rotate(7deg) scale(.94);opacity:0;pointer-events:none}
+/* Поле «своими словами». Открывается прямо в карточке: уводить человека
+   на отдельный экран ради одной строки — потерять его на полпути. */
+.qfree{display:flex;gap:8px;margin-top:10px}
+.qfree-in{flex:1;min-width:0;font:inherit;font-size:14px;font-weight:800;color:inherit;
+  background:#fff;border:2.5px solid var(--stroke);border-radius:13px;padding:10px 12px;
+  transition:border-color .16s,transform .12s}
+.qfree-in::placeholder{color:var(--hint);font-weight:700}
+.qfree-in:focus{outline:none;border-color:var(--green)}
+.qfree-in.bad{border-color:var(--coral);animation:q-shake .34s}
+@keyframes q-shake{0%,100%{transform:none}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.qfree-ok{appearance:none;font:inherit;font-size:14px;font-weight:900;color:#0F2417;cursor:pointer;
+  background:var(--green);border:2.5px solid var(--stroke);border-radius:13px;padding:10px 15px;
+  box-shadow:0 3px 0 var(--stroke);transition:transform .08s,box-shadow .08s}
+.qfree-ok:active{transform:translateY(3px);box-shadow:none}
+.ans.own{border-style:dashed}
 .quiz.pop{animation:q-pop .45s cubic-bezier(.3,1.4,.5,1) both}
+.alldone.pop{animation:q-pop .45s cubic-bezier(.3,1.4,.5,1) both}
 @keyframes q-pop{0%{opacity:0;transform:translateY(14px) scale(.96)}100%{opacity:1;transform:none}}
 .quiz .qh{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .quiz .qh .badge{background:var(--coral);color:#FBF0D9;font-size:10px;font-weight:900;padding:3px 9px;
@@ -3109,12 +3125,22 @@ function renderQueue(focusId) {
   list.forEach((q, idx) => {
     const kind = q.kind || '';
     const isIn = kind === 'incoming_unknown';
-    const narrow = (q.options || []).every((o) => String(o.label).length <= 8);
-    const opts = narrow
-      ? '<div class="numrow">' + (q.options || []).map((o) =>
+    /* «Своими словами» — последним и отдельной кнопкой, но только если
+       сервер этот вариант прислал. Рисовать кнопку, которой на сервере
+       нет, нельзя: человек нажмёт, напишет ответ и получит ошибку — это
+       хуже, чем отсутствие кнопки. */
+    const base = (q.options || []).filter((o) => o.code !== 'free');
+    const free = (q.options || []).find((o) => o.code === 'free');
+    const narrow = base.length > 0 && base.every((o) => String(o.label).length <= 8);
+    const opts = (narrow
+      ? '<div class="numrow">' + base.map((o) =>
           `<button class="ans" type="button" data-id="${q.id}" data-code="${esc(o.code)}">${esc(o.label)}</button>`).join('') + '</div>'
-      : (q.options || []).map((o) =>
-          `<button class="ans" type="button" data-id="${q.id}" data-code="${esc(o.code)}"><span>${esc(o.label)}</span><span class="plus">&rsaquo;</span></button>`).join('');
+      : base.map((o) =>
+          `<button class="ans" type="button" data-id="${q.id}" data-code="${esc(o.code)}"><span>${esc(o.label)}</span><span class="plus">&rsaquo;</span></button>`).join(''))
+      + (free
+        ? `<button class="ans own" type="button" data-own="${q.id}">
+             <span>${esc(free.label)}</span><span class="plus">&rsaquo;</span></button>`
+        : '');
     const wrap = el(`
       <div class="qwrap" data-id="${q.id}"><div class="qin"><div class="quiz pop" style="animation-delay:${idx * 70}ms">
         <div class="qh"><span class="badge">${esc(KIND_BADGE[kind] || 'Вопрос')}</span>
@@ -3129,7 +3155,11 @@ function renderQueue(focusId) {
         <button class="qskip" type="button" data-skip="${q.id}">Отложить вопрос</button>
         <div class="qhere"></div>
       </div></div></div>`);
-    wrap.querySelectorAll('.ans').forEach((b) => { b.onclick = () => answer(q, wrap, b); });
+    wrap.querySelectorAll('.ans:not(.own)').forEach((b) => {
+      b.onclick = () => answer(q, wrap, b);
+    });
+    const own = wrap.querySelector('.ans.own');
+    if (own) own.onclick = () => openOwnAnswer(q, wrap, own);
     const sk = wrap.querySelector('[data-skip]');
     if (sk) sk.onclick = () => skipQuestion(q, wrap);
     box.appendChild(wrap);
@@ -3146,12 +3176,83 @@ function qerror(wrap, text) {
   slot.innerHTML = `<div class="qerr">${esc(text)}</div>`;
 }
 
-async function answer(q, wrap, btn) {
+/* --------------------------------------------------------------------------
+   Ответ своими словами. Готовые варианты закрывают частые случаи, но
+   «Перевод Дмитрий К. на 25 000 ₽» бывает чем угодно — арендой, возвратом
+   за ремонт, долей за поездку. Без поля ввода человеку некуда деться, и он
+   откладывает вопрос: деньги остаются необъяснёнными.
+   -------------------------------------------------------------------------- */
+function openOwnAnswer(q, wrap, btn) {
+  const slot = wrap.querySelector('.qhere');
+  if (!slot) return;
+  if (slot.querySelector('.qfree')) {         // уже открыто — закрываем
+    slot.innerHTML = '';
+    btn.classList.remove('picked');
+    return;
+  }
+  btn.classList.add('picked');
+  slot.innerHTML = `<div class="qfree">
+    <input type="text" class="qfree-in" maxlength="200" autocomplete="off"
+           placeholder="Например: аренда квартиры" aria-label="Ответ своими словами">
+    <button type="button" class="qfree-ok">Готово</button>
+  </div>`;
+  const input = slot.querySelector('.qfree-in');
+  const ok = slot.querySelector('.qfree-ok');
+  const send = () => {
+    const text = (input.value || '').trim();
+    if (!text) {
+      /* Пустой ответ — не ответ. Молча закрывать вопрос нельзя: человек
+         решит, что объяснил, а сумма останется непонятной. */
+      input.focus();
+      input.classList.add('bad');
+      setTimeout(() => input.classList.remove('bad'), 700);
+      return;
+    }
+    answer(q, wrap, btn, text);
+  };
+  ok.onclick = send;
+  input.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); send(); } };
+  haptic('light');
+  setTimeout(() => input.focus(), 30);
+}
+
+/* Совпадает ли нарисованная очередь с той, что в данных. Нужно, чтобы не
+   перерисовывать список, когда меняться в нём нечему: перерисовка
+   переигрывает появление всех карточек разом, и вместо «одна карточка
+   уехала» человек видит, как мигает весь экран. */
+/* После ухода карточки счётчики в оставшихся врут, а пустая очередь обязана
+   показать итог. Делаем это на месте — ровно те узлы, что изменились. */
+function dropQueueCard() {
+  const box = $('queue');
+  if (!box) return;
+  const left = box.querySelectorAll('.qwrap').length;
+  if (!left) {
+    const done = el(`<div class="alldone pop"><div class="icbox">${icon('check', true)}</div>
+      Спорных операций нет.<br>Все цифры за период разобраны.</div>`);
+    box.appendChild(done);
+    return;
+  }
+  box.querySelectorAll('.quiz .cnt').forEach((n) => {
+    n.textContent = left + ' ' + plural(left, 'вопрос', 'вопроса', 'вопросов')
+      + ' в очереди · 1 тап';
+  });
+}
+
+function queueMatches() {
+  const box = $('queue');
+  if (!box) return false;
+  const drawn = [...box.querySelectorAll('.qwrap')].map((n) => Number(n.dataset.id));
+  const wanted = (SUM.questions || []).map((q) => q.id);
+  return drawn.length === wanted.length && drawn.every((id, i) => id === wanted[i]);
+}
+
+async function answer(q, wrap, btn, ownText) {
   if (busyAnswer) return;
   busyAnswer = true;
   haptic('medium');
   btn.classList.add('picked');
   wrap.querySelectorAll('.ans').forEach((b) => { b.disabled = true; });
+  wrap.querySelectorAll('.qfree-in, .qfree-ok').forEach((b) => { b.disabled = true; });
   setMood('hype', 0);
   flashStreak();
 
@@ -3167,8 +3268,11 @@ async function answer(q, wrap, btn) {
   }
 
   try {
+    const body = ownText
+      ? {code: 'free', text: ownText}
+      : {code: btn.dataset.code};
     const out = await api(`/me/questions/${q.id}/answer`, {
-      method: 'POST', body: JSON.stringify({code: btn.dataset.code}),
+      method: 'POST', body: JSON.stringify(body),
     });
     setAwareness(out.awareness_percent);
     setTimeout(() => {
@@ -3177,7 +3281,12 @@ async function answer(q, wrap, btn) {
         SUM.questions = (SUM.questions || []).filter((x) => x.id !== q.id);
         SUM.open_questions = out.open_questions;
         if (SUM.streak) SUM.streak.days = out.streak_days;
-        renderQueue();
+        /* Убираем одну карточку, а не перерисовываем очередь. Полная
+           перерисовка переигрывает появление всех оставшихся карточек
+           разом — и вместо «карточка уехала» человек видит, как мигает
+           весь список. */
+        wrap.remove();
+        dropQueueCard();
         navBadge();
         syncLive();
         busyAnswer = false;
@@ -3706,7 +3815,13 @@ async function refresh(silent, quiet) {
       topbar();
       navBadge();
       syncLive();
-      if (TAB === 'questions') { renderQueue(); setAwareness(SUM.awareness?.percent || 0); }
+      /* Очередь трогаем, только если она правда изменилась: лишняя
+         перерисовка переигрывает появление всех карточек и выглядит как
+         мигание экрана сразу после ответа. */
+      if (TAB === 'questions') {
+        if (!queueMatches()) renderQueue();
+        setAwareness(SUM.awareness?.percent || 0);
+      }
     } else {
       render();
     }

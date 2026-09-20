@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from app.analytics import reports
 from app.analytics.periods import Period, month, week
 from app.classify import categories as cats
-from app.classify.enrich import category_from_text
+from app.classify.enrich import category_from_text, purpose_tags
 from app.classify.pipeline import DecisionKind, reclassify
 from app.ingest.base import ParsedRow
 from app.ingest.service import ImportResult, add_manual, import_file, import_images
@@ -612,49 +612,44 @@ _ANSWER_TO_DECISION = {
     "cash_spent_on": DecisionKind.CASH_ALLOCATION,
 }
 
+# Код кнопки «Своими словами». Есть у любого вопроса: заранее придуманные
+# варианты не покрывают всё, а «ничего не подходит» — не повод оставлять
+# деньги неразобранными.
+FREE_ANSWER = "free"
+
+
+class AnswerRejected(ValueError):
+    """Ответ не принят. Вопрос остаётся открытым: человеку есть что поправить."""
+
 
 def answer_question(
-    session: Session, user: User, review_id: int, code: str
+    session: Session, user: User, review_id: int, code: str, text: str = ""
 ) -> ReviewItem | None:
     """Один тап пользователя: записывает решение и пересчитывает всё заново.
 
     Решение живёт отдельно от операций и переживает пересчёт — поэтому один
-    и тот же вопрос никогда не задаётся дважды.
+    и тот же вопрос никогда не задаётся дважды. text приходит только с
+    ответом «своими словами» и для остальных ответов ничего не меняет.
     """
     item = session.get(ReviewItem, review_id)
     if item is None or item.user_id != user.id or item.status != ReviewStatus.OPEN:
         return None
 
-    kind = _ANSWER_TO_DECISION.get(str(item.kind), DecisionKind.SET_KIND)
-    payload: dict = {}
-    if kind == DecisionKind.PARTICIPANTS:
-        if not code.isdigit():
-            return None
-        payload = {"n": int(code)}
-    elif kind in (DecisionKind.SET_CATEGORY, DecisionKind.CASH_ALLOCATION):
-        payload = {"category": code}
-    elif kind == DecisionKind.FORCE_TRANSFER:
-        if code == "no":
-            kind = DecisionKind.NOT_TRANSFER
-        payload = {}
-    else:
-        payload = {"kind": code}
-
-    existing = session.scalar(
-        select(Decision).where(
-            Decision.user_id == user.id,
-            Decision.anchor_hash == item.anchor_hash,
-            Decision.kind == kind,
-        )
-    )
-    if existing is None:
-        session.add(
-            Decision(
-                user_id=user.id, anchor_hash=item.anchor_hash, kind=kind, payload=payload
+    text = (text or "").strip()
+    if code == FREE_ANSWER:
+        if not text:
+            raise AnswerRejected(
+                "ответ своими словами не может быть пустым: напишите, что это за операция"
             )
-        )
+        decisions = _free_text_decisions(str(item.kind), text)
     else:
-        existing.payload = payload
+        single = _decision_for(str(item.kind), code)
+        if single is None:
+            return None
+        decisions = [single]
+
+    for kind, payload in decisions:
+        _remember_decision(session, user, item.anchor_hash, kind, payload)
 
     item.status = ReviewStatus.RESOLVED
     item.answer_code = code
@@ -664,6 +659,103 @@ def answer_question(
 
     reclassify(session, user.id)
     return item
+
+
+def _decision_for(question_kind: str, code: str) -> tuple[str, dict] | None:
+    """Обычный ответ кнопкой: какое решение записать. None — код не подходит."""
+    kind = _ANSWER_TO_DECISION.get(question_kind, DecisionKind.SET_KIND)
+    if kind == DecisionKind.PARTICIPANTS:
+        if not code.isdigit():
+            return None
+        return kind, {"n": int(code)}
+    if kind in (DecisionKind.SET_CATEGORY, DecisionKind.CASH_ALLOCATION):
+        return kind, {"category": code}
+    if kind == DecisionKind.FORCE_TRANSFER:
+        return (DecisionKind.NOT_TRANSFER if code == "no" else kind), {}
+    return kind, {"kind": code}
+
+
+def _free_text_decisions(question_kind: str, text: str) -> list[tuple[str, dict]]:
+    """Во что превращается ответ своими словами у каждого вида вопроса.
+
+    Смысл текста разбирает тот же определитель категории, что работает на
+    выписках: «такси до аэропорта» попадает в «Такси» ровно так же, как
+    ответ кнопкой. Если категория из слов не вычиталась, трата идёт в
+    «Прочее», но помечается объяснённой — см. pipeline.post_free_text.
+    """
+    category = category_from_text(text)
+    # Решение со словами пишется всегда и рядом с обычным: оно закрывает
+    # вопрос навсегда (пересчёт не задаёт вопрос, по якорю которого есть
+    # решение) и даёт операции название от человека.
+    made: list[tuple[str, dict]] = [
+        (DecisionKind.FREE_TEXT, {"text": text, "category": category})
+    ]
+    if question_kind == "shared_bill_heads":
+        heads = _heads_from_text(text)
+        made.append((DecisionKind.PARTICIPANTS, {"n": heads} if heads else {}))
+    elif question_kind == "cash_spent_on":
+        made.append((DecisionKind.CASH_ALLOCATION, {"category": category or cats.OTHER}))
+    elif question_kind == "incoming_unknown":
+        made.append((DecisionKind.SET_KIND, {"kind": _incoming_choice(text)}))
+    elif question_kind == "is_self_transfer":
+        # Человек объясняет, что это была за операция, — значит, перевод не
+        # себе. Пара распадается, а ушедшие деньги становятся тратой с
+        # названием от человека. Решений три: какое правило доберётся до
+        # строки, зависит от того, человек на той стороне или магазин.
+        made += [
+            (DecisionKind.NOT_TRANSFER, {}),
+            (DecisionKind.SET_KIND, {"kind": "service", "category": category or cats.OTHER}),
+            (DecisionKind.SET_CATEGORY, {"category": category or cats.OTHER}),
+        ]
+    elif question_kind == "outgoing_to_person":
+        made.append(
+            (DecisionKind.SET_KIND, {"kind": "service", "category": category or cats.OTHER})
+        )
+    else:
+        made.append((DecisionKind.SET_CATEGORY, {"category": category or cats.OTHER}))
+    return made
+
+
+def _incoming_choice(text: str) -> str:
+    """Чем считать поступление по словам человека.
+
+    По умолчанию доход, но «вернул за ужин» доходом называть нельзя: это
+    мои же деньги, и доход от такого ответа был бы завышен.
+    """
+    tags = set(purpose_tags(text))
+    if {"debt", "return"} & tags:
+        return "debt_back"
+    if {"share_meal", "share_ride", "split"} & tags:
+        return "share"
+    if "gift" in tags:
+        return "gift"
+    return "income"
+
+
+def _heads_from_text(text: str) -> int:
+    """Сколько человек делили счёт — если число названо цифрой."""
+    match = re.search(r"\b(\d{1,2})\b", text)
+    heads = int(match.group(1)) if match else 0
+    return heads if 2 <= heads <= 20 else 0
+
+
+def _remember_decision(
+    session: Session, user: User, anchor: str, kind: str, payload: dict
+) -> None:
+    """Одно решение на якорь и вид: повторный ответ переписывает прежний."""
+    existing = session.scalar(
+        select(Decision).where(
+            Decision.user_id == user.id,
+            Decision.anchor_hash == anchor,
+            Decision.kind == kind,
+        )
+    )
+    if existing is None:
+        session.add(
+            Decision(user_id=user.id, anchor_hash=anchor, kind=kind, payload=payload)
+        )
+    else:
+        existing.payload = payload
 
 
 def skip_question(session: Session, user: User, review_id: int) -> None:

@@ -34,6 +34,7 @@ from aiogram.types import User as TgUser
 from tests.test_uploads import png
 
 BASE_URL = "https://example.test"
+MINIAPP_URL = "https://example.test/app"
 BOT_TOKEN = "424242:TESTTESTTESTTESTTESTTESTTESTTESTTES"
 BOT_NAME = "honest_month_bot"
 
@@ -84,9 +85,15 @@ class Recorder(BaseSession):
 
 @pytest.fixture
 def bot(_isolated_db, tmp_path):
-    saved = {name: os.environ.get(name) for name in ("PUBLIC_BASE_URL", "UPLOAD_DIR")}
+    saved = {
+        name: os.environ.get(name)
+        for name in ("PUBLIC_BASE_URL", "UPLOAD_DIR", "MINIAPP_URL")
+    }
     os.environ["PUBLIC_BASE_URL"] = BASE_URL
     os.environ["UPLOAD_DIR"] = str(tmp_path)
+    # Адрес приложения задаём явно: в .env разработчика он есть, и тест не
+    # должен зависеть от того, что там сейчас написано.
+    os.environ["MINIAPP_URL"] = MINIAPP_URL
 
     from app.config import get_settings
 
@@ -272,3 +279,64 @@ async def test_картинка_из_бота_сохраняется_и_оста
 
     # И лежит он там же, где файлы шортката: в закрытом каталоге.
     assert (get_settings().upload_path / PRIVATE_DIR / batch.stored_as).is_file()
+
+
+async def test_старт_отвечает_короткой_строкой_без_списка_команд(bot):
+    """Первый экран — это кнопка, а не стена текста.
+
+    Раньше /start отдавал шесть абзацев со списком команд и методикой:
+    человек открывал бота и не понимал, куда тыкать. Всё это осталось в
+    /help, а /start обязан читаться за секунду.
+    """
+    await feed(bot, message=message(PRIVATE, OWNER, "/start"))
+
+    sent = bot.session.sent()
+    assert len(sent) == 1
+    text = sent[0].text
+
+    # Прежняя простыня была больше 600 знаков; запас оставлен на правки
+    # формулировки, но не на возврат абзацев.
+    assert len(text) < 200, f"/start снова разросся: {len(text)} знаков"
+    assert text.count("\n") <= 2, "две строки максимум"
+    for command in ("/month", "/week", "/questions", "/link", "/today", "/streak"):
+        assert command not in text, f"список команд вернулся в /start: {command}"
+
+
+async def test_старт_даёт_кнопку_в_приложение_первой(bot):
+    """Открыть Mini App должно быть первым и самым заметным действием."""
+    await feed(bot, message=message(PRIVATE, OWNER, "/start"))
+
+    markup = bot.session.sent()[0].reply_markup
+    assert markup is not None, "к сообщению не приложено ни одной кнопки"
+    first = markup.keyboard[0][0]
+
+    assert first.web_app is not None, "первая кнопка обязана открывать приложение"
+    assert first.web_app.url == MINIAPP_URL
+    assert "риложени" in first.text
+
+
+async def test_старт_без_адреса_приложения_объясняет_словами(bot):
+    """Пустой MINIAPP_URL — это настройка, а не повод падать.
+
+    Мёртвая кнопка хуже её отсутствия: человек тапает и не понимает,
+    почему ничего не открылось. Поэтому кнопки нет, а текст говорит, что
+    именно нужно сделать.
+    """
+    from app.config import get_settings
+
+    os.environ["MINIAPP_URL"] = ""
+    get_settings.cache_clear()
+    try:
+        await feed(bot, message=message(PRIVATE, OWNER, "/start"))
+    finally:
+        os.environ["MINIAPP_URL"] = MINIAPP_URL
+        get_settings.cache_clear()
+
+    sent = bot.session.sent()
+    assert len(sent) == 1, "бот обязан ответить, а не промолчать"
+    text = sent[0].text
+
+    assert "MINIAPP_URL" in text, "человеку нужно сказать, чего не хватает"
+    markup = sent[0].reply_markup
+    buttons = [button for row in (markup.keyboard if markup else []) for button in row]
+    assert all(button.web_app is None for button in buttons), "кнопка вела бы в никуда"

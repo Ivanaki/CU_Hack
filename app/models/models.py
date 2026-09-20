@@ -257,6 +257,13 @@ class Operation(Base, TimestampMixin):
     rule: Mapped[str | None] = mapped_column(String(64), nullable=True)
     confidence: Mapped[float] = mapped_column(Float, default=1.0)
     explanation: Mapped[str] = mapped_column(Text, default="")
+    # Человек объяснил операцию своими словами. Категория при этом может и не
+    # найтись («вернул Диме за ремонт»), но деньги перестают быть непонятными:
+    # метрика осознанности такие траты в неясные больше не записывает.
+    # server_default — база задеплоена, колонка доезжает через upgrade_schema.
+    explained: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("0")
+    )
 
     # use_alter: claims и operations ссылаются друг на друга, и без этого
     # SQLAlchemy не может упорядочить CREATE/DROP таблиц.

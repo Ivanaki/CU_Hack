@@ -55,6 +55,13 @@ class QuestionOptionOut(BaseModel):
     label: str
 
 
+# Последняя кнопка любого вопроса. Придуманные заранее варианты покрывают не
+# всё («аренда квартиры», «вернул за ремонт»), а «ничего не подходит» — не
+# повод оставлять деньги неразобранными. Добавляется здесь, а не в правилах:
+# так она появляется разом у всех видов вопросов, включая будущие.
+FREE_OPTION = QuestionOptionOut(code="free", label="Своими словами")
+
+
 class QuestionOut(BaseModel):
     id: int
     kind: str
@@ -67,11 +74,14 @@ class QuestionOut(BaseModel):
     @classmethod
     def of(cls, item: ReviewItem) -> QuestionOut:
         op = item.operation
+        options = [QuestionOptionOut(**o) for o in (item.options or [])]
+        if all(o.code != FREE_OPTION.code for o in options):
+            options.append(FREE_OPTION)
         return cls(
             id=item.id,
             kind=str(item.kind),
             question=item.question,
-            options=[QuestionOptionOut(**o) for o in (item.options or [])],
+            options=options,
             explanation=(op.explanation if op else ""),
             amount=MoneyOut.of(op.amount) if op else None,
             occurred_at=(op.occurred_at if op else None),
@@ -310,6 +320,9 @@ class UploadLinkOut(BaseModel):
 
 class AnswerIn(BaseModel):
     code: str = Field(min_length=1, max_length=64)
+    # Заполняется только для code="free": что это за операция, словами
+    # человека. Для остальных кодов не значит ничего.
+    text: str | None = Field(default=None, max_length=200)
 
 
 class QuickExpenseIn(BaseModel):

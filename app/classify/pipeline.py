@@ -72,6 +72,11 @@ class DecisionKind:
     CASH_ALLOCATION = "cash_allocation"
     NOT_TRANSFER = "not_transfer"
     IGNORE = "ignore"
+    # Человек ответил своими словами: в payload лежит его текст и категория,
+    # если она из этого текста вычиталась. Записывается рядом с обычным
+    # решением, а не вместо него, — классификацию ведёт обычное решение,
+    # а это отвечает за то, что операция названа словами человека.
+    FREE_TEXT = "free_text"
 
 
 @dataclass(slots=True)
@@ -988,7 +993,9 @@ def rule_shared_bill(ctx: Ctx) -> None:
         if len(payers) < 2 and not forced:
             continue  # один плательщик — спросим отдельно, см. rule_unknown_incoming
 
-        participants = int(forced["n"]) if forced else len(payers) + 1
+        # Число могло и не прозвучать: на вопрос «на скольких делили» человек
+        # вправе ответить своими словами. Тогда остаётся оценка по плательщикам.
+        participants = int((forced or {}).get("n") or 0) or len(payers) + 1
         participants = max(2, participants)
         total = bill.amount
         my_share = total // participants
@@ -1379,6 +1386,9 @@ def post_unallocated_cash(ctx: Ctx, now: datetime) -> None:
                 category=category,
                 source=OperationSource.MANUAL,
                 explanation="Вы указали, на что ушли снятые наличные.",
+                # Своих legs у этой операции нет, а якорь нужен: по нему
+                # ответ своими словами находит её и подписывает.
+                extra={"anchor": anchor},
             )
             op.status = OperationStatus.CONFIRMED
             build.cash_expense(
@@ -1473,6 +1483,42 @@ def post_subscriptions(ctx: Ctx) -> None:
                 category_code=group[-1].category_code,
             )
         )
+
+
+def post_free_text(ctx: Ctx) -> None:
+    """Подписывает операции словами человека, когда он ответил своими словами.
+
+    Работает поверх готовых операций, а не вместо правил: классификацию
+    ведёт обычное решение (категория, вид операции, распределение наличных),
+    а здесь операция получает название и объяснение от человека и метку
+    «объяснено». Метка важна не для красоты: без категории такая трата
+    иначе навсегда осталась бы в неясных, хотя смысл денег известен.
+    """
+    for op in ctx.ops:
+        anchor = op.extra.get("anchor")
+        told = ctx.decision(anchor, DecisionKind.FREE_TEXT) if anchor else None
+        text = str((told or {}).get("text") or "").strip()
+        if not text:
+            continue
+        if op.kind == OperationKind.CASH_WITHDRAWAL:
+            # У снятия и у траты этими наличными общий якорь, но человек
+            # объясняет не поход к банкомату, а куда деньги ушли потом.
+            continue
+        was = op.title
+        op.title = (text[0].upper() + text[1:])[:255]
+        op.explanation = (
+            f"Вы объяснили своими словами: «{text}». Было: «{was}». "
+            + (
+                f"Категория «{cats.title(op.category_code)}» — из ваших слов."
+                if told.get("category")
+                else "Категория из слов не вычиталась, но операция больше не "
+                "считается непонятной: смысл денег вы назвали."
+            )
+        )
+        op.rule = "user_text"
+        op.confidence = 1.0
+        op.status = OperationStatus.CONFIRMED
+        op.explained = True
 
 
 # --------------------------------------------------------------------------
@@ -1624,6 +1670,7 @@ def reclassify(session: Session, user_id: int, *, now: datetime | None = None) -
     post_writeoff_claims(ctx, now)
     post_unallocated_cash(ctx, now)
     post_subscriptions(ctx)
+    post_free_text(ctx)     # ответы своими словами: имя и пометка «объяснено»
 
     _persist_questions(ctx)
     session.flush()

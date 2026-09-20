@@ -154,7 +154,8 @@ async def cmd_start(message: Message, command: CommandObject) -> None:
     if (command.args or "").strip() == "link":
         await cmd_upload_link(message)
         return
-    await message.answer(texts.START, reply_markup=kb.main_menu())
+    text = texts.START if get_settings().miniapp_url else texts.START_NO_MINIAPP
+    await message.answer(text, reply_markup=kb.start_keyboard())
 
 
 @dp.message(Command("help"))
@@ -653,6 +654,34 @@ async def on_report_button(query: CallbackQuery) -> None:
 # --------------------------------------------------------------------------
 
 
+async def _pin_miniapp_button(bot: Bot, settings) -> None:
+    """Кнопка приложения в меню чата — она видна всегда, а не после /start.
+
+    Меню чата у бота одно на всех и живёт рядом с полем ввода: человек,
+    пришедший по чужой ссылке или вернувшийся через неделю, не должен
+    искать, куда нажать. Без адреса приложения оставляем обычное меню
+    команд: кнопка в никуда хуже её отсутствия.
+    """
+    from aiogram.types import (  # noqa: PLC0415
+        MenuButtonCommands,
+        MenuButtonWebApp,
+        WebAppInfo,
+    )
+
+    try:
+        if settings.miniapp_url:
+            await bot.set_chat_menu_button(
+                menu_button=MenuButtonWebApp(
+                    text="Открыть приложение",
+                    web_app=WebAppInfo(url=settings.miniapp_url),
+                )
+            )
+        else:
+            await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+    except Exception as exc:  # noqa: BLE001 — не повод не запускать бота
+        log.warning("не смог настроить кнопку меню: %s", exc)
+
+
 async def run() -> None:
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
@@ -669,6 +698,7 @@ async def run() -> None:
     from app.bot.scheduler import start_scheduler  # noqa: PLC0415
 
     scheduler = start_scheduler(bot)
+    await _pin_miniapp_button(bot, settings)
     log.info("бот запущен, LLM=%s", settings.llm_provider)
     try:
         await dp.start_polling(bot)

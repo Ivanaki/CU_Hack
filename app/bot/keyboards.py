@@ -25,6 +25,24 @@ def main_menu() -> ReplyKeyboardMarkup:
     )
 
 
+def start_keyboard() -> ReplyKeyboardMarkup:
+    """Первый экран: кнопка приложения над всем остальным.
+
+    Основной способ пользоваться продуктом — Mini App, поэтому кнопка
+    стоит первой строкой и остаётся на месте после /start. Без
+    MINIAPP_URL кнопки нет вовсе: мёртвая кнопка хуже её отсутствия —
+    человек тапает и не понимает, почему ничего не открылось, а текст
+    /start в этом случае объясняет словами.
+    """
+    menu = main_menu()
+    url = get_settings().miniapp_url
+    if url:
+        menu.keyboard.insert(
+            0, [KeyboardButton(text="Открыть приложение", web_app=WebAppInfo(url=url))]
+        )
+    return menu
+
+
 def question_keyboard(item: ReviewItem) -> InlineKeyboardMarkup:
     """Кнопки ответа. Раскладка зависит от количества вариантов, но тап всегда один."""
     options = item.options or []

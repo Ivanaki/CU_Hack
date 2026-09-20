@@ -245,6 +245,25 @@ def claim_totals(session: Session, user_id: int) -> tuple[Money, Money]:
     return to_me, by_me
 
 
+def explained_spend(session: Session, user_id: int, period: Period) -> Money:
+    """Траты без категории, которые человек объяснил своими словами."""
+    return int(
+        session.scalar(
+            select(func.coalesce(func.sum(Posting.amount), 0))
+            .join(Operation, Operation.id == Posting.operation_id)
+            .where(
+                Posting.user_id == user_id,
+                Posting.account_kind == AccountKind.EXPENSE.value,
+                Posting.category_code == cats.OTHER,
+                Operation.explained.is_(True),
+                Posting.at >= period.start,
+                Posting.at < period.end,
+            )
+        )
+        or 0
+    )
+
+
 def awareness(session: Session, user_id: int, period: Period) -> Awareness:
     unknown = int(
         session.scalar(
@@ -259,11 +278,15 @@ def awareness(session: Session, user_id: int, period: Period) -> Awareness:
     )
     by_cat = spend_by_category(session, user_id, period)
     spent = sum(by_cat.values())
+    # «Прочее», про которое человек рассказал своими словами, из неясного
+    # вычитается: словарь категорию не нашёл, но смысл денег человек назвал,
+    # и держать такую трату в незнании было бы враньём в другую сторону.
+    uncategorized = by_cat.get(cats.OTHER, 0) - explained_spend(session, user_id, period)
     return Awareness(
         # Знаменатель — потраченное плюс то, про что даже направление неясно.
         total_volume=spent + unknown,
         unknown_volume=unknown,
-        uncategorized_volume=max(0, by_cat.get(cats.OTHER, 0)),
+        uncategorized_volume=max(0, uncategorized),
         unallocated_cash=max(0, by_cat.get(cats.CASH_UNALLOCATED, 0)),
     )
 

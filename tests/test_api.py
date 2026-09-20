@@ -122,7 +122,10 @@ def test_ответ_на_вопрос_меняет_осознанность(clie
     questions = client.get("/api/v1/me/questions", headers=auth()).json()
     assert questions, "в демонстрационном наборе должен остаться хотя бы один вопрос"
     target = next(q for q in questions if q["kind"] == "incoming_unknown")
-    assert len(target["options"]) == 4
+    # Четыре готовых варианта и «своими словами» последним: тап закрывает
+    # вопрос, а если ни один вариант не подходит — закрывает текст.
+    assert [o["code"] for o in target["options"]][-1] == "free"
+    assert len(target["options"]) == 5
 
     before = client.get("/api/v1/me/summary?period=2026-09", headers=auth()).json()
     result = client.post(
