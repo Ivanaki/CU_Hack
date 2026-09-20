@@ -361,6 +361,59 @@ def _transfer_confidence(
 # --------------------------------------------------------------------------
 
 
+def rule_wallet_topup_alone(ctx: Ctx) -> None:
+    """Пополнение кошелька маркетплейса, у которого нет пары в выписках.
+
+    Если выписка самого маркетплейса ещё не загружена, второй половины
+    перевода не существует, и правило склейки его не находит. Раньше такое
+    пополнение падало в обычные траты и получало выдуманную категорию —
+    ровно то, в чём кейс упрекает автоматическую классификацию.
+
+    Правильный ответ: пополнение своего кошелька никогда не трата. Деньги
+    переезжают на счёт кошелька и ждут там. Появится выписка маркетплейса —
+    покупки спишутся с этого счёта своими категориями; не появится — остаток
+    честно висит на кошельке и виден как непотраченное, а не как еда.
+    """
+    from app.classify.categories import WALLET_MERCHANTS  # noqa: PLC0415
+
+    wallet_keys = [norm_key(m) for m in WALLET_MERCHANTS]
+
+    for row in ctx.free(incoming=False):
+        text = norm_key(f"{row.counterparty_raw} {row.description}")
+        if not any(w and w in text for w in wallet_keys):
+            continue
+        # «Пополнение» или «перевод» — иначе это обычная покупка на
+        # маркетплейсе, а её надо оставить тратой.
+        tags = set(row.purpose_tags)
+        if not ({"topup", "self", "transfer"} & tags):
+            continue
+
+        amount = -row.amount
+        merchant = next(
+            (m for m, key in zip(WALLET_MERCHANTS, wallet_keys, strict=False) if key in text),
+            "Маркетплейс",
+        )
+        wallet = ctx.reg.wallet_account(merchant.title())
+        op = ctx.new_op(
+            kind=OperationKind.WALLET_TOPUP,
+            occurred_at=row.booked_at,
+            title=f"Пополнение кошелька {merchant.title()}",
+            amount=amount,
+            legs=[row],
+            rule="wallet_topup_alone",
+            confidence=0.85,
+            explanation=(
+                "Пополнение своего кошелька на маркетплейсе — перемещение денег, "
+                "а не трата. Выписки маркетплейса пока нет, поэтому сумма ждёт "
+                "на счёте кошелька: когда появятся покупки, они спишутся отсюда "
+                "уже со своими категориями."
+            ),
+        )
+        build.wallet_topup(
+            ctx.session, ctx.reg, op, src=_account(ctx, row), wallet=wallet, amount=amount
+        )
+
+
 def rule_atm(ctx: Ctx) -> None:
     for row in ctx.free(incoming=False):
         mcc = (row.mcc or "").zfill(4) if row.mcc else ""
@@ -557,6 +610,37 @@ def _apply_forced_outgoing(
     choice = forced.get("kind")
     if choice == "debt":
         _make_debt_lend(ctx, row, amount, name, confidence=1.0, confirmed=True)
+        return
+    if choice == "self":
+        # Человек сказал, что это перевод себе. Второй половины пары в
+        # выписках нет (иначе правило склейки нашло бы её само), поэтому
+        # деньги переезжают на счёт «другие мои счета» — и не становятся
+        # тратой. Записать их расходом означало бы ровно то, за что кейс
+        # снимает баллы.
+        other = ctx.reg.get_or_create(
+            kind=AccountKind.DEPOSIT,
+            key="own:other",
+            name="Другие мои счета",
+        )
+        op = ctx.new_op(
+            kind=OperationKind.TRANSFER,
+            occurred_at=row.booked_at,
+            title=f"Перевод себе: {name}",
+            amount=amount,
+            legs=[row],
+            rule="user_decision",
+            counterparty_id=row.counterparty_id,
+            explanation=(
+                "Вы указали, что это перевод на свой счёт. Пары в загруженных "
+                "выписках нет, поэтому деньги учтены как перемещение на другой "
+                "ваш счёт. В расходы они не попадают."
+            ),
+        )
+        op.status = OperationStatus.CONFIRMED
+        build.transfer(
+            ctx.session, ctx.reg, op,
+            src=_account(ctx, row), dst=other, sent=amount, received=amount,
+        )
         return
     category = {"gift": "gifts", "service": cats.OTHER}.get(choice, cats.OTHER)
     category = forced.get("category") or category
@@ -1474,6 +1558,7 @@ def reclassify(session: Session, user_id: int, *, now: datetime | None = None) -
     # раньше толкования одиночных строк.
     rule_self_transfers(ctx)      # склейка двух строк в одно событие
     rule_atm(ctx)                 # снятие наличных
+    rule_wallet_topup_alone(ctx)  # пополнение кошелька без пары в выписках
     rule_borrow_in(ctx)           # мне дали в долг — это обязательство, не доход
     rule_debt_out(ctx)            # исходящее физлицу: долг, погашение, подарок
     rule_fallback_expenses(ctx)   # остальные траты — нужны следующим трём правилам

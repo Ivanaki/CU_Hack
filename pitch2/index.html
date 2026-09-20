@@ -1,0 +1,1110 @@
+<!doctype html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Честный месяц — защита</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,600;0,700;0,800;0,900;1,700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   «Честный месяц» — презентация для защиты.
+   Дизайн-система взята один в один из miniapp/dist/index.html:
+   те же токены, наклейки с толстым контуром и «толстой» тенью,
+   те же плашки-теги, только светлая тема, никаких эмодзи.
+   Маскот Грош — тот же инлайновый SVG и тот же движок анимаций.
+   ============================================================ */
+
+/* --- токены приложения --- */
+:root{
+  --bg:#FBF0D9; --bg-2:#F3E4C6; --card:#FFFCF4; --card-2:#F7EEDC;
+  --ink:#1B2430; --hint:#8C8474;
+  --stroke:#1B2430; --chip:#FBF0D9; --line:#E7D9BD;
+  --gold:#F5B93A; --gold-d:#DFA226; --gold-soft:#FCEFD0;
+  --green:#4CC86A; --green-d:#2FA854; --green-soft:#E1F6E7;
+  --coral:#FF7A59; --coral-d:#E4573A; --coral-soft:#FFE8E1;
+  --dot:rgba(27,36,48,.9);
+  --k:1; --ko:.3;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg-2)}
+body{
+  color:var(--ink);
+  font-family:'Nunito',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  font-weight:700;line-height:1.35;-webkit-font-smoothing:antialiased;
+}
+
+/* ================= СЦЕНА ================= */
+#stage{position:fixed;inset:0}
+.cell{position:absolute;left:50%;top:50%;width:1280px;height:720px;
+  transform:translate(-50%,-50%) scale(var(--k));display:none}
+.cell.on{display:block}
+
+.slide{position:relative;width:1280px;height:720px;overflow:hidden;
+  background:var(--bg);color:var(--ink);
+  display:flex;flex-direction:column}
+/* глубина фона: тёплые пятна + сетка точек — как в приложении */
+.slide::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(1100px 620px at 4% -8%,  rgba(76,200,106,.22), transparent 62%),
+    radial-gradient(900px 700px at 108% 12%, rgba(255,122,89,.17), transparent 60%),
+    radial-gradient(820px 640px at -12% 108%, rgba(245,185,58,.22), transparent 62%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%)}
+.slide::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;opacity:.05;
+  background-image:radial-gradient(var(--dot) 1.1px, transparent 1.3px);background-size:17px 17px}
+.slide>*{position:relative;z-index:1}
+
+/* ================= ШАПКА И ПОДВАЛ СЛАЙДА ================= */
+.top{display:flex;align-items:center;gap:10px;padding:26px 52px 0}
+.top .no{font-size:13px;font-weight:900;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--ink);background:var(--card);border:3px solid var(--stroke);
+  border-radius:999px;padding:4px 14px;box-shadow:0 3px 0 var(--stroke)}
+.top .sec{font-size:13px;font-weight:900;letter-spacing:.13em;text-transform:uppercase;color:var(--hint)}
+.top .sp{flex:1}
+.top .brand{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:900;
+  letter-spacing:.05em;color:var(--hint)}
+.top .brand .coin{width:22px;height:22px;flex:0 0 22px}
+
+.body{flex:1;min-height:0;padding:14px 52px 0;display:flex;flex-direction:column}
+.foot{display:flex;align-items:center;gap:8px;padding:0 52px 22px;margin-top:auto}
+.foot .dots{display:flex;gap:6px}
+.foot .dots i{width:9px;height:9px;border-radius:50%;background:var(--card);
+  border:2.5px solid var(--stroke);display:block}
+.foot .dots i.on{background:var(--green);width:26px;border-radius:999px}
+.foot .sp{flex:1}
+.foot .note{font-size:12.5px;font-weight:800;color:var(--hint)}
+
+/* ================= ТИПОГРАФИКА ================= */
+h1{margin:0;font-size:86px;font-weight:900;letter-spacing:-.045em;line-height:.94}
+h2{margin:0;font-size:46px;font-weight:900;letter-spacing:-.032em;line-height:1.02}
+h3{margin:0;font-size:20px;font-weight:900;letter-spacing:-.015em;line-height:1.2}
+.lead{font-size:20px;font-weight:800;color:var(--hint);line-height:1.34;margin:10px 0 0}
+.sub{font-size:16px;font-weight:800;color:var(--hint);line-height:1.38}
+.tiny{font-size:12.5px;font-weight:800;color:var(--hint);line-height:1.4}
+.hl{color:var(--coral-d)}
+.hlg{color:var(--green-d)}
+.num{font-variant-numeric:tabular-nums}
+
+/* ================= НАКЛЕЙКИ ================= */
+.card{background:var(--card);border:3px solid var(--stroke);border-radius:22px;
+  padding:18px 20px;box-shadow:0 6px 0 var(--stroke)}
+.card.soft{background:var(--card-2)}
+.card.gold{background:var(--gold-soft)}
+.card.green{background:var(--green-soft)}
+.card.coral{background:var(--coral-soft)}
+.tag{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:900;
+  background:var(--gold-soft);border:2.5px solid var(--stroke);padding:4px 12px;
+  border-radius:999px;white-space:nowrap;box-shadow:0 3px 0 var(--stroke)}
+.tag.g{background:var(--green-soft)} .tag.c{background:var(--coral-soft)}
+.tag.w{background:var(--card)}
+.tags{display:flex;flex-wrap:wrap;gap:9px}
+
+.chip{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;font-weight:800;
+  background:var(--card);border:2.5px solid var(--stroke);border-radius:13px;padding:6px 11px}
+.chip b{font-weight:900}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+
+/* инлайновые иконки: размер задаём один раз, иначе SVG без width
+   разворачивается в дефолтные 300×150 и ломает строку */
+.ico{width:17px;height:17px;flex:0 0 17px;display:block}
+.tag .ico{width:15px;height:15px;flex:0 0 15px}
+.chip .ico{width:16px;height:16px;flex:0 0 16px}
+ul.bul li .bx .ico{width:19px;height:19px;flex:0 0 19px}
+.step .ico{width:21px;height:21px;flex:0 0 21px;opacity:.42}
+code{font-family:inherit;font-weight:900;background:var(--card-2);
+  border:2px solid var(--line);border-radius:7px;padding:0 6px;white-space:nowrap}
+
+/* ================= СПИСКИ ================= */
+ul.bul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:11px}
+ul.bul li{display:flex;align-items:flex-start;gap:13px;font-size:19px;font-weight:800;line-height:1.3}
+ul.bul li .bx{width:34px;height:34px;flex:0 0 34px;border:3px solid var(--stroke);border-radius:11px;
+  background:var(--card);display:grid;place-items:center;box-shadow:0 3px 0 var(--stroke)}
+ul.bul li .bx svg{width:19px;height:19px}
+ul.bul li em{font-style:normal;display:block;font-size:14px;font-weight:800;color:var(--hint);margin-top:2px}
+
+/* шаги пути пользователя */
+.steps{display:flex;flex-direction:column;gap:10px}
+.step{display:flex;align-items:center;gap:14px;background:var(--card);border:3px solid var(--stroke);
+  border-radius:18px;padding:11px 15px;box-shadow:0 5px 0 var(--stroke)}
+.step .n{width:38px;height:38px;flex:0 0 38px;border-radius:11px;border:3px solid var(--stroke);
+  background:var(--gold);display:grid;place-items:center;font-size:19px;font-weight:900;color:#2A1F08}
+.step.gr .n{background:var(--green)} .step.co .n{background:var(--coral)}
+.step .tx{min-width:0}
+.step .tx b{display:block;font-size:17.5px;font-weight:900;line-height:1.2}
+.step .tx span{display:block;font-size:13.5px;font-weight:800;color:var(--hint);line-height:1.3;margin-top:1px}
+
+/* ================= КОЛОНКИ ================= */
+.cols{display:flex;gap:26px;flex:1;min-height:0}
+.col{min-width:0;display:flex;flex-direction:column;gap:14px}
+.grow{flex:1}
+
+/* ================= БОЛЬШИЕ ЧИСЛА ================= */
+.stat{border:3px solid var(--stroke);border-radius:18px;padding:11px 14px;background:var(--card);
+  box-shadow:0 5px 0 var(--stroke);min-width:0}
+.stat .k{font-size:11px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--hint)}
+.stat .v{font-size:27px;font-weight:900;letter-spacing:-.035em;line-height:1.05;margin-top:2px;
+  font-variant-numeric:tabular-nums}
+.stat .v small{font-size:15px;font-weight:900;letter-spacing:0}
+.stat .d{font-size:12.5px;font-weight:800;color:var(--hint);line-height:1.3;margin-top:3px}
+.stat.gold{background:var(--gold-soft)} .stat.green{background:var(--green-soft)}
+.stat.coral{background:var(--coral-soft)} .stat.soft{background:var(--card-2)}
+.statrow{display:flex;gap:12px}
+.statrow>*{flex:1}
+
+.big{font-size:64px;font-weight:900;letter-spacing:-.05em;line-height:.96;font-variant-numeric:tabular-nums}
+.big small{font-size:28px;letter-spacing:-.02em}
+
+/* ================= ТАБЛИЦА ЭКОНОМИКИ ================= */
+table.eco{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+table.eco{table-layout:fixed}
+table.eco td,table.eco th{padding:5px 0;text-align:left;font-size:14px;font-weight:800;
+  border-bottom:2px dashed var(--line);line-height:1.24}
+table.eco col.a{width:46%} table.eco col.b{width:30%} table.eco col.c{width:24%}
+table.eco th{font-size:10.5px;font-weight:900;letter-spacing:.09em;text-transform:uppercase;color:var(--hint);
+  border-bottom:3px solid var(--stroke);padding-bottom:5px}
+table.eco td.r,table.eco th.r{text-align:right;white-space:nowrap}
+table.eco div.m,table.eco td.m{font-size:11.5px;font-weight:800;color:var(--hint);line-height:1.22;margin-top:1px}
+table.eco tr.tot td{border-bottom:0;border-top:3px solid var(--stroke);font-size:17px;font-weight:900;
+  padding-top:7px}
+table.eco tr:last-child td{border-bottom:0}
+
+/* ================= СКРИНШОТЫ ================= */
+.shot{display:block;width:100%;height:auto;border-radius:16px}
+.shotbox{overflow:hidden;border-radius:16px;flex:0 0 auto}
+.shotbox.grow{flex:1 1 auto;min-height:0}
+/* растушёвка обрезанного скриншота — на самой коробке, а не на картинке:
+   картинка выше коробки, и маска по её высоте в видимую часть не попадает */
+.shotbox.fade{-webkit-mask-image:linear-gradient(180deg,#000 74%,transparent 100%);
+  mask-image:linear-gradient(180deg,#000 74%,transparent 100%)}
+
+.phone{width:252px;flex:0 0 252px;height:472px;border:9px solid var(--stroke);border-radius:36px;
+  overflow:hidden;box-shadow:0 9px 0 var(--stroke);background:var(--bg);position:relative}
+.phone img{width:100%;height:100%;display:block;object-fit:cover;object-position:top center}
+.phone .glare{position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(200deg,rgba(255,255,255,.28),transparent 34%)}
+.phonecap{font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--hint);text-align:center;margin-top:9px}
+
+/* ================= МАСКОТ: рамка и облачко ================= */
+.masbox{display:flex;flex-direction:column;align-items:center;gap:0}
+.masbox .mas{width:100%;height:100%}
+.masw{width:150px;height:150px;flex:0 0 150px}
+.masw.s{width:112px;height:112px;flex:0 0 112px}
+.masw.l{width:230px;height:230px;flex:0 0 230px}
+.masw.xl{width:290px;height:290px;flex:0 0 290px}
+.bub{background:var(--chip);color:var(--ink);border:3px solid var(--stroke);border-radius:16px;
+  padding:9px 13px;font-size:14.5px;font-weight:800;line-height:1.3;position:relative;text-align:center;
+  box-shadow:0 4px 0 var(--stroke);max-width:290px}
+.bub:before,.bub:after{content:"";position:absolute;left:50%;transform:translateX(-50%);
+  border:9px solid transparent;border-bottom:0}
+.bub:before{bottom:-12px;border-top-color:var(--stroke)}
+.bub:after{bottom:-7px;border-width:7px;border-top-color:var(--chip)}
+.bub b{color:var(--coral-d);white-space:nowrap}
+.masfloat{position:absolute;z-index:2}
+
+/* ================= ТИТУЛ ================= */
+.hero-title{flex:1;display:flex;align-items:center;gap:34px}
+/* заголовок слайда и маскот в одной строке — когда в колонках места нет */
+.titlerow{display:flex;align-items:flex-start;gap:20px}
+.titlerow .tx{flex:1;min-width:0}
+.titlerow .masbox{flex:0 0 auto;flex-direction:row;align-items:center;gap:14px}
+.titlerow .bub{max-width:230px;font-size:13.5px}
+.titlerow .bub:before,.titlerow .bub:after{left:auto;right:-12px;top:50%;transform:translateY(-50%);
+  border:9px solid transparent;border-right:0;border-bottom-width:9px}
+.titlerow .bub:before{bottom:auto;border-left-color:var(--stroke);border-top-color:transparent}
+.titlerow .bub:after{bottom:auto;right:-7px;border-width:7px;border-right:0;
+  border-left-color:var(--chip);border-top-color:transparent}
+.wordmark{display:flex;align-items:center;gap:16px;margin-bottom:6px}
+.wordmark .coin{width:56px;height:56px;flex:0 0 56px}
+.kv{display:flex;gap:12px;margin-top:22px}
+.kv .stat{flex:1}
+
+/* ================= ОБЗОР (Esc) ================= */
+#stage.ov{overflow:auto;display:flex;flex-wrap:wrap;align-content:flex-start;justify-content:center;
+  gap:20px;padding:26px;background:var(--bg-2)}
+#stage.ov .cell{position:relative;left:auto;top:auto;display:block;transform:none;
+  width:calc(1280px * var(--ko));height:calc(720px * var(--ko));
+  border-radius:12px;overflow:hidden;border:3px solid var(--stroke);box-shadow:0 5px 0 var(--stroke);
+  cursor:pointer;background:var(--bg)}
+#stage.ov .cell>.slide{transform:scale(var(--ko));transform-origin:top left}
+#stage.ov .cell.on{outline:5px solid var(--green);outline-offset:-5px}
+
+/* ================= ПОДСКАЗКА ПО КЛАВИШАМ ================= */
+#help{position:fixed;right:14px;bottom:12px;z-index:60;font-size:11.5px;font-weight:900;
+  letter-spacing:.04em;color:var(--hint);background:rgba(255,252,244,.86);
+  border:2.5px solid var(--stroke);border-radius:999px;padding:5px 13px;
+  box-shadow:0 3px 0 var(--stroke);transition:opacity .4s}
+#help.hide{opacity:0}
+
+/* ===== ДВИЖОК МАСКОТА =================================================
+   Состояния задаются классом на <svg>: s-proud s-curious s-hype s-sad
+   s-think s-party. Каждый «слой» группы отвечает за свою трансформацию,
+   чтобы анимации не перетирали друг друга.                             */
+.mas{display:block;width:100%;height:100%}
+.mas .v{display:none}
+.mas .mo{fill:none;stroke:#1B2430;stroke-width:4.6;stroke-linecap:round;stroke-linejoin:round}
+
+.m-lean,.m-bounce,.m-breath,.m-squash{transform-box:view-box;transform-origin:100px 176px}
+.m-breath{animation:m-breath 3.6s ease-in-out infinite}
+@keyframes m-breath{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-2.5px) scale(1.018)}}
+.m-lean{transition:transform .55s cubic-bezier(.34,1.5,.5,1)}
+.s-curious .m-lean{transform:rotate(-7deg)}
+.s-think   .m-lean{transform:rotate(5deg)}
+.s-sad     .m-lean{transform:translateY(8px) scale(.955)}
+.s-sad     .m-breath{animation-duration:5.4s}
+.s-hype  .m-bounce{animation:m-hop .58s cubic-bezier(.35,.9,.35,1) infinite}
+.s-party .m-bounce{animation:m-jump .78s cubic-bezier(.25,1.1,.4,1) infinite}
+.s-proud .m-bounce{animation:m-sway 4.6s ease-in-out infinite}
+@keyframes m-hop{0%,100%{transform:translateY(0)}45%{transform:translateY(-10px)}}
+@keyframes m-jump{0%,100%{transform:translateY(0) rotate(0)}28%{transform:translateY(-18px) rotate(-6deg)}
+  58%{transform:translateY(-3px) rotate(5deg)}80%{transform:translateY(-7px) rotate(-2deg)}}
+@keyframes m-sway{0%,100%{transform:rotate(-1.6deg)}50%{transform:rotate(1.6deg)}}
+
+/* реакция на тап */
+.m-squash{transform-origin:100px 178px}
+.mas.tap .m-squash{animation:m-tap .55s cubic-bezier(.3,1.4,.4,1)}
+@keyframes m-tap{0%{transform:scale(1,1)}20%{transform:scale(1.16,.84)}46%{transform:scale(.92,1.09)}
+  70%{transform:scale(1.05,.96)}100%{transform:scale(1,1)}}
+.tapring{transform-box:fill-box;transform-origin:center;opacity:0}
+.mas.tap .tapring{animation:m-ring .6s ease-out}
+@keyframes m-ring{0%{opacity:.7;transform:scale(.55)}100%{opacity:0;transform:scale(1.45)}}
+
+/* моргание */
+.eye{transform-box:fill-box;transform-origin:center;animation:m-blink 5.6s infinite}
+@keyframes m-blink{0%,92.5%,100%{transform:scaleY(1)}94%{transform:scaleY(.06)}95.6%{transform:scaleY(1)}
+  97%{transform:scaleY(.06)}98.4%{transform:scaleY(1)}}
+.pupils{transform-box:view-box;transition:transform .45s cubic-bezier(.34,1.4,.5,1)}
+.s-curious .pupils{transform:translate(4px,-2px)}
+.s-think   .pupils{transform:translate(-4.5px,-4px)}
+
+/* мимика по состояниям */
+.s-proud .e-happy,.s-party .e-happy,.s-hype .e-star,.s-sad .e-sad,
+.s-curious .e-open,.s-think .e-open{display:block}
+.s-proud .mo-grin,.s-party .mo-open,.s-hype .mo-open,.s-sad .mo-frown,
+.s-curious .mo-wave,.s-think .mo-flat{display:block}
+
+/* руки */
+.arm{transform-box:view-box;transition:transform .5s cubic-bezier(.34,1.5,.5,1)}
+.arm-l{transform-origin:50px 102px}
+.arm-r{transform-origin:150px 102px}
+.s-proud   .arm-l{transform:rotate(14deg)}  .s-proud   .arm-r{transform:rotate(-14deg)}
+.s-hype    .arm-l{transform:rotate(46deg)}  .s-hype    .arm-r{transform:rotate(-46deg)}
+.s-party   .arm-l{transform:rotate(62deg)}  .s-party   .arm-r{transform:rotate(-62deg)}
+.s-sad     .arm-l{transform:rotate(-14deg)} .s-sad     .arm-r{transform:rotate(14deg)}
+.s-curious .arm-l{transform:rotate(0deg)}   .s-curious .arm-r{transform:rotate(-14deg)}
+.s-think   .arm-l{transform:rotate(-8deg)}
+.s-curious .a-point,.s-curious .a-glass,.s-curious .a-hold,.s-think .a-chin{display:block}
+.s-curious .a-idle-r,.s-think .a-idle-r,.s-curious .a-idle-l{display:none}
+.s-think .arm-r{display:none}
+
+/* реквизит */
+.s-hype .p-flame,.s-hype .p-spark,.s-sad .p-tear,.s-party .p-conf,
+.s-curious .p-ask,.s-think .p-dots,.s-proud .p-spark{display:block}
+.p-flame .fl{transform-box:fill-box;transform-origin:50% 100%;animation:fl-flick 1.1s ease-in-out infinite}
+@keyframes fl-flick{0%,100%{transform:scaleY(1) scaleX(1)}35%{transform:scaleY(1.1) scaleX(.94)}
+  65%{transform:scaleY(.94) scaleX(1.05)}}
+.spark{transform-box:fill-box;transform-origin:center;animation:sp-twinkle 2.2s ease-in-out infinite}
+.p-spark g:nth-of-type(2) .spark{animation-delay:.6s}
+.p-spark g:nth-of-type(3) .spark{animation-delay:1.2s}
+@keyframes sp-twinkle{0%,100%{transform:scale(.15) rotate(0);opacity:0}
+  40%{transform:scale(1) rotate(40deg);opacity:1}70%{transform:scale(.55) rotate(70deg);opacity:.45}}
+.tear{transform-box:fill-box;transform-origin:center;animation:tr-drop 2.8s ease-in infinite}
+@keyframes tr-drop{0%{transform:translateY(0) scale(.25);opacity:0}16%{transform:translateY(0) scale(1);opacity:1}
+  70%{transform:translateY(28px) scale(.95);opacity:.9}86%,100%{transform:translateY(36px) scale(.2);opacity:0}}
+.conf{transform-box:fill-box;transform-origin:center;animation:cf-fall 1.6s linear infinite}
+.p-conf .conf:nth-of-type(2){animation-delay:.22s}.p-conf .conf:nth-of-type(3){animation-delay:.45s}
+.p-conf .conf:nth-of-type(4){animation-delay:.68s}.p-conf .conf:nth-of-type(5){animation-delay:.9s}
+.p-conf .conf:nth-of-type(6){animation-delay:1.1s}.p-conf .conf:nth-of-type(7){animation-delay:1.3s}
+@keyframes cf-fall{0%{transform:translateY(-8px) rotate(0);opacity:0}12%{opacity:1}
+  100%{transform:translateY(78px) rotate(320deg);opacity:0}}
+.qm{transform-box:fill-box;transform-origin:50% 100%;animation:qm-bob 1.8s ease-in-out infinite}
+@keyframes qm-bob{0%,100%{transform:translateY(0) rotate(-7deg)}50%{transform:translateY(-6px) rotate(7deg)}}
+.p-dots circle{animation:dt 1.5s ease-in-out infinite}
+.p-dots circle:nth-child(2){animation-delay:.22s}.p-dots circle:nth-child(3){animation-delay:.44s}
+@keyframes dt{0%,100%{opacity:.25}50%{opacity:1}}
+.m-shadow{transition:opacity .4s}
+.s-sad .m-shadow{opacity:.07}
+
+/* ================= ПЕЧАТЬ: один слайд на страницу ================= */
+@page{size:13.333in 7.5in;margin:0}
+@media print{
+  html,body{height:auto;overflow:visible;background:#fff}
+  #help{display:none!important}
+  #stage,#stage.ov{position:static;display:block;overflow:visible;padding:0;gap:0;background:#fff}
+  .cell,#stage.ov .cell{display:block!important;position:static;left:auto;top:auto;
+    width:1280px;height:720px;transform:none;border:0;border-radius:0;box-shadow:none;outline:0;
+    overflow:hidden;break-after:page;page-break-after:always;break-inside:avoid;page-break-inside:avoid}
+  .cell:last-child{break-after:auto;page-break-after:auto}
+  #stage.ov .cell>.slide{transform:none}
+  /* анимации замораживаем: в PDF кадр «на полпути» выглядит как брак */
+  *,*::before,*::after{animation:none!important;transition:none!important;
+    -webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+}
+</style>
+</head>
+<body>
+
+<div id="stage"></div>
+<div id="help">← → пробел — листать · Esc — все слайды · F — на весь экран</div>
+
+<script>
+/* ============================================================
+   Маскот Грош — функция один в один из приложения.
+   uid делает идентификаторы clipPath уникальными: на слайдах
+   маскотов несколько, и одинаковые id ломали бы глаза и рот.
+   ============================================================ */
+function MASCOT(uid, state) { return `
+<svg class="mas s-${state || 'proud'}" viewBox="0 0 200 200" role="img" aria-label="Грош — маскот приложения">
+ <defs>
+   <clipPath id="MID-eL"><ellipse cx="86" cy="86" rx="11.2" ry="15.2"/></clipPath>
+   <clipPath id="MID-eR"><ellipse cx="114" cy="86" rx="11.2" ry="15.2"/></clipPath>
+   <clipPath id="MID-sL"><ellipse cx="86" cy="88" rx="10.2" ry="13.2"/></clipPath>
+   <clipPath id="MID-sR"><ellipse cx="114" cy="88" rx="10.2" ry="13.2"/></clipPath>
+   <clipPath id="MID-mo"><path d="M85 106 Q100 132 115 106 Q100 114 85 106 Z"/></clipPath>
+ </defs>
+
+ <ellipse class="m-shadow" cx="100" cy="184" rx="42" ry="7.5" fill="#1B2430" opacity=".15"/>
+
+ <g class="v p-ask">
+   <g transform="translate(168,50)"><g class="qm">
+     <circle cx="0" cy="0" r="17" fill="#FF7A59" stroke="#1B2430" stroke-width="4"/>
+     <path d="M-5.6 -6 a5.9 5.9 0 1 1 6.6 8.8 q-1.7 1.2 -1.7 3.5" fill="none" stroke="#FBF0D9" stroke-width="3.8" stroke-linecap="round"/>
+     <circle cx="-0.5" cy="10.4" r="2.5" fill="#FBF0D9"/>
+   </g></g>
+ </g>
+ <g class="v p-dots" fill="#FBF0D9" stroke="#1B2430" stroke-width="3">
+   <circle cx="152" cy="46" r="4"/><circle cx="166" cy="34" r="4.4"/><circle cx="181" cy="21" r="4.8"/>
+ </g>
+ <g class="v p-spark" fill="#F5B93A" stroke="#1B2430" stroke-width="3.4" stroke-linejoin="round">
+   <g transform="translate(30,54) scale(1.5)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+   <g transform="translate(172,52) scale(1.2)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+   <g transform="translate(158,20) scale(.95)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+ </g>
+
+ <g class="m-lean"><g class="m-bounce"><g class="m-breath"><g class="m-squash">
+
+   <g class="m-legs">
+     <path d="M86 130 V160" stroke="#1B2430" stroke-width="14" stroke-linecap="round"/>
+     <path d="M114 130 V160" stroke="#1B2430" stroke-width="14" stroke-linecap="round"/>
+     <rect x="64" y="155" width="34" height="21" rx="10.5" fill="#1B2430"/>
+     <rect x="102" y="155" width="34" height="21" rx="10.5" fill="#1B2430"/>
+     <path d="M86 130 V158" stroke="#F5B93A" stroke-width="7.6" stroke-linecap="round"/>
+     <path d="M114 130 V158" stroke="#F5B93A" stroke-width="7.6" stroke-linecap="round"/>
+     <rect x="67.4" y="158.4" width="27.2" height="14.2" rx="7.1" fill="#F5B93A"/>
+     <rect x="105.4" y="158.4" width="27.2" height="14.2" rx="7.1" fill="#F5B93A"/>
+   </g>
+
+   <g class="arm arm-l">
+     <g class="a-idle-l">
+       <path d="M50 102 C 30 108, 24 128, 38 138" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M38 138 L27 130" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="38" cy="138" r="11.5" fill="#1B2430"/>
+       <path d="M50 102 C 30 108, 24 128, 38 138" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M38 138 L27 130" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="38" cy="138" r="8.2" fill="#F5B93A"/>
+     </g>
+     <g class="v a-hold">
+       <path d="M50 104 C 32 110, 30 124, 47 128" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M47 128 L37 121" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="47" cy="128" r="11.5" fill="#1B2430"/>
+       <path d="M50 104 C 32 110, 30 124, 47 128" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M47 128 L37 121" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="47" cy="128" r="8.2" fill="#F5B93A"/>
+     </g>
+   </g>
+   <g class="arm arm-r">
+     <g class="a-idle-r">
+       <path d="M150 102 C 168 108, 173 126, 160 134" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M160 134 L170 126" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="160" cy="134" r="11.5" fill="#1B2430"/>
+       <path d="M150 102 C 168 108, 173 126, 160 134" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M160 134 L170 126" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="160" cy="134" r="8.2" fill="#F5B93A"/>
+     </g>
+     <g class="v a-point">
+       <path d="M150 102 C 164 106, 170 114, 170 122" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <circle cx="170" cy="122" r="11.5" fill="#1B2430"/>
+       <path d="M179 118 h11" stroke="#1B2430" stroke-width="12" stroke-linecap="round"/>
+       <path d="M150 102 C 164 106, 170 114, 170 122" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <circle cx="170" cy="122" r="8.2" fill="#F5B93A"/>
+       <path d="M179 118 h10" stroke="#F5B93A" stroke-width="6" stroke-linecap="round"/>
+     </g>
+   </g>
+
+   <circle cx="89" cy="90" r="52" fill="#E3A526" stroke="#1B2430" stroke-width="4.4"/>
+   <path d="M47 79 A 44 44 0 0 0 47 101" fill="none" stroke="#C98E1C" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+   <circle cx="100" cy="92" r="52" fill="#F5B93A" stroke="#1B2430" stroke-width="4.4"/>
+   <circle cx="100" cy="92" r="43" fill="none" stroke="#E0A32A" stroke-width="3.4"/>
+   <circle cx="100" cy="92" r="37.5" fill="none" stroke="#E0A32A" stroke-width="2"/>
+   <circle class="tapring" cx="100" cy="92" r="52" fill="none" stroke="#FBF0D9" stroke-width="6"/>
+
+   <g class="v e-open">
+     <g class="eye">
+       <ellipse cx="86" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g class="pupils" clip-path="url(#MID-eL)">
+         <ellipse cx="87" cy="89" rx="8" ry="10.6" fill="#1B2430"/>
+         <circle cx="84" cy="83.6" r="3.2" fill="#FFFDF5"/><circle cx="90.4" cy="94.6" r="1.7" fill="#FFFDF5" opacity=".8"/>
+       </g>
+     </g>
+     <g class="eye">
+       <ellipse cx="114" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g class="pupils" clip-path="url(#MID-eR)">
+         <ellipse cx="115" cy="89" rx="8" ry="10.6" fill="#1B2430"/>
+         <circle cx="112" cy="83.6" r="3.2" fill="#FFFDF5"/><circle cx="118.4" cy="94.6" r="1.7" fill="#FFFDF5" opacity=".8"/>
+       </g>
+     </g>
+   </g>
+
+   <g class="v e-happy" fill="none" stroke="#1B2430" stroke-width="5.6" stroke-linecap="round">
+     <path d="M74 94 q12 -18 24 0"/><path d="M102 94 q12 -18 24 0"/>
+   </g>
+
+   <g class="v e-star">
+     <ellipse cx="86" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+     <ellipse cx="114" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+     <g fill="none" stroke="#1B2430" stroke-width="3.6" stroke-linecap="round">
+       <path d="M83 78 v16"/><path d="M83 78 h4.8 a4.4 4.4 0 0 1 0 8.8 H83"/><path d="M79.2 90.4 h9"/>
+       <path d="M111 78 v16"/><path d="M111 78 h4.8 a4.4 4.4 0 0 1 0 8.8 H111"/><path d="M107.2 90.4 h9"/>
+     </g>
+   </g>
+
+   <g class="v e-sad">
+     <g class="eye">
+       <ellipse cx="86" cy="88" rx="12" ry="15" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g clip-path="url(#MID-sL)">
+         <ellipse cx="86" cy="94" rx="7.4" ry="9.4" fill="#1B2430"/>
+         <circle cx="83.4" cy="90" r="2.8" fill="#FFFDF5"/>
+         <rect x="66" y="56" width="42" height="24" fill="#1B2430" transform="rotate(-14 86 88)"/>
+       </g>
+     </g>
+     <g class="eye">
+       <ellipse cx="114" cy="88" rx="12" ry="15" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g clip-path="url(#MID-sR)">
+         <ellipse cx="114" cy="94" rx="7.4" ry="9.4" fill="#1B2430"/>
+         <circle cx="111.4" cy="90" r="2.8" fill="#FFFDF5"/>
+         <rect x="92" y="56" width="42" height="24" fill="#1B2430" transform="rotate(14 114 88)"/>
+       </g>
+     </g>
+   </g>
+
+   <g class="mouth">
+     <path class="v mo mo-grin" d="M91 111 q9 9 18 0"/>
+     <g class="v mo-open">
+       <path d="M85 106 Q100 132 115 106 Q100 114 85 106 Z" fill="#1B2430"/>
+       <g clip-path="url(#MID-mo)"><ellipse cx="100" cy="124" rx="7.5" ry="6" fill="#FF7A59"/></g>
+     </g>
+     <path class="v mo mo-frown" d="M91 119 q9 -9 18 0"/>
+     <path class="v mo mo-wave" d="M90 113 q5 -6 10 0 q5 6 10 0" stroke-width="4"/>
+     <path class="v mo mo-flat" d="M92 114 q8 4 16 -1" stroke-width="4"/>
+   </g>
+
+   <g class="v a-chin">
+     <path d="M156 116 C 158 136, 140 146, 124 140" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+     <circle cx="122" cy="138" r="11.5" fill="#1B2430"/>
+     <path d="M156 116 C 158 136, 140 146, 124 140" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+     <circle cx="122" cy="138" r="8.2" fill="#F5B93A"/>
+   </g>
+
+   <g class="v a-glass">
+     <path d="M46 124 L38 104" stroke="#1B2430" stroke-width="11.5" stroke-linecap="round"/>
+     <path d="M46 124 L38 104" stroke="#C98E1C" stroke-width="5.6" stroke-linecap="round"/>
+     <circle cx="33" cy="88" r="18.5" fill="#FBF0D9" stroke="#1B2430" stroke-width="4.6"/>
+     <path d="M24 80 a12.5 12.5 0 0 1 9 -5" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+   </g>
+
+   <g class="v p-tear">
+     <path class="tear" d="M126 100 c 0 0 7 8 7 12.5 a7 7 0 0 1 -14 0 c 0 -4.5 7 -12.5 7 -12.5 Z"
+       fill="#FBF0D9" stroke="#1B2430" stroke-width="3.4" stroke-linejoin="round"/>
+   </g>
+
+   <g class="v p-flame">
+     <path class="fl" d="M100 46 C 76 34, 100 24, 90 3 C 122 12, 126 36, 100 46 Z" fill="#FF7A59" stroke="#1B2430" stroke-width="4" stroke-linejoin="round"/>
+     <path class="fl" d="M100 42 C 88 35, 99 29, 95 16 C 112 23, 113 36, 100 42 Z" fill="#F5B93A"/>
+   </g>
+
+ </g></g></g></g>
+
+ <g class="v p-conf" stroke="#1B2430" stroke-width="2.6">
+   <rect class="conf" x="22"  y="44" width="10" height="13" rx="3" fill="#4CC86A"/>
+   <rect class="conf" x="52"  y="18" width="9"  height="12" rx="3" fill="#FF7A59"/>
+   <rect class="conf" x="92"  y="4"  width="10" height="13" rx="3" fill="#F5B93A"/>
+   <rect class="conf" x="132" y="12" width="9"  height="12" rx="3" fill="#4CC86A"/>
+   <rect class="conf" x="168" y="34" width="10" height="13" rx="3" fill="#FF7A59"/>
+   <rect class="conf" x="182" y="70" width="9"  height="12" rx="3" fill="#F5B93A"/>
+   <rect class="conf" x="8"   y="84" width="9"  height="12" rx="3" fill="#4CC86A"/>
+ </g>
+</svg>`.replace(/MID-/g, uid + '-'); }
+
+/* Монетка-логотип: тот же язык, что у маскота — толстый контур и блик. */
+function COIN() { return `
+<svg viewBox="0 0 48 48" class="coin" role="img" aria-label="Монета">
+  <circle cx="21.5" cy="24" r="17.5" fill="#E3A526" stroke="#1B2430" stroke-width="3.4"/>
+  <circle cx="26" cy="24" r="17.5" fill="#F5B93A" stroke="#1B2430" stroke-width="3.4"/>
+  <circle cx="26" cy="24" r="12.4" fill="none" stroke="#E0A32A" stroke-width="2.6"/>
+  <path d="M20.5 17.5h7.2a4.6 4.6 0 0 1 0 9.2H20.5m0-9.2v13.2m-2.6-6.8h9" fill="none"
+        stroke="#1B2430" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`; }
+
+/* Иконки — только инлайновый SVG, без эмодзи и без шрифтов-иконок. */
+const S = 'fill="none" stroke="#1B2430" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"';
+const IC = {
+  cal:   `<path d="M4 7h16v13H4zM4 11h16M8 3v4M16 3v4" ${S}/>`,
+  bank:  `<path d="M3 9l9-5 9 5M5 9v10M19 9v10M9 9v10M15 9v10M3 20h18" ${S}/>`,
+  brain: `<path d="M12 5a3 3 0 0 0-6 .5A3 3 0 0 0 4 8c0 1 .5 2 1.4 2.5A3 3 0 0 0 6 16a3 3 0 0 0 6 1zM12 5a3 3 0 0 1 6 .5A3 3 0 0 1 20 8c0 1-.5 2-1.4 2.5A3 3 0 0 1 18 16a3 3 0 0 1-6 1z" ${S}/>`,
+  zigzag:`<path d="M3 18l4-9 4 6 4-11 4 14" ${S}/>`,
+  warn:  `<path d="M12 4l9 16H3zM12 10v4M12 17.4v.2" ${S}/>`,
+  fire:  `<path d="M12 21c3.9 0 6-2.4 6-5.4 0-3.4-2.6-4.6-3.4-8.6-2 1.2-2.6 3-2.6 4.6-1-.6-1.4-1.8-1.4-3C8.6 10 6 11.8 6 15.6 6 18.6 8.1 21 12 21z" ${S}/>`,
+  snow:  `<path d="M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9" ${S}/>`,
+  bell:  `<path d="M18 16V11a6 6 0 1 0-12 0v5l-2 3h16zM10 22h4" ${S}/>`,
+  gauge: `<path d="M4 18a8 8 0 1 1 16 0M12 18l4.5-5" ${S}/>`,
+  tap:   `<path d="M9 11V5.5a1.8 1.8 0 1 1 3.6 0V11m0-1.5a1.6 1.6 0 1 1 3.2 0V12m0-1a1.6 1.6 0 1 1 3.2 0v5.2c0 2.6-2 4.8-4.8 4.8h-1.6c-2 0-3-1-4-2.4l-2.6-4a1.7 1.7 0 0 1 2.6-2.1L9 14" ${S}/>`,
+  cam:   `<path d="M3 8h3.4l1.6-2.4h8L17.6 8H21v12H3zM12 17a3.4 3.4 0 1 0 0-6.8 3.4 3.4 0 0 0 0 6.8z" ${S}/>`,
+  mic:   `<path d="M12 3a2.6 2.6 0 0 1 2.6 2.6v6a2.6 2.6 0 0 1-5.2 0v-6A2.6 2.6 0 0 1 12 3zM5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M9 21h6" ${S}/>`,
+  pct:   `<path d="M5 19L19 5M7.5 9.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM16.5 19.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" ${S}/>`,
+  doc:   `<path d="M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6" ${S}/>`,
+  check: `<path d="M4 12.5l5 5L20 6.5" ${S}/>`,
+  split: `<path d="M12 3v7M12 10l-5 5v6M12 10l5 5v6M4 21h6M14 21h6" ${S}/>`,
+  phone: `<path d="M7 2.5h10v19H7zM10.5 5.5h3" ${S}/>`,
+  plug:  `<path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4" ${S}/>`,
+  money: `<path d="M3 6h18v12H3zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6.5 9v.1M17.5 15v.1" ${S}/>`,
+  ad:    `<path d="M4 9v6h3l5 4V5L7 9zM17 9.5a4 4 0 0 1 0 5" ${S}/>`,
+  test:  `<path d="M9 3h6M10 3v6l-5 9c-.7 1.3.2 3 1.7 3h10.6c1.5 0 2.4-1.7 1.7-3l-5-9V3" ${S}/>`,
+  clock: `<path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3.5 2" ${S}/>`,
+  star:  `<path d="M12 3.5l2.7 5.6 6.1.8-4.5 4.3 1.2 6.1-5.5-3-5.5 3 1.2-6.1L3.2 9.9l6.1-.8z" ${S}/>`,
+  bot:   `<path d="M12 3v3M6.5 6h11a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zM9 11v2M15 11v2M9.5 21l1.2-3M14.5 21l-1.2-3" ${S}/>`,
+};
+function icon(name) { return `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${IC[name] || ''}</svg>`; }
+
+/* ============================================================
+   Слайды. Каждый — функция, возвращающая разметку.
+   ============================================================ */
+const SEC = [
+  'Титул', 'Проблема · 1', 'Проблема · 2', 'Решение',
+  'Продукт', 'Бизнес', 'Дальше', 'Итог',
+];
+
+function head(i) {
+  if (i === 0) return '';
+  return `<div class="top">
+    <span class="no">Слайд ${i}</span>
+    <span class="sec">${SEC[i]}</span>
+    <span class="sp"></span>
+    <span class="brand">${COIN()} ЧЕСТНЫЙ МЕСЯЦ</span>
+  </div>`;
+}
+function foot(i, note) {
+  let d = '';
+  for (let n = 0; n < 8; n++) d += `<i class="${n === i ? 'on' : ''}"></i>`;
+  return `<div class="foot"><div class="dots">${d}</div><span class="sp"></span>
+    <span class="note">${note || ''}</span></div>`;
+}
+
+const SLIDES = [];
+
+/* ---------- 0. Титул ---------- */
+SLIDES.push(`
+<div class="slide">
+  <div class="body" style="padding-top:38px">
+    <div class="hero-title">
+      <div style="min-width:0;flex:1">
+        <div class="wordmark">${COIN()}
+          <span class="tag g">${icon('bot')} Telegram Mini App</span>
+          <span class="tag">${icon('test')} Кейс 3</span>
+          <span class="tag c">${icon('star')} Маскот Грош</span>
+        </div>
+        <h1>Честный<br>месяц</h1>
+        <p class="lead" style="max-width:600px;font-size:22px">
+          Трекер трат, который считает не «сколько списал банк», а
+          <b class="hlg">сколько ты на самом деле потратил</b> — и который
+          не бросают на третий день.
+        </p>
+        <div class="kv">
+          <div class="stat green"><div class="k">Осознанность</div>
+            <div class="v num">99 <small>%</small></div><div class="d">денег объяснено</div></div>
+          <div class="stat gold"><div class="k">Сентябрь 2026</div>
+            <div class="v num">125 618,20 <small>₽</small></div><div class="d">из 104 операций</div></div>
+          <div class="stat soft"><div class="k">Скриншот банка</div>
+            <div class="v num">8 / 8 <small>за 6 с</small></div><div class="d">операций распознано</div></div>
+          <div class="stat soft"><div class="k">Тесты</div>
+            <div class="v num">300 <small>зелёных</small></div><div class="d">весь набор проходит</div></div>
+        </div>
+      </div>
+      <div class="masbox" style="flex:0 0 330px">
+        <div class="bub">Я Грош. Слежу, чтобы <b>ни один рубль</b> не потерялся.</div>
+        <div class="masw xl" style="margin-top:14px" data-mas="t0:proud"></div>
+      </div>
+    </div>
+  </div>
+  ${foot(0, 'Защита хакатона · сентябрь 2026')}
+</div>`);
+
+/* ---------- 1. Проблема: куда уходят деньги ---------- */
+SLIDES.push(`
+<div class="slide">
+  ${head(1)}
+  <div class="body">
+    <h2>Куда уходят деньги — <span class="hl">непонятно</span></h2>
+    <div class="cols" style="margin-top:16px">
+      <div class="col" style="flex:1.04">
+        <ul class="bul">
+          <li><span class="bx">${icon('cal')}</span><span>Раз в месяц сесть и всё разобрать — тяжело.
+            <em>Вечер работы, который всегда переносится на завтра.</em></span></li>
+          <li><span class="bx">${icon('bank')}</span><span>В приложении банка трекать неудобно.
+            <em>Категории чужие, правил не поменять, наличных нет вовсе.</em></span></li>
+          <li><span class="bx">${icon('brain')}</span><span>К вечеру уже не помнишь, на что ушло.
+            <em>«Перевод 1 500 ₽» — кому и за что, через неделю не восстановить.</em></span></li>
+          <li><span class="bx">${icon('zigzag')}</span><span>Получается нерегулярно — и бросаешь.
+            <em>Два месяца подряд не выдерживает почти никто.</em></span></li>
+          <li><span class="bx">${icon('warn')}</span><span>И главное — аналитика кривая.
+            <em>Переводы себе, снятия и доли за компанию банк считает тратами.</em></span></li>
+        </ul>
+      </div>
+      <div class="col" style="flex:1.02">
+        <div class="card coral" style="padding:14px 18px 13px">
+          <div class="tag w" style="margin-bottom:10px">${icon('warn')} Один месяц демо-данных, посчитано по нашей же базе</div>
+          <div style="display:flex;gap:20px">
+            <div style="flex:1;min-width:0">
+              <div class="tiny" style="text-transform:uppercase;letter-spacing:.08em">Банк насчитал бы</div>
+              <div class="big" style="font-size:33px;white-space:nowrap">167 218,20 <small style="font-size:19px">₽</small></div>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div class="tiny" style="text-transform:uppercase;letter-spacing:.08em">На самом деле</div>
+              <div class="big hlg" style="font-size:33px;white-space:nowrap">125 618,20 <small style="font-size:19px">₽</small></div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:11px">
+            <span class="tag c" style="font-size:14.5px;padding:6px 13px">Лишних 41 600 ₽ — это 33 %</span>
+            <span class="tiny" style="flex:1">За год из таких «трат» и набегают те самые
+              двести тысяч переводов туда-сюда.</span>
+          </div>
+        </div>
+        <div class="card soft" style="padding:13px 17px">
+          <h3 style="margin-bottom:9px;font-size:18px">Что банк записал бы в расходы зря</h3>
+          <div class="chips">
+            <span class="chip">Перевод себе <b>10 000 ₽</b></span>
+            <span class="chip">Возврат долга <b>7 000 ₽</b></span>
+            <span class="chip">Доля компании <b>6 400 ₽</b></span>
+            <span class="chip">Кошелёк WB <b>6 000 ₽</b></span>
+            <span class="chip">Снятие наличных <b>5 000 ₽</b></span>
+            <span class="chip">Выданный долг <b>3 000 ₽</b></span>
+          </div>
+        </div>
+        <div class="card green" style="padding:13px 17px;flex:1;min-height:0;
+             display:flex;flex-direction:column;justify-content:center">
+          <div class="sub" style="font-size:15.5px;color:var(--ink)">Ни одна из этих строк не трата:
+            деньги просто сменили форму или карман. Банк их складывает в «расходы» — и человек
+            весь месяц смотрит на чужое число.</div>
+        </div>
+      </div>
+      <div class="col" style="flex:0 0 168px;justify-content:center;align-items:center">
+        <div class="bub" style="font-size:13.5px">Вижу минус,<br>а смысла не вижу.</div>
+        <div class="masw" style="margin-top:12px" data-mas="t1:sad"></div>
+      </div>
+    </div>
+  </div>
+  ${foot(1, 'Числа — из реального прогона seed + dump')}
+</div>`);
+
+/* ---------- 2. Проблема удержания ---------- */
+SLIDES.push(`
+<div class="slide">
+  ${head(2)}
+  <div class="body">
+    <h2>Трекер, который <span class="hl">бросают</span>, не решает ничего</h2>
+    <p class="lead" style="margin-top:8px">Поэтому удержание мы проектировали раньше аналитики.
+      Два источника: механика Duolingo и единая метрика Whoop.</p>
+    <div class="cols" style="margin-top:16px">
+      <div class="col" style="flex:1.18">
+        <div class="card" style="flex:1">
+          <div class="tag g" style="margin-bottom:12px">${icon('fire')} Как в Duolingo — привычка</div>
+          <ul class="bul" style="gap:10px">
+            <li><span class="bx">${icon('clock')}</span><span>Пара минут в день
+              <em>Одно голосовое и несколько тапов — всё.</em></span></li>
+            <li><span class="bx">${icon('fire')}</span><span>Стрики
+              <em>12 дней подряд, рекорд 18, сундук на 14-й день.</em></span></li>
+            <li><span class="bx">${icon('snow')}</span><span>Заморозка стрика
+              <em>Один пропуск не обнуляет месяц работы.</em></span></li>
+            <li><span class="bx">${icon('bell')}</span><span>Напоминание с характером
+              <em>Пишет Грош, а не «системное уведомление».</em></span></li>
+          </ul>
+        </div>
+        <div class="card green" style="padding:14px 18px">
+          <div style="display:flex;align-items:center;gap:14px">
+            <span class="tag w">${icon('gauge')} Как в Whoop — одна метрика</span>
+            <span style="font-size:15.5px;font-weight:800;flex:1">Не «сколько потратил», а
+              <b>насколько осознанно</b> ты подходишь к деньгам. Один процент, который видно каждый день.</span>
+          </div>
+        </div>
+        <div class="card soft" style="padding:12px 18px">
+          <span style="font-size:16px;font-weight:900">Минимальное действие каждый день решает задачу,
+            которую не решает один тяжёлый вечер в месяц.</span>
+        </div>
+      </div>
+      <div class="col" style="flex:0 0 330px">
+        <div class="shotbox"><img class="shot" src="img/c-awareness.png"
+             alt="Экран осознанности: 99 % денег объяснено"></div>
+        <div class="shotbox"><img class="shot" src="img/c-streak.png"
+             alt="Стрик: 12 дней подряд, рекорд 18 дней"></div>
+      </div>
+      <div class="col" style="flex:0 0 150px;justify-content:flex-end;align-items:center">
+        <div class="bub" style="font-size:13.5px">Три дня молчишь —<br>я напомню.</div>
+        <div class="masw" style="margin-top:12px" data-mas="t2:curious"></div>
+      </div>
+    </div>
+  </div>
+  ${foot(2, 'Стрики, заморозки и XP уже работают в приложении')}
+</div>`);
+
+/* ---------- 3. Решение ---------- */
+SLIDES.push(`
+<div class="slide">
+  ${head(3)}
+  <div class="body">
+    <h2>Решение: приложение в Telegram <span class="hlg">с Грошем</span></h2>
+    <p class="lead" style="margin-top:6px">Ставить нечего, регистрироваться не надо. Путь пользователя —
+      пять шагов, из них ручных полтора.</p>
+    <div class="cols" style="margin-top:14px">
+      <div class="col" style="flex:1">
+        <div class="steps">
+          <div class="step co"><span class="n">1</span><span class="tx">
+            <b>Приходит напоминание с характером</b>
+            <span>Грош пишет в чат сам — в 21:00 по вашему времени.</span></span>
+            <span style="margin-left:auto">${icon('bell')}</span></div>
+          <div class="step"><span class="n">2</span><span class="tx">
+            <b>Двойное касание по задней крышке айфона</b>
+            <span>Быстрая команда, настраивается один раз за 1–2 минуты.</span></span>
+            <span style="margin-left:auto">${icon('tap')}</span></div>
+          <div class="step"><span class="n">3</span><span class="tx">
+            <b>Сам делается скрин банка и включается диктофон</b>
+            <span>Скриншот и запись уезжают на сервер без единого тапа.</span></span>
+            <span style="margin-left:auto">${icon('cam')}</span></div>
+          <div class="step"><span class="n">4</span><span class="tx">
+            <b>Голосом рассказываете про сегодняшние траты</b>
+            <span>«Кофе триста рублей» — распознаётся за 1,5 секунды.</span></span>
+            <span style="margin-left:auto">${icon('mic')}</span></div>
+          <div class="step gr"><span class="n">5</span><span class="tx">
+            <b>Дневной процент осознанности считается сам</b>
+            <span>Стрик, XP и прогноз на конец месяца обновляются сразу.</span></span>
+            <span style="margin-left:auto">${icon('pct')}</span></div>
+        </div>
+        <div class="card gold" style="padding:12px 18px;display:flex;align-items:center;gap:13px">
+          <span class="tag w">${icon('clock')} Если забываешь к вечеру</span>
+          <span style="font-size:15px;font-weight:800;flex:1">Записывайте каждую трату сразу —
+            тем же двойным касанием, хоть десять раз в день. В чат прилетает отбивка,
+            что всё принято и обработано.</span>
+        </div>
+      </div>
+      <div class="col" style="flex:0 0 252px;align-items:center;justify-content:center">
+        <div class="phone"><img src="img/app-month.png" alt="Главный экран мини-аппа"><span class="glare"></span></div>
+        <div class="phonecap">Главный экран · вкладка «Месяц»</div>
+      </div>
+      <div class="col" style="flex:0 0 168px;justify-content:center;align-items:center">
+        <div class="bub" style="font-size:13.5px">Один тап по крышке —<br>и день закрыт.</div>
+        <div class="masw l" style="margin-top:12px" data-mas="t3:hype"></div>
+      </div>
+    </div>
+  </div>
+  ${foot(3, 'Быстрая команда iPhone → API → Mini App')}
+</div>`);
+
+/* ---------- 4. Фишки приложения ---------- */
+SLIDES.push(`
+<div class="slide">
+  ${head(4)}
+  <div class="body">
+    <div class="titlerow">
+      <div class="tx"><h2>Что внутри, кроме привычки</h2></div>
+      <div class="masbox">
+        <div class="bub">Семь сценариев кейса — <b>ни один не мимо</b>.</div>
+        <div class="masw s" data-mas="t4:proud"></div>
+      </div>
+    </div>
+    <div class="cols" style="margin-top:12px">
+      <div class="col" style="flex:1">
+        <div class="card" style="flex:1;min-height:0;display:flex;flex-direction:column">
+          <div class="tag" style="margin-bottom:10px;align-self:flex-start">${icon('doc')} Детальный месячный отчёт</div>
+          <div class="sub">Недели, категории, обязательное против необязательного, топ продавцов,
+            кошельки маркетплейсов, долги и остатки — и всё это сходится до копейки
+            с числом на главном экране.</div>
+          <div class="shotbox grow fade" style="margin-top:11px">
+            <img class="shot" src="img/c-cats.png" alt="Отчёт: куда ушли деньги по категориям"></div>
+        </div>
+      </div>
+      <div class="col" style="flex:1">
+        <div class="card green" style="flex:1;min-height:0;display:flex;flex-direction:column">
+          <div class="tag w" style="margin-bottom:10px;align-self:flex-start">${icon('check')} Алгоритм, который не ломается</div>
+          <div class="sub">Семь сценариев кейса — переводы себе, кошельки, долги, доли за компанию,
+            возвраты, непонятные поступления, наличные — разбираются правилами, а не угадыванием.
+            Что правило решить не может, становится вопросом на один тап, а не молчаливой ошибкой.</div>
+          <div class="shotbox grow fade" style="margin-top:11px">
+            <img class="shot" src="img/c-question.png" alt="Вопрос: на скольких человек делили счёт"></div>
+        </div>
+      </div>
+      <div class="col" style="flex:1">
+        <div class="card" style="padding:15px 17px">
+          <div class="tag c" style="margin-bottom:10px;align-self:flex-start">${icon('mic')} На голосе и автоматических скринах</div>
+          <div class="statrow" style="gap:10px">
+            <div class="stat soft"><div class="k">Скриншот банка</div>
+              <div class="v num">8 / 8</div><div class="d">операций за 6 секунд</div></div>
+            <div class="stat soft"><div class="k">Голосовое</div>
+              <div class="v num">1,5 <small>с</small></div><div class="d">«Кофе триста рублей» → 300 ₽, «Кафе»</div></div>
+          </div>
+          <div class="tiny" style="margin-top:10px">Модели выбраны замером, а не по названию:
+            <b>google/gemini-3.5-flash-lite</b> для зрения, <b>ai-sage/gigaam-v3</b> для речи.
+            На каждую есть запасные — демонстрация не должна падать из-за провайдера.</div>
+        </div>
+        <div class="card soft" style="padding:14px 17px;flex:1;min-height:0">
+          <div class="tag w" style="margin-bottom:9px;align-self:flex-start">${icon('plug')} В будущем — интеграция с банками</div>
+          <div class="sub" style="font-size:15px">Выписка и скрин — это мост. Дальше открытые API
+            банков заменят скриншот, а правила и вопросы останутся теми же.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  ${foot(4, '300 тестов держат все семь сценариев')}
+</div>`);
+
+/* ---------- 5. Бизнес ---------- */
+SLIDES.push(`
+<div class="slide">
+  ${head(5)}
+  <div class="body">
+    <h2>Бизнес: подписка и <span class="hl">ультра-контекстная реклама</span></h2>
+    <div class="cols" style="margin-top:12px">
+      <div class="col" style="flex:1.05">
+        <div class="card" style="padding:15px 18px;flex:1;min-height:0">
+          <div class="tag c" style="margin-bottom:9px;align-self:flex-start">${icon('money')} Расход на ИИ · на активного пользователя в месяц</div>
+          <table class="eco">
+            <colgroup><col class="a"><col class="b"><col class="c"></colgroup>
+            <tr><th>Статья</th><th class="r">Объём</th><th class="r">₽ / мес</th></tr>
+            <tr><td>Зрение — скрин банка<div class="m">2 000 + 500 токенов</div></td>
+                <td class="r">30 вызовов</td><td class="r">1,20</td></tr>
+            <tr><td>Речь — голосовой отчёт<div class="m">по 20 секунд в день</div></td>
+                <td class="r">10 минут</td><td class="r">6,00</td></tr>
+            <tr><td>Текст — вопросы, дайджест<div class="m">1 500 + 300 токенов</div></td>
+                <td class="r">30 вызовов</td><td class="r">0,81</td></tr>
+            <tr class="tot"><td>Итого сырой расход</td><td class="r"></td><td class="r">8,01</td></tr>
+            <tr><td>С запасом &times;2 на ретраи<div class="m">и запасные модели</div></td><td class="r"></td>
+                <td class="r" style="font-size:20px;font-weight:900">≈ 16</td></tr>
+          </table>
+          <div class="tiny" style="margin-top:10px;padding-top:9px;border-top:2px dashed var(--line)">
+            <b>Разово, не в рантайме:</b> картинка генерации стоила ≈ 8 ₽, иконки резались
+            из листов-сеток — весь набор ассетов обошёлся в десятки рублей.</div>
+        </div>
+      </div>
+      <div class="col" style="flex:1.05">
+        <div class="card green" style="padding:15px 18px;flex:1;min-height:0">
+          <div class="tag w" style="margin-bottom:9px;align-self:flex-start">${icon('ad')} Выручка · на того же пользователя</div>
+          <table class="eco">
+            <colgroup><col class="a"><col class="b"><col class="c"></colgroup>
+            <tr><th>Источник</th><th class="r">Как считаем</th><th class="r">₽ / мес</th></tr>
+            <tr><td>Подписка<div class="m">199 ₽ в месяц</div></td>
+                <td class="r">199 × 5 %</td><td class="r">9,95</td></tr>
+            <tr><td>Партнёрские задания<div class="m">4 оффера, CPA 50 ₽</div></td>
+                <td class="r">4 × 8 % × 50</td><td class="r">16,00</td></tr>
+            <tr class="tot"><td>Выручка</td><td class="r"></td><td class="r">25,95</td></tr>
+            <tr><td>Маржа после ИИ<div class="m">25,95 − 16</div></td><td class="r"></td>
+                <td class="r" style="font-size:20px;font-weight:900;color:#2FA854">+ 9,95</td></tr>
+          </table>
+          <div class="chips" style="margin-top:11px">
+            <span class="chip">10 000 MAU: выручка <b>260 тыс. ₽</b></span>
+            <span class="chip">ИИ <b>160 тыс. ₽</b></span>
+            <span class="chip">валовая <b>100 тыс. ₽</b></span>
+          </div>
+          <div class="tiny" style="margin-top:10px;padding-top:9px;border-top:2px dashed var(--line)">
+            <b>Почему эта реклама дороже обычной:</b> рекламодатель видит не «мужчина 25–34»,
+            а «потратил 1 820,50 ₽ из 2 000 ₽ в Surf Coffee, не добрал 180 ₽».</div>
+        </div>
+      </div>
+      <div class="col" style="flex:0 0 250px">
+        <div class="shotbox fade"><img class="shot" src="img/c-partner-top.png"
+             alt="Партнёрские задания от спонсоров в приложении"></div>
+        <div class="tiny"><b>Продукт для рекламодателя уже в коде:</b>
+          <code>PARTNER_QUESTS</code> в <code>app/gamification.py</code>
+          — четыре партнёра, прогресс считается по выписке, вручную отмечать нечего.</div>
+      </div>
+    </div>
+    <div class="card soft" style="padding:9px 16px;margin-top:11px">
+      <div class="tiny"><b>Посчитано:</b> размер промпта зрения 1 565 знаков, скриншот 900×1500 px,
+        8 операций за 6 с, голосовое распознаётся за 1,5 с, четыре партнёрских оффера в коде. &nbsp;
+        <b>Допущения:</b> цена провайдера $0,10 / $0,40 за 1M токенов вход/выход, речь $0,006 за минуту,
+        курс 100 ₽/$, по одному скрину и голосовому в день, подписка 199 ₽ при конверсии 5 %,
+        выполнение партнёрского задания 8 %, CPA 50 ₽.</div>
+    </div>
+  </div>
+  ${foot(5, 'Консервативно: каждое допущение занижено, а не завышено')}
+</div>`);
+
+/* ---------- 6. Фишки на будущее ---------- */
+SLIDES.push(`
+<div class="slide">
+  ${head(6)}
+  <div class="body">
+    <h2>Что дальше</h2>
+    <div class="cols" style="margin-top:18px">
+      <div class="col" style="flex:1">
+        <div class="card" style="flex:1;min-height:0;display:flex;flex-direction:column;padding:20px 22px">
+          <div class="tag" style="margin-bottom:12px;align-self:flex-start">${icon('split')} Делить чек между людьми</div>
+          <div class="sub" style="font-size:16.5px">Ядро уже умеет главное: счёт на компанию не идёт
+            в расходы целиком, в траты попадает только ваша доля, остальное становится долгом.
+            Сейчас Грош спрашивает «на скольких делили» — дальше можно позвать людей в чат,
+            разослать доли и закрывать их одним тапом, без таблиц и напоминаний в мессенджере.</div>
+          <div class="chips" style="margin-top:14px">
+            <span class="chip">${icon('check')} Доля считается уже сейчас</span>
+            <span class="chip">Дальше: приглашение в чат</span>
+            <span class="chip">Дальше: автозакрытие долга</span>
+          </div>
+          <div class="shotbox grow fade" style="margin-top:12px">
+            <img class="shot" src="img/c-question.png" alt="Вопрос о разделе счёта"></div>
+        </div>
+      </div>
+      <div class="col" style="flex:1">
+        <div class="card green" style="flex:1;padding:20px 22px">
+          <div class="tag w" style="margin-bottom:12px">${icon('phone')} Нативное приложение на iOS и Android</div>
+          <div class="sub" style="font-size:16.5px">Telegram хорош тем, что его не надо ставить.
+            Но у нативного приложения возможностей больше — и все они прямо про наш сценарий:</div>
+          <ul class="bul" style="margin-top:13px;gap:9px">
+            <li><span class="bx">${icon('bell')}</span><span>Доступ к уведомлениям банка
+              <em>Трата попадает в ленту в момент оплаты, скрин уже не нужен.</em></span></li>
+            <li><span class="bx">${icon('tap')}</span><span>Виджет и Live Activity
+              <em>Процент осознанности и стрик — на экране блокировки.</em></span></li>
+            <li><span class="bx">${icon('mic')}</span><span>Запись в фоне и офлайн
+              <em>Голосовое пишется даже без сети и уходит, когда сеть появится.</em></span></li>
+            <li><span class="bx">${icon('plug')}</span><span>Открытые API банков
+              <em>Выписка подтягивается сама — остаются только вопросы Гроша.</em></span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="col" style="flex:0 0 190px;justify-content:center;align-items:center">
+        <div class="bub" style="font-size:13.5px">Считаю, как делить<br>этот чек на пятерых.</div>
+        <div class="masw l" style="margin-top:12px" data-mas="t6:think"></div>
+      </div>
+    </div>
+  </div>
+  ${foot(6, 'Всё перечисленное опирается на уже готовое ядро')}
+</div>`);
+
+/* ---------- 7. Финал ---------- */
+SLIDES.push(`
+<div class="slide">
+  ${head(7)}
+  <div class="body">
+    <h2>Что работает <span class="hlg">прямо сейчас</span></h2>
+    <p class="lead" style="margin-top:6px">Ни одно число на этом слайде не придумано:
+      всё получено прогоном <code style="font-weight:900">seed → dump → pytest</code> перед защитой.</p>
+    <div class="cols" style="margin-top:16px">
+      <div class="col" style="flex:1.25">
+        <div class="statrow">
+          <div class="stat green"><div class="k">Тесты</div><div class="v num">300</div>
+            <div class="d">весь набор зелёный</div></div>
+          <div class="stat gold"><div class="k">Разбор выписок</div><div class="v num">106 → 104</div>
+            <div class="d">строки в наборе → операции</div></div>
+          <div class="stat soft"><div class="k">Сентябрь 2026</div><div class="v num">125 618,20 <small>₽</small></div>
+            <div class="d">потрачено по-честному</div></div>
+        </div>
+        <div class="statrow">
+          <div class="stat green"><div class="k">Осознанность</div><div class="v num">99 <small>%</small></div>
+            <div class="d">не разобрано всего 500 ₽</div></div>
+          <div class="stat soft"><div class="k">Прогноз на конец месяца</div><div class="v num">149 083,30 <small>₽</small></div>
+            <div class="d">по темпу 2 346,51 ₽ в день</div></div>
+          <div class="stat coral"><div class="k">Инварианты книги</div><div class="v num">Сошлись</div>
+            <div class="d">недели = месяц, до копейки</div></div>
+        </div>
+        <div class="statrow">
+          <div class="stat soft"><div class="k">Скриншот банка</div><div class="v num">8 / 8 <small>за 6 с</small></div>
+            <div class="d">gemini-3.5-flash-lite, замер на эталоне</div></div>
+          <div class="stat soft"><div class="k">Голосовое</div><div class="v num">1,5 <small>с</small></div>
+            <div class="d">«Кофе триста рублей» → 300 ₽, «Кафе»</div></div>
+        </div>
+        <div class="card soft" style="padding:12px 18px">
+          <div class="chips">
+            <span class="chip">${icon('bot')} Бот и Mini App</span>
+            <span class="chip">${icon('doc')} Импорт CSV четырёх банков</span>
+            <span class="chip">${icon('cam')} Скрины и чеки</span>
+            <span class="chip">${icon('mic')} Голос</span>
+            <span class="chip">${icon('fire')} Стрики, XP, сундуки</span>
+            <span class="chip">${icon('ad')} Партнёрские задания</span>
+            <span class="chip">${icon('tap')} Быстрая команда iPhone</span>
+          </div>
+        </div>
+      </div>
+      <div class="col" style="flex:0 0 252px;align-items:center;justify-content:center">
+        <div class="phone"><img src="img/app-reports.png" alt="Вкладка «Отчёты»"><span class="glare"></span></div>
+        <div class="phonecap">Отчёт за месяц · всё сходится</div>
+      </div>
+      <div class="col" style="flex:0 0 210px;justify-content:center;align-items:center">
+        <div class="bub">Честный месяц закрыт.<br><b>Спасибо!</b></div>
+        <div class="masw l" style="margin-top:14px" data-mas="t7:party"></div>
+      </div>
+    </div>
+  </div>
+  ${foot(7, 'python -m scripts.seed --reset · python -m scripts.dump · python -m pytest -q')}
+</div>`);
+
+/* ============================================================
+   Сборка, навигация, масштаб.
+   ============================================================ */
+const stage = document.getElementById('stage');
+stage.innerHTML = SLIDES.map((html, i) => `<div class="cell" data-i="${i}">${html}</div>`).join('');
+
+// маскоты подставляем после сборки: data-mas="uid:state"
+document.querySelectorAll('[data-mas]').forEach((n) => {
+  const [uid, state] = n.getAttribute('data-mas').split(':');
+  n.innerHTML = MASCOT(uid, state);
+});
+
+const cells = [...document.querySelectorAll('.cell')];
+let cur = 0, ov = false;
+
+function show(i) {
+  cur = Math.max(0, Math.min(cells.length - 1, i));
+  cells.forEach((c, n) => c.classList.toggle('on', n === cur));
+  if (ov) cells[cur].scrollIntoView({block: 'nearest'});
+  location.hash = cur ? '#' + (cur + 1) : '';
+}
+function fit() {
+  const k = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+  document.documentElement.style.setProperty('--k', k);
+  // обзор: три колонки, но не уже разумного и не шире окна
+  const pad = 26 * 2, gap = 20 * 2;
+  const ko = Math.min(.42, Math.max(.16, (window.innerWidth - pad - gap) / 3 / 1280));
+  document.documentElement.style.setProperty('--ko', ko);
+}
+function overview(on) {
+  ov = on;
+  stage.classList.toggle('ov', on);
+  cells.forEach((c) => c.classList.toggle('on', ov ? false : false));
+  if (ov) { cells.forEach((c, n) => c.classList.toggle('on', n === cur)); cells[cur].scrollIntoView({block: 'center'}); }
+  else show(cur);
+}
+cells.forEach((c) => c.addEventListener('click', () => { if (ov) { cur = +c.dataset.i; overview(false); } }));
+
+addEventListener('keydown', (e) => {
+  const k = e.key;
+  if (k === 'ArrowRight' || k === 'ArrowDown' || k === ' ' || k === 'PageDown') { e.preventDefault(); if (ov) overview(false); else show(cur + 1); }
+  else if (k === 'ArrowLeft' || k === 'ArrowUp' || k === 'PageUp') { e.preventDefault(); if (ov) overview(false); else show(cur - 1); }
+  else if (k === 'Home') { e.preventDefault(); show(0); }
+  else if (k === 'End') { e.preventDefault(); show(cells.length - 1); }
+  else if (k === 'Escape') { e.preventDefault(); overview(!ov); }
+  else if (k === 'f' || k === 'F' || k === 'а' || k === 'А') {
+    e.preventDefault();
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(() => {});
+  }
+});
+addEventListener('resize', fit);
+addEventListener('hashchange', () => { const n = parseInt(location.hash.slice(1), 10); if (n) show(n - 1); });
+
+fit();
+show(parseInt(location.hash.slice(1), 10) - 1 || 0);
+setTimeout(() => document.getElementById('help').classList.add('hide'), 6000);
+addEventListener('mousemove', () => {
+  const h = document.getElementById('help');
+  h.classList.remove('hide');
+  clearTimeout(h._t); h._t = setTimeout(() => h.classList.add('hide'), 3000);
+});
+</script>
+</body>
+</html>

@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import json
 import time
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import pytest
 from fastapi.testclient import TestClient
@@ -66,6 +66,19 @@ def test_без_подписи_данные_не_отдаются(client):
 def test_подделанная_подпись_отвергается(client):
     bad = make_init_data(777, token="999:WRONG")
     response = client.get("/api/v1/me/summary", headers={"X-Telegram-Init-Data": bad})
+    assert response.status_code == 401
+
+
+def test_кириллица_в_подписи_это_отказ_а_не_пятисотка(client):
+    """`hash` приходит из запроса, и не-ASCII в нём ломал сравнение строк.
+
+    Заголовок остаётся ASCII — кириллица проезжает процентным
+    кодированием, — а после разбора initData сравнивать приходится уже её.
+    """
+    response = client.get(
+        "/api/v1/me/summary",
+        headers={"X-Telegram-Init-Data": f"user=%7B%22id%22%3A777%7D&hash={quote('подпись')}"},
+    )
     assert response.status_code == 401
 
 

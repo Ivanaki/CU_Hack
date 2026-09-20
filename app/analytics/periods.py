@@ -20,6 +20,14 @@ RU_MONTHS_NOM = (
     "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
     "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
 )
+RU_WEEKDAYS = (
+    "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье",
+)
+RU_WEEKDAYS_SHORT = ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
+
+# Гранулярность разбиения периода на срезы.
+DAY, WEEK, MONTH = "day", "week", "month"
+GRANULARITY_TITLE = {DAY: "По дням", WEEK: "По неделям", MONTH: "По месяцам"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,8 +49,70 @@ class Period:
     def contains(self, moment: datetime) -> bool:
         return self.start <= moment < self.end
 
+    @property
+    def starts_at_midnight(self) -> bool:
+        return self.start == datetime(self.start.year, self.start.month, self.start.day)
+
+    @property
+    def is_calendar_day(self) -> bool:
+        return self.starts_at_midnight and self.end == self.start + timedelta(days=1)
+
+    @property
+    def is_calendar_week(self) -> bool:
+        return (
+            self.starts_at_midnight
+            and self.start.weekday() == 0
+            and self.end == self.start + timedelta(days=7)
+        )
+
+    @property
+    def is_calendar_month(self) -> bool:
+        if not self.starts_at_midnight or self.start.day != 1:
+            return False
+        nxt = datetime(self.start.year + (self.start.month == 12), (self.start.month % 12) + 1, 1)
+        return self.end == nxt
+
+    @property
+    def is_calendar_year(self) -> bool:
+        return self.start == datetime(self.start.year, 1, 1) and self.end == datetime(
+            self.start.year + 1, 1, 1
+        )
+
+    @property
+    def unit(self) -> str:
+        """Как назвать сам период в винительном падеже: «складываются в месяц»."""
+        if self.is_calendar_day:
+            return "день"
+        if self.is_calendar_week:
+            return "неделю"
+        if self.is_calendar_month:
+            return "месяц"
+        if self.is_calendar_year:
+            return "год"
+        return "период"
+
     def shifted_back(self) -> Period:
-        """Предыдущий период такой же длины — для сравнения."""
+        """Период для сравнения — предыдущий такой же.
+
+        Для календарного месяца это предыдущий календарный месяц, а не окно
+        такой же длины: у сентября 30 дней, и сдвиг на 30 дней назад дал бы
+        «2 августа – 1 сентября». Формально это «предыдущие 30 дней», но на
+        экране написано «в прошлом месяце», и человек сравнивает сентябрь с
+        августом, а не с окном, из которого выпало 1 августа.
+
+        Для года — предыдущий год, для календарной недели и дня — предыдущие
+        неделя и день (у них длина и так постоянная, но нужен человеческий
+        заголовок). Для всего остального остаётся окно равной длины.
+        """
+        if self.is_calendar_month:
+            previous = self.start - timedelta(days=1)
+            return month(previous.year, previous.month)
+        if self.is_calendar_year:
+            return year(self.start.year - 1)
+        if self.is_calendar_week:
+            return week((self.start - timedelta(days=1)).date())
+        if self.is_calendar_day:
+            return day((self.start - timedelta(days=1)).date())
         delta = self.end - self.start
         return Period(self.start - delta, self.start, f"предыдущие {self.days} дн.")
 
@@ -126,10 +196,39 @@ def split_into_days(period: Period) -> list[Period]:
     return out
 
 
+def granularity(period: Period) -> str:
+    """Чем резать период, чтобы столбиков было видно, а не 53 штуки.
+
+    День и неделя режутся днями, месяц и квартал — неделями, год — месяцами.
+    Именно из-за отсутствия этого правила годовой период отдавал наружу 53
+    недельных среза, которые на экране в 390 точек не помещаются.
+    """
+    if period.days <= 10:
+        return DAY
+    if period.days <= 92:
+        return WEEK
+    return MONTH
+
+
+def split_auto(period: Period) -> tuple[str, list[Period]]:
+    """Период и его срезы подходящей длины. Сумма срезов равна периоду."""
+    kind = granularity(period)
+    cut = {DAY: split_into_days, WEEK: split_into_weeks, MONTH: split_into_months}[kind]
+    return kind, cut(period)
+
+
 def parse_period(spec: str, *, today: date | None = None) -> Period:
     """Разбирает человеческое указание периода: день, неделя, месяц, год."""
     today = today or date.today()
     key = (spec or "").strip().lower()
+    if key.isdigit() and len(key) == 4:  # 2026
+        return year(int(key))
+    if len(key) == 10 and key.count("-") == 2:  # 2026-09-15
+        y, m, d = key.split("-")
+        return day(date(int(y), int(m), int(d)))
+    if len(key) == 8 and key[4:6] == "-w":  # 2026-W38, стрелка «неделя назад»
+        y, w = key.split("-w")
+        return week(date.fromisocalendar(int(y), int(w), 1))
     if key in {"день", "сегодня", "day", "today"}:
         return day(today)
     if key in {"вчера", "yesterday"}:

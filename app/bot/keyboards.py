@@ -75,6 +75,19 @@ def report_keyboard(period_key: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def upload_link_keyboard() -> InlineKeyboardMarkup:
+    """Отзыв ссылки одним тапом — там же, где её показали.
+
+    Прятать перевыпуск в отдельную команду нельзя: человек вспоминает про
+    него ровно в тот момент, когда понял, что ключ куда-то попал.
+    """
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Выпустить новую", callback_data="upload:rotate")]
+        ]
+    )
+
+
 def digest_keyboard(has_questions: bool) -> InlineKeyboardMarkup:
     rows = []
     if has_questions:

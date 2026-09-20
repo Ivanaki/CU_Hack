@@ -13,6 +13,7 @@ import base64
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -59,16 +60,22 @@ class LLM:
             headers["X-Title"] = "Honest Month"
         return headers
 
-    def _post(self, payload: dict[str, Any]) -> str | None:
+    def _post(self, payload: dict[str, Any], deadline: float | None = None) -> str | None:
         url = f"{self.settings.llm_base_url.rstrip('/')}/chat/completions"
         last_error: str | None = None
         for _attempt in range(self.settings.llm_max_retries + 1):
+            left = None if deadline is None else deadline - time.monotonic()
+            if left is not None and left <= 1:
+                last_error = "истёк бюджет времени на разбор"
+                break
             try:
                 response = httpx.post(
                     url,
                     json=payload,
                     headers=self._headers(),
-                    timeout=self.settings.llm_timeout_s,
+                    # Ждать дольше общего бюджета бессмысленно: ответ приедет
+                    # уже после того, как мы обязаны ответить клиенту.
+                    timeout=min(self.settings.llm_timeout_s, left or self.settings.llm_timeout_s),
                 )
                 if response.status_code >= 400:
                     last_error = f"HTTP {response.status_code}: {response.text[:200]}"
@@ -200,7 +207,13 @@ class LLM:
         # Перебираем модели по цепочке: на демонстрации устойчивость важнее
         # экономии, а провайдер может отвалиться в любой момент.
         chain = [model] if model else self.settings.vision_chain
+        # Бюджет общий на всю цепочку, а не на каждую модель: человек ждёт
+        # ответа один раз, и ему всё равно, сколько провайдеров мы обошли.
+        deadline = time.monotonic() + self.settings.llm_deadline_s
         for candidate in chain:
+            if time.monotonic() >= deadline - 1:
+                log.warning("бюджет времени на разбор исчерпан, дальше не иду")
+                break
             raw = self._post(
                 {
                     "model": candidate,
@@ -208,7 +221,8 @@ class LLM:
                     "max_tokens": max_tokens,
                     "temperature": 0.0,
                     "response_format": {"type": "json_object"},
-                }
+                },
+                deadline=deadline,
             )
             parsed = self._extract_json(raw or "")
             if parsed is not None:

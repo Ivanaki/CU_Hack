@@ -25,6 +25,20 @@ from app.service import get_or_create_user
 INIT_DATA_TTL = 24 * 3600
 
 
+def same_secret(given: str, expected: str) -> bool:
+    """Сравнение секретов: постоянное по времени и без сюрпризов на кириллице.
+
+    `hmac.compare_digest` на обычных строках бросает TypeError, если в них
+    есть хоть один не-ASCII символ. В `.env.example` ключ-плейсхолдер был
+    как раз русским, и любой, кто развернул проект по инструкции и не
+    заменил его, получал 500 на ручке из ТЗ вместо отказа. Байты сравнивать
+    можно любые, поэтому сравниваем их.
+    """
+    if not expected:
+        return False
+    return hmac.compare_digest(given.encode("utf-8"), expected.encode("utf-8"))
+
+
 def db_session():
     with session_scope() as session:
         yield session
@@ -47,7 +61,9 @@ def verify_init_data(init_data: str, bot_token: str, *, ttl: int = INIT_DATA_TTL
     check_string = "\n".join(f"{k}={pairs[k]}" for k in sorted(pairs))
     secret = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
     expected = hmac.new(secret, check_string.encode(), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(expected, received):
+    # same_secret, а не compare_digest напрямую: `hash` приходит из
+    # запроса, и одна кириллическая буква в нём превращала бы отказ в 500.
+    if not same_secret(received, expected):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "подпись initData не сходится")
 
     issued = int(pairs.get("auth_date") or 0)
@@ -97,5 +113,5 @@ def require_service_key(
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, "служебный API выключен: не задан INGEST_API_KEY"
         )
-    if not hmac.compare_digest(x_api_key, settings.ingest_api_key):
+    if not same_secret(x_api_key, settings.ingest_api_key):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "неверный X-API-Key")

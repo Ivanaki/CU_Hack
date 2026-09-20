@@ -2,8 +2,16 @@
 
 Двойное касание по задней панели телефона делает скриншот или голосовую
 запись и отправляет файл сюда. Это вход для данных пользователя, а не
-файлохранилище: если рядом с картинкой пришёл `tg_id`, мы тут же пробуем
-разобрать её в операции тем же движком, что и остальную заливку.
+файлохранилище: если мы узнали, чей это файл, мы тут же пробуем разобрать
+его в операции тем же движком, что и остальную заливку.
+
+Адрес у всех телефонов один, поэтому «кто прислал» решает не URL, а секрет
+в запросе — персональный `upload_token`. Раньше на этом месте стоял
+`tg_id` из запроса, и это была дыра: telegram id не секрет, его видит
+каждый, кому человек писал, и его можно перебрать — то есть залить
+операции в чужую книгу и испортить чужую аналитику. Теперь `tg_id`
+принимается только вместе со служебным ключом, то есть от нашего же
+сервиса.
 
 Три вещи, из-за которых модуль выглядит сложнее, чем «сохрани файл»:
 
@@ -14,17 +22,28 @@
   нельзя верить;
 * отдача файла закрыта двумя независимыми проверками и запретом на
   интерпретацию содержимого браузером.
+
+Опознанный файл — это чужой скриншот банка, а не публичная картинка,
+поэтому он и лежит отдельно: анонимная загрузка «по ТЗ» остаётся в общем
+каталоге и в общем списке, а файл с хозяином уезжает в закрытый подкаталог
+и отдаётся только ему — по личному ключу, по подписи Mini App или по
+короткоживущей подписи в самой ссылке (без неё превью в Mini App
+не показать: тег img заголовков не шлёт).
 """
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import hmac
 import logging
 import os
 import re
+import secrets
+import time
 import uuid
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -35,9 +54,18 @@ from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 from starlette.formparsers import MultiPartException, MultiPartParser
 
-from app.api.auth import db_session
+from app.api.auth import db_session, same_secret, verify_init_data
 from app.config import Settings, get_settings
-from app.service import get_or_create_user, ingest_screenshot
+from app.db import session_scope
+from app.models import User
+from app.service import (
+    get_or_create_user,
+    ingest_screenshot,
+    owned_stored_names,
+    owner_of_file,
+    remember_upload,
+    user_by_upload_token,
+)
 
 log = logging.getLogger(__name__)
 
@@ -101,6 +129,14 @@ _MULTIPART_OVERHEAD = 64 * 1024
 
 _TOO_BIG = "файл больше допустимого размера"
 _NOT_FOUND = "файл не найден"
+# Подкаталог для файлов, у которых есть хозяин. Каталог, а не колонка в
+# базе: по имени файла на диске сразу видно, публичный он или личный, и
+# ошибка в SQL не может внезапно открыть чужой скриншот всему интернету.
+PRIVATE_DIR = "owned"
+_PRIVATE_DENIED = "файл личный: нужна ваша ссылка или подпись Mini App"
+# Один и тот же ответ на неизвестный, чужой и отозванный токен: по нему
+# нельзя понять, существует такой секрет или нет.
+_BAD_TOKEN = "ссылка не опознана"
 
 # Коды ошибок из ТЗ. Эти два — числами: starlette уже переименовывал свои
 # константы для них и ругается на старые имена, а номера из RFC не менялись.
@@ -121,14 +157,36 @@ class UploadOut(BaseModel):
     size: int = Field(description="Размер в байтах")
     url: str = Field(description="Ссылка на файл")
 
-    # Необязательная часть: появляется, только если пришёл tg_id и файл —
-    # картинка. Клиент, написанный строго по ТЗ, этих полей не увидит:
-    # ответ отдаётся с response_model_exclude_none.
+    # Необязательная часть: появляется, только если мы узнали хозяина файла
+    # и файл — картинка. Клиент, написанный строго по ТЗ, этих полей не
+    # увидит: ответ отдаётся с response_model_exclude_none.
     ingested: bool | None = Field(default=None, description="Удалось ли прочитать операции")
     operations: int | None = Field(
         default=None, description="Операций у пользователя после разбора"
     )
     questions: int | None = Field(default=None, description="Открытых вопросов после разбора")
+
+    # Что распозналось именно в этом файле. Прошлые два поля описывают всю
+    # книгу после пересчёта, а человек спрашивает про то, что скинул сейчас.
+    batch_id: int | None = Field(
+        default=None, description="Номер загрузки: по нему видно, что из файла получилось"
+    )
+    added: int | None = Field(default=None, description="Операций добавилось из этого файла")
+    duplicates: int | None = Field(default=None, description="Строк отброшено как дубли")
+    new_questions: int | None = Field(
+        default=None, description="Вопросов появилось по этому файлу"
+    )
+    # Повторная присылка того же скриншота — самый частый случай, и при
+    # ней added=0. Без этого числа ответ читается как «ничего не вышло»,
+    # хотя на картинке восемь уже известных операций.
+    recognized: int | None = Field(
+        default=None, description="Операций видно по этому файлу, включая уже известные"
+    )
+
+    # Не про содержимое файла, а про то, как он приехал: единственный
+    # способ сказать «ключ в адресе — пересоберите команду» тому, кто
+    # журнал сервера никогда не увидит.
+    warning: str | None = Field(default=None, description="Замечание к самому запросу")
 
 
 class FileOut(BaseModel):
@@ -418,15 +476,78 @@ def _base_from_request(request: Request) -> str:
     return f"{proto}://{host}/"
 
 
-def _public_url(settings: Settings, request: Request, name: str) -> str:
-    """Ссылка на файл.
+def public_base(settings: Settings, request: Request) -> str:
+    """Внешний адрес сервиса без завершающего слеша.
 
     Базовый адрес берём из настройки: снаружи сервис стоит за туннелем и
     приходит по https, а внутрь запрос попадает по http. Настройки нет —
     собираем адрес из заголовков прокси, см. `_base_from_request`.
     """
     base = settings.public_base_url or _base_from_request(request)
-    return f"{base.rstrip('/')}/files/{name}"
+    return base.rstrip("/")
+
+
+# --------------------------------------------------------------------------
+# Подписанная ссылка на личный файл
+# --------------------------------------------------------------------------
+#
+# Заголовок в теге <img> не пошлёшь, а превью своего же скриншота в Mini App
+# показать надо. Поэтому у ссылки на личный файл есть подпись: она говорит
+# «эту ссылку выдали владельцу», живёт несколько часов и не даёт ничего,
+# кроме одного конкретного файла.
+
+FILE_LINK_TTL = 6 * 3600
+# Срок округляется вверх до часа, чтобы одна и та же ссылка на один и тот же
+# файл не менялась при каждом запросе: иначе браузер перекачивает картинку
+# заново, а два ответа API про один файл выглядят как два разных файла.
+_FILE_LINK_STEP = 3600
+# Запасной секрет на случай, когда не задано вообще ничего (локальный
+# запуск без .env). Свой на процесс: ссылки переживают запрос, но не
+# перезапуск — это честнее, чем подписывать пустой строкой.
+_FALLBACK_SECRET = secrets.token_urlsafe(32)
+
+
+def _link_secret(settings: Settings) -> str:
+    return (
+        settings.bot_token
+        or settings.ingest_api_key
+        or settings.upload_api_key
+        or _FALLBACK_SECRET
+    )
+
+
+def _sign_name(name: str, expires: int, settings: Settings) -> str:
+    body = f"{name}.{expires}".encode()
+    return hmac.new(_link_secret(settings).encode(), body, hashlib.sha256).hexdigest()[:24]
+
+
+def file_signature(name: str, settings: Settings, *, ttl: int = FILE_LINK_TTL) -> str:
+    expires = ((int(time.time()) + ttl) // _FILE_LINK_STEP + 1) * _FILE_LINK_STEP
+    return f"{expires}.{_sign_name(name, expires, settings)}"
+
+
+def _signature_ok(name: str, raw: str, settings: Settings) -> bool:
+    expires, _, digest = raw.partition(".")
+    if not expires.isdigit() or not digest:
+        return False
+    if int(expires) < time.time():
+        return False
+    return same_secret(digest, _sign_name(name, int(expires), settings))
+
+
+def file_url(settings: Settings, request: Request, name: str, *, signed: bool = False) -> str:
+    """Ссылка на файл. signed — ссылка для хозяина, она открывается сама."""
+    base = f"{public_base(settings, request)}/files/{name}"
+    return f"{base}?s={file_signature(name, settings)}" if signed else base
+
+
+# --------------------------------------------------------------------------
+# Каталоги: публичный и закрытый
+# --------------------------------------------------------------------------
+
+
+def private_dir(settings: Settings) -> Path:
+    return settings.upload_path / PRIVATE_DIR
 
 
 def _store(directory: Path, data: bytes, ext: str) -> str:
@@ -440,16 +561,77 @@ def _store(directory: Path, data: bytes, ext: str) -> str:
     return name
 
 
-async def _analyze(session: Session, tg_id: int, display_name: str, data: bytes) -> dict[str, Any]:
+def store_image(settings: Settings, data: bytes) -> tuple[str, str]:
+    """Кладёт картинку человека в закрытый каталог: имя на диске и тип.
+
+    Общая точка для всех каналов: шорткат, бот и Mini App обязаны
+    сохранять картинку одинаково, иначе «что именно я присылал» работает
+    в одном канале из трёх, а в остальных карточка пустая.
+
+    Пустой ответ — не ошибка: файл не сохранился, но операции из него всё
+    равно разберутся. Терять данные из-за диска мы не станем.
+    """
+    mime = sniff_mime(data[:512]) or ""
+    if not mime.startswith("image/") or mime not in ALLOWED_TYPES:
+        return "", ""
+    try:
+        return _store(private_dir(settings), data, ALLOWED_TYPES[mime]), mime
+    except OSError:
+        log.exception("картинку не удалось сохранить, разбор продолжаем")
+        return "", ""
+
+
+def secure_stored_files(settings: Settings | None = None) -> int:
+    """Переносит уже лежащие файлы с хозяином в закрытый каталог.
+
+    Файлы, залитые до разделения каталогов, остались в общем — а среди них
+    чужие скриншоты банка, которые раздавались по публичной ссылке. Разовый
+    проход при старте: сам факт передеплоя чинит и данные, а не только код.
+    """
+    settings = settings or get_settings()
+    public = settings.upload_path
+    if not public.is_dir():
+        return 0
+    with session_scope() as session:
+        owned = owned_stored_names(session)
+    moved = 0
+    for name in owned:
+        source = public / name
+        if not source.is_file() or not _STORED_NAME.match(name):
+            continue
+        target = private_dir(settings) / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(source, target)
+        moved += 1
+    if moved:
+        log.info("закрыто от публичного списка файлов: %d", moved)
+    return moved
+
+
+async def _analyze(
+    session: Session, user_id: int, data: bytes, *, stored_as: str, content_type: str
+) -> dict[str, Any]:
     """Прогоняет картинку через обычный разбор скриншотов.
 
     Ошибка разбора не должна ломать загрузку: файл уже на диске, и клиент
     ждёт ссылку, а не отчёт о том, что модель не ответила.
+
+    Через границу треда идёт голый user_id, а не ORM-объект: сессия одна на
+    запрос, и таскать привязанные к ней объекты между потоками — способ
+    получить неповторяемую ошибку в самый неудобный момент.
     """
 
     def run() -> Any:
-        user = get_or_create_user(session, tg_id, display_name)
-        return ingest_screenshot(session, user, [data])
+        user = session.get(User, user_id)
+        # SAVEPOINT: если разбор упадёт, откатится только разбор. Общий
+        # откат снёс бы заодно запись о том, чей это файл, — и файл в
+        # закрытом каталоге стал бы ничьим, то есть недоступным даже
+        # хозяину, которому мы только что выдали на него ссылку.
+        with session.begin_nested():
+            return ingest_screenshot(
+                session, user, [data],
+                channel="shortcut", stored_as=stored_as, content_type=content_type,
+            )
 
     try:
         # В этом же процессе живёт бот, а разбор ходит в сеть и считает
@@ -457,15 +639,26 @@ async def _analyze(session: Session, tg_id: int, display_name: str, data: bytes)
         outcome = await asyncio.to_thread(run)
     except Exception:
         log.exception("разбор картинки с шортката не удался")
-        # Сессия могла остаться в нерабочем состоянии: откатываем сами,
-        # иначе общий commit после ответа упадёт уже на сохранённом файле.
-        session.rollback()
         return {"ingested": False, "operations": None, "questions": None}
-    return {
+
+    found: dict[str, Any] = {
         "ingested": bool(outcome.ok),
         "operations": outcome.operations,
         "questions": outcome.questions,
     }
+    trace = outcome.trace
+    if trace is not None:
+        # Номер загрузки — то, по чему потом поднимается весь след:
+        # GET /api/v1/me/imports/{id} показывает и операции, и вопросы.
+        found["batch_id"] = trace.batch_id
+        found["added"] = trace.operations
+        found["duplicates"] = trace.duplicates
+        found["new_questions"] = trace.questions
+        # Тот же скриншот второй раз: added=0 — правда, но не вся. Человек
+        # видит на картинке восемь своих операций, и ответ обязан их
+        # признать, иначе повторная присылка читается как «не сработало».
+        found["recognized"] = trace.recognized
+    return found
 
 
 def require_upload_key(
@@ -480,8 +673,162 @@ def require_upload_key(
     """
     if not settings.upload_api_key:
         return
-    if not hmac.compare_digest(x_api_key, settings.upload_api_key):
+    if not same_secret(x_api_key, settings.upload_api_key):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "неверный X-API-Key")
+
+
+def _is_service_call(settings: Settings, x_api_key: str) -> bool:
+    """Пришёл ли запрос от нашего же сервиса.
+
+    Проверка, а не зависимость: анонимная загрузка без ключа обязана
+    работать по ТЗ шортката, а зависимость ответила бы ей 401.
+
+    Сверяем с ingest_api_key — тем же секретом, что у /api/v1/ingest/*:
+    это и есть «ключ, по которому можно писать данные любому
+    пользователю». Брать для этого upload_api_key нельзя: он отвечает на
+    другой вопрос («пускать ли вообще на приём») и при пустом значении
+    пропускает всех — то есть ровно в задеплоенной конфигурации подмена
+    tg_id снова стала бы возможной.
+    """
+    if not settings.ingest_api_key:
+        return False
+    return same_secret(x_api_key, settings.ingest_api_key)
+
+
+# Что видно в логе от отклонённого ключа: столько, чтобы отличить свою
+# старую команду от перебора, и не столько, чтобы ключ можно было собрать.
+_TOKEN_HINT = 6
+
+
+def client_ip(request: Request) -> str:
+    """Кто постучался. За туннелем request.client.host всегда 127.0.0.1."""
+    headers = request.headers
+    forwarded = (headers.get("x-forwarded-for") or "").split(",")[0].strip()
+    direct = request.client.host if request.client else ""
+    return headers.get("cf-connecting-ip") or forwarded or direct or "?"
+
+
+@dataclass(slots=True)
+class _Token:
+    """Секрет загрузки и то, как он приехал."""
+
+    value: str = ""
+    # Ключ в строке запроса — рабочий, но плохой путь: адрес целиком
+    # попадает в журналы прокси и пересылается вместе со «ссылкой».
+    from_url: bool = False
+
+
+def _token_from(
+    fields: dict[str, str], query: str, header: str, authorization: str
+) -> _Token:
+    """Секрет загрузки из запроса. Заголовок важнее строки запроса.
+
+    В URL секрету не место: полный адрес со строкой запроса пишут все —
+    uvicorn, nginx, cloudflared, — а ссылку целиком человек может
+    переслать в чат. Но «Быстрые команды» одинаково умеют и заголовок, и
+    URL, поэтому принимаем оба: путь из ТЗ остаётся рабочим, а человек
+    получает в ответе и в логе прямое «пересоберите команду».
+    """
+    scheme, _, value = authorization.partition(" ")
+    bearer = value.strip() if scheme.lower() == "bearer" else ""
+    known = header.strip() or bearer or fields.get("token", "").strip()
+    if known:
+        return _Token(known)
+    return _Token(query.strip(), from_url=bool(query.strip()))
+
+
+@dataclass(slots=True)
+class _Identity:
+    """Кого опознали и о чём надо сказать вслух после сохранения файла."""
+
+    user: User | None = None
+    # tg_id, который прислали без служебного ключа. Нужен в логе целиком:
+    # он не секрет, и без него запись «кто-то пробовал» бесполезна —
+    # ни своего с устаревшей командой не позвать, ни перебор не увидеть.
+    ignored_tg_id: int | None = None
+
+
+def _identify(
+    session: Session,
+    request: Request,
+    *,
+    token: _Token,
+    tg_id: int | None,
+    display_name: str,
+    service: bool,
+) -> _Identity:
+    """Чей это файл. Пустой user — аноним, файл просто сохраняется.
+
+    Токен — основной путь: у каждого своя ссылка, один раз вшитая в его
+    быструю команду. tg_id остаётся только для служебной заливки: он не
+    секрет, и по нему кто угодно залил бы операции в чужую книгу.
+    """
+    if token.value:
+        user = user_by_upload_token(session, token.value)
+        if user is None:
+            # Неизвестный, чужой и отозванный секрет отвечают одинаково,
+            # чтобы по ответу нельзя было узнать, что такой существует.
+            # В лог идёт начало ключа и адрес: по ним видно, один это
+            # человек с устаревшей командой или кто-то перебирает.
+            log.warning(
+                "загрузка с непризнанной ссылкой отклонена: ключ %s…, адрес %s",
+                token.value[:_TOKEN_HINT], client_ip(request),
+            )
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, _BAD_TOKEN)
+        return _Identity(user=user)
+    if tg_id is None:
+        return _Identity()
+    if not service:
+        # Молча для клиента, но с именем и адресом в логе: это либо старая
+        # команда, которую пора пересобрать, либо чужое любопытство, и
+        # различить их можно только по этой записи.
+        return _Identity(ignored_tg_id=tg_id)
+    return _Identity(user=get_or_create_user(session, tg_id, display_name))
+
+
+def _may_read_private(
+    session: Session,
+    settings: Settings,
+    *,
+    filename: str,
+    signature: str,
+    token: str,
+    init_data: str,
+    debug_tg_id: str = "",
+) -> bool:
+    """Хозяин ли смотрит на личный файл. Три равноправных доказательства.
+
+    Хозяин находится по записи о загрузке: `stored_as` — единственная
+    ниточка от файла на диске к человеку. Файл, за которым такой записи
+    нет, не отдаётся никому: мы не знаем, чей он, а лежит он в закрытом
+    каталоге — значит, приехал не анонимно.
+    """
+    owner_id = owner_of_file(session, filename)
+    if owner_id is None:
+        return False
+    if signature and _signature_ok(filename, signature, settings):
+        return True
+    if token:
+        user = user_by_upload_token(session, token)
+        if user is not None and user.id == owner_id:
+            return True
+    if init_data and settings.bot_token:
+        try:
+            payload = verify_init_data(init_data, settings.bot_token)
+        except HTTPException:
+            return False
+        return _is_owner(session, owner_id, payload.get("id"))
+    # Отладочный заголовок работает ровно там же, где он работает в
+    # остальном Mini App: когда подписывать initData нечем, потому что
+    # токена бота нет. В рабочей конфигурации этот путь закрыт.
+    if debug_tg_id.isdigit() and not settings.bot_token:
+        return _is_owner(session, owner_id, int(debug_tg_id))
+    return False
+
+
+def _is_owner(session: Session, owner_id: int, tg_id: object) -> bool:
+    owner = session.get(User, owner_id)
+    return owner is not None and tg_id is not None and int(tg_id) == owner.tg_id
 
 
 # --------------------------------------------------------------------------
@@ -498,11 +845,17 @@ def require_upload_key(
 async def upload_file(
     request: Request,
     filename: str = Query(default="", description="Имя файла, если он в теле запроса"),
-    tg_id: int | None = Query(default=None, description="Кому засчитать картинку"),
+    token: str = Query(default="", description="Персональная ссылка: чей это файл"),
+    tg_id: int | None = Query(
+        default=None, description="Кому засчитать картинку; только со служебным ключом"
+    ),
     display_name: str = Query(default=""),
     analyze: bool = Query(default=True, description="Разбирать картинку в операции"),
     x_filename: str = Header(default="", alias="X-Filename"),
     x_tg_id: str = Header(default="", alias="X-Tg-Id"),
+    x_upload_token: str = Header(default="", alias="X-Upload-Token"),
+    authorization: str = Header(default="", alias="Authorization"),
+    x_api_key: str = Header(default="", alias="X-API-Key"),
     settings: Settings = Depends(get_settings),
     session: Session = Depends(db_session),
     _key: None = Depends(require_upload_key),
@@ -511,6 +864,10 @@ async def upload_file(
 
     Второй способ — ради шортката: он умеет POST-запрос с файлом в теле и
     заголовками, но не умеет собирать multipart.
+
+    Кто прислал — решает `X-Upload-Token` (он же `Authorization: Bearer`,
+    поле формы `token` или `?token=`). Без него файл просто сохраняется и
+    возвращается ссылка, как и написано в ТЗ команды.
     """
     limit = settings.max_upload_bytes
     declared_request = (request.headers.get("content-type") or "").split(";", 1)[0].strip().lower()
@@ -527,7 +884,25 @@ async def upload_file(
         raise HTTPException(_CODE_TOO_LARGE, _TOO_BIG)
 
     content_type = resolve_type(declared, data)
-    stored_as = _store(settings.upload_path, data, ALLOWED_TYPES[content_type])
+
+    # Опознаём до записи на диск: файл по непризнанной ссылке не должен
+    # оставлять следов. Это один индексный SELECT — в отличие от разбора,
+    # который ходит в сеть и потому уезжает в отдельный тред.
+    key = _token_from(fields, token, x_upload_token, authorization)
+    identity = _identify(
+        session,
+        request,
+        token=key,
+        tg_id=_as_tg_id(fields.get("tg_id")) or tg_id or _as_tg_id(x_tg_id),
+        display_name=_clean_name(fields.get("display_name", "")) or display_name,
+        service=_is_service_call(settings, x_api_key),
+    )
+    owner = identity.user
+
+    # Файл с хозяином — чужой скриншот банка, и в общем каталоге ему не
+    # место: оттуда его забирает кто угодно, зная только публичный адрес.
+    directory = private_dir(settings) if owner is not None else settings.upload_path
+    stored_as = _store(directory, data, ALLOWED_TYPES[content_type])
     shown_name = _clean_name(part_name or filename or x_filename) or stored_as
 
     result = UploadOut(
@@ -535,17 +910,56 @@ async def upload_file(
         stored_as=stored_as,
         content_type=content_type,
         size=len(data),
-        url=_public_url(settings, request, stored_as),
+        # Ссылка хозяина подписана: иначе его собственный файл не открылся
+        # бы ни в браузере, ни в Mini App — заголовок туда не подставить.
+        url=file_url(settings, request, stored_as, signed=owner is not None),
     )
+    if key.from_url:
+        result.warning = (
+            "ключ приехал в адресе: его видят журналы прокси и он уезжает "
+            "вместе с пересланной ссылкой. Пересоберите команду на заголовок "
+            "X-Upload-Token"
+        )
 
-    target = _as_tg_id(fields.get("tg_id")) or tg_id or _as_tg_id(x_tg_id)
     wanted = analyze and _as_bool(fields.get("analyze"), True)
-    if target is not None and wanted and content_type.startswith("image/"):
-        name = _clean_name(fields.get("display_name", "")) or display_name
-        for key, value in (await _analyze(session, target, name, data)).items():
-            setattr(result, key, value)
+    if owner is not None and wanted and content_type.startswith("image/"):
+        analyzed = await _analyze(
+            session, owner.id, data, stored_as=stored_as, content_type=content_type
+        )
+        for name, value in analyzed.items():
+            setattr(result, name, value)
 
-    log.info("загрузка %s (%s, %d байт)", stored_as, content_type, len(data))
+    # Разбор мог не состояться: не картинка, analyze=false, модель не
+    # ответила. Файл при этом уже в закрытом каталоге, а тот отдаёт только
+    # хозяину — и хозяин находится единственным способом, через запись о
+    # загрузке. Без неё мы бы вернули человеку подписанную ссылку на его
+    # собственный файл, которая отвечает 401.
+    if owner is not None and owner_of_file(session, stored_as) is None:
+        remember_upload(
+            session, owner.id,
+            stored_as=stored_as, content_type=content_type,
+            size_bytes=len(data), channel="shortcut", filename=shown_name,
+        )
+
+    # В логе — кто и что, но никогда сам токен: строчку с ним увидел бы и
+    # cloudflared, и всякий, кому мы покажем журнал.
+    log.info(
+        "загрузка %s (%s, %d байт) от %s",
+        stored_as, content_type, len(data),
+        f"пользователя {owner.id}" if owner is not None else "анонима",
+    )
+    if identity.ignored_tg_id is not None:
+        log.warning(
+            "tg_id %s в загрузке без служебного ключа — игнорирую, "
+            "файл %s сохранён анонимно, адрес %s",
+            identity.ignored_tg_id, stored_as, client_ip(request),
+        )
+    if key.from_url:
+        log.warning(
+            "ключ загрузки приехал в адресе (файл %s, адрес %s) — "
+            "команду пора пересобрать на заголовок",
+            stored_as, client_ip(request),
+        )
     return result
 
 
@@ -557,6 +971,13 @@ def list_files(
     settings: Settings = Depends(get_settings),
     _key: None = Depends(require_upload_key),
 ) -> FileListOut:
+    """Только анонимные файлы «по ТЗ».
+
+    Личные сюда не попадают по построению: они лежат в подкаталоге, а
+    обход каталога не рекурсивный. Это важнее, чем кажется: раньше список
+    сам называл случайные имена чужих скриншотов, и «неугадываемое имя»
+    переставало быть защитой.
+    """
     directory = settings.upload_path
     if not directory.is_dir():
         return FileListOut(files=[])
@@ -566,7 +987,7 @@ def list_files(
     return FileListOut(
         files=[
             FileOut(
-                name=p.name, size=p.stat().st_size, url=_public_url(settings, request, p.name)
+                name=p.name, size=p.stat().st_size, url=file_url(settings, request, p.name)
             )
             for p in found
         ]
@@ -579,20 +1000,43 @@ def list_files(
     response_class=FileResponse,
     responses={200: {"content": {"application/octet-stream": {}}}, 404: {}},
 )
-def get_file(filename: str, settings: Settings = Depends(get_settings)) -> FileResponse:
+def get_file(
+    filename: str,
+    s: str = Query(default="", description="Подпись ссылки, выданной хозяину файла"),
+    x_upload_token: str = Header(default="", alias="X-Upload-Token"),
+    x_telegram_init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+    x_debug_tg_id: str = Header(default="", alias="X-Debug-Tg-Id"),
+    session: Session = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> FileResponse:
+    """Содержимое файла.
+
+    Анонимный файл открыт — так написано в ТЗ команды, и ничьих личных
+    данных в нём по определению нет: мы не знаем, чей он. Файл с хозяином
+    отдаётся только хозяину, тремя равноправными способами: подписанной
+    ссылкой, личным ключом загрузки или подписью Mini App.
+    """
     # Проверка первая: имя обязано быть нашим — hex и известное расширение.
     # «..», слеши, нулевой байт и абсолютный путь не проходят по построению.
     if not _STORED_NAME.match(filename):
         raise HTTPException(status.HTTP_404_NOT_FOUND, _NOT_FOUND)
 
     directory = settings.upload_path.resolve()
-    target = (directory / filename).resolve()
+    private = (private_dir(settings) / filename).resolve()
+    target = private if private.is_file() else (directory / filename).resolve()
     # Проверка вторая, независимая от первой: итоговый путь обязан лежать
     # внутри каталога загрузок. Дублирование намеренное — ошибка здесь стоит
     # чтения чужих файлов, а симлинк или хитрая нормализация регулярке
     # не видны.
     if not target.is_relative_to(directory) or not target.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND, _NOT_FOUND)
+
+    if target == private and not _may_read_private(
+        session, settings,
+        filename=filename, signature=s, token=x_upload_token,
+        init_data=x_telegram_init_data, debug_tg_id=x_debug_tg_id,
+    ):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, _PRIVATE_DENIED)
 
     return FileResponse(
         target,

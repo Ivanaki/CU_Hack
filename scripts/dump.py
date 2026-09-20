@@ -15,11 +15,15 @@ sys.path.insert(0, str(ROOT))
 from sqlalchemy import select  # noqa: E402
 
 from app.analytics.periods import month  # noqa: E402
-from app.db import session_scope  # noqa: E402
+from app.db import init_db, session_scope  # noqa: E402
 from app.models import Operation, User, fmt_money  # noqa: E402
 
 
 def main() -> None:
+    # Схему подтягиваем сами: скрипт ходит в базу мимо приложения, и на
+    # базе, снятой до добавления колонки (бэкап, копия тома, машина
+    # коллеги), первый же SELECT упал бы трассой SQLAlchemy вместо дела.
+    init_db()
     only = sys.argv[1] if len(sys.argv) > 1 else None
     period = month(2026, 9)
     with session_scope() as session:

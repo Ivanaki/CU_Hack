@@ -25,6 +25,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -50,6 +51,22 @@ class User(Base, TimestampMixin):
     tg_id: Mapped[int] = mapped_column(Integer, unique=True, index=True)
     display_name: Mapped[str] = mapped_column(String(128), default="")
     tz: Mapped[str] = mapped_column(String(64), default="Europe/Moscow")
+
+    # Персональный секрет загрузки. Файлы со всех телефонов приходят на один
+    # адрес, и опознавать человека по tg_id нельзя: его видит каждый, кому он
+    # писал, и его можно перебрать — то есть залить операции в чужую книгу.
+    # Токен случайный, из tg_id не выводится, выдаётся по запросу владельца.
+    #
+    # Хранится как есть, а не хешем, осознанно: бот и Mini App обязаны уметь
+    # показать ссылку повторно, иначе единственным сценарием восстановления
+    # был бы перевыпуск. Цена известна — дамп базы даёт рабочие ссылки; она
+    # приемлема ровно потому, что в том же дампе лежат и сами данные.
+    upload_token: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, unique=True, index=True
+    )
+    # Когда выпущен. Нужно, чтобы отзыв был виден человеку: после «выпустить
+    # новую» бот честно показывает дату, а не просто другую строку.
+    upload_token_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # Механика привычки
     streak_days: Mapped[int] = mapped_column(Integer, default=0)
@@ -107,7 +124,15 @@ class Account(Base, TimestampMixin):
 
 
 class ImportBatch(Base, TimestampMixin):
-    """Одна загрузка выписки. Нужна, чтобы импорт можно было откатить целиком."""
+    """Одна загрузка. Нужна, чтобы импорт можно было откатить целиком.
+
+    И чтобы на вопрос «что именно я скинул» был ответ: батч — единственное
+    место, где встречаются файл на диске и операции, которые из него
+    получились. Обратный путь идёт через RawTransaction.batch_id, который
+    переживает пересчёт, а не через операцию: операция склеивается из
+    нескольких сырых строк и в пограничном случае приезжает из двух разных
+    загрузок, так что колонка «файл» в ней была бы враньём.
+    """
 
     __tablename__ = "import_batches"
 
@@ -120,6 +145,31 @@ class ImportBatch(Base, TimestampMixin):
     rows_duplicate: Mapped[int] = mapped_column(Integer, default=0)
     period_from: Mapped[date | None] = mapped_column(Date, nullable=True)
     period_to: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    # Чем эта загрузка была на входе. Имя на диске — единственная ниточка от
+    # записи в базе к файлу в data/uploads: имя генерируем мы, в ответе оно
+    # уже есть (stored_as), и без него след обрывается на границе HTTP.
+    # server_default стоит у всех четырёх не для красоты: база задеплоена, а
+    # ALTER TABLE ADD COLUMN в SQLite без значения по умолчанию на NOT NULL
+    # колонке не работает (см. app/db.py).
+    stored_as: Mapped[str] = mapped_column(String(64), default="", server_default=text("''"))
+    content_type: Mapped[str] = mapped_column(
+        String(64), default="", server_default=text("''")
+    )
+    size_bytes: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    # Откуда пришло: shortcut, bot, miniapp, service. Ответ на «кто прислал»
+    # в терминах канала, а не человека — человек уже есть в user_id.
+    channel: Mapped[str] = mapped_column(String(16), default="", server_default=text("''"))
+
+    # Хеши строк, которые в этой загрузке оказались уже известными. Строка-
+    # дубль в базу не пишется (на этом держится дедупликация), поэтому без
+    # этого списка повторная присылка того же скриншота не связана ни с
+    # одной операцией: карточка честно пишет «8 дублей» и показывает пустой
+    # список. А повтор — самый частый случай: человек фотографирует список
+    # операций раз в неделю, и пересечение с прошлым разом неизбежно.
+    duplicate_hashes: Mapped[list] = mapped_column(
+        JSON, default=list, server_default=text("'[]'")
+    )
 
 
 class RawTransaction(Base, TimestampMixin):

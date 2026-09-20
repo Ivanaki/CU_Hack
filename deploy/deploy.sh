@@ -20,6 +20,10 @@ LOCAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXCLUDES=(
   .git .venv venv __pycache__ '*.pyc' .pytest_cache .ruff_cache
   data/runtime data/uploads '*.db' '*.sqlite3' .env .idea .vscode
+  # Презентация — десятки мегабайт картинок, которые сервер не отдаёт.
+  # Заодно она собирается прямо во время деплоя, и tar падает на файле,
+  # который изменился, пока он его читал.
+  pitch pitch2
 )
 
 step() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
@@ -54,7 +58,15 @@ else
   info "rsync не найден, заливаю через tar | ssh (без удаления лишнего)"
   tar_args=()
   for pattern in "${EXCLUDES[@]}"; do tar_args+=("--exclude=$pattern"); done
-  tar czf - -C "$LOCAL_DIR" "${tar_args[@]}" . | ssh "$HOST" "tar xzf - -C '$REMOTE_DIR'"
+  # Файл, изменившийся во время чтения, для tar — ошибка, и на pipefail он
+  # роняет весь деплой. Но это не отказ: рядом может идти сборка. Поэтому
+  # смотрим на статус приёмной стороны — она и решает, доехало ли.
+  set +e
+  tar czf - -C "$LOCAL_DIR" --warning=no-file-changed "${tar_args[@]}" . \
+    | ssh "$HOST" "tar xzf - -C '$REMOTE_DIR'"
+  unpack_status=${PIPESTATUS[1]}
+  set -e
+  [[ $unpack_status -eq 0 ]] || fail "не удалось залить файлы на $HOST"
 fi
 
 step "Проверяю .env на сервере"

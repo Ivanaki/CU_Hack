@@ -15,13 +15,13 @@ from aiogram import Bot
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import select
 
-from app.analytics.periods import month, week
+from app.analytics.periods import day, month, week
 from app.bot import keyboards as kb
 from app.bot import texts
 from app.config import get_settings
 from app.db import session_scope
 from app.models import User, fmt_money
-from app.service import count_open_questions, report_for
+from app.service import count_open_questions, latest_data_month, report_for
 
 log = logging.getLogger(__name__)
 
@@ -35,16 +35,44 @@ def _daily_payload(session, user: User) -> tuple[str, bool] | None:
     pending = count_open_questions(session, user.id)
     today = date.today()
     report = report_for(session, user.id, week(today))
+    day_report = report_for(session, user.id, day(today))
+    month_report = report_for(session, user.id, latest_data_month(session, user.id))
+
+    # Цифру дня показываем только тогда, когда за день реально были траты.
+    # «Сегодня осознанность 100%» на пустом дне — правда, которая вводит в
+    # заблуждение: понимать было нечего.
+    spent_today = bool(day_report.spend_total)
+    head = (
+        f"Сегодня потрачено <b>{fmt_money(day_report.spend_total)}</b>, "
+        f"осознанность дня {day_report.awareness.percent}%."
+        if spent_today
+        else "Сегодня трат не было."
+    )
 
     if pending:
-        noun = texts.plural(pending, "спорная операция", "спорные операции", "спорных операций")
+        noun = texts.plural(pending, "операция", "операции", "операций")
         taps = texts.plural(pending, "тап", "тапа", "тапов")
+        unclear = month_report.awareness.unclear_volume
+        tail = (
+            f"Но за месяц я не понимаю, куда отнести {fmt_money(unclear)} — "
+            f"это {pending} {noun}."
+            if unclear
+            else f"Но за месяц осталось {pending} {noun} без ответа."
+        )
         return (
-            f"<b>{pending} {noun}</b>\n\n"
-            f"Разобрать — {pending} {taps}. "
-            f"После этого цифры за неделю станут точными.\n\n"
-            f"Серия: {user.streak_days} дн.",
+            f"{head}\n\n"
+            f"{tail} Осознанность месяца — <b>{month_report.awareness.percent}%</b>. "
+            f"Каждый вопрос закрывается одним тапом: {pending} {taps} — и всё сходится.\n\n"
+            f"Серия: {user.streak_days} дн. Прервётся, если оставить как есть.",
             True,
+        )
+
+    if spent_today:
+        return (
+            f"{head} Я понимаю каждый рубль.\n\n"
+            f"Вопросов нет, делать ничего не нужно — серия засчитана сама.\n\n"
+            f"Серия: {user.streak_days} дн.",
+            False,
         )
 
     if report.spend_total and report.prev_spend_total:

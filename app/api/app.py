@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.game import game
 from app.api.quick import quick
 from app.api.routes import ingest, me, public
-from app.api.uploads import uploads
+from app.api.uploads import secure_stored_files, uploads
 from app.db import init_db
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -38,13 +38,26 @@ DESCRIPTION = """
 
 `/upload`, `/files` — приём файлов с шортката iPhone: двойное касание по
 задней панели делает скриншот или голосовую запись и отправляет файл сюда.
-Если рядом с картинкой пришёл `tg_id`, она сразу разбирается в операции.
+Адрес один на всех, поэтому человека опознаёт личный ключ в заголовке
+`X-Upload-Token` — тогда картинка сразу разбирается в операции. Ключ
+выдаёт бот (`/link`) и `GET /api/v1/me/upload-link`. Без ключа файл просто
+сохраняется, как и написано в ТЗ команды.
+
+Файл опознанного человека виден только ему: в общем списке `GET /files`
+его нет, а `GET /files/{имя}` требует подписанную ссылку (её мы выдаём в
+ответе на загрузку и в `/api/v1/me/imports`), личный ключ или подпись
+Mini App. Анонимные загрузки остаются открытыми — чьи они, мы не знаем.
 """
 
 
 def create_app() -> FastAPI:
     logging.basicConfig(level=logging.INFO)
     init_db()
+    # Файлы, залитые до разделения каталогов, лежат в общем — а среди них
+    # чужие скриншоты банка, которые раздавались по публичной ссылке.
+    # Чинить такое руками на задеплоенном стенде никто не станет, поэтому
+    # передеплой чинит и данные, а не только код.
+    secure_stored_files()
 
     app = FastAPI(
         title="Честный месяц",

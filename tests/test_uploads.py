@@ -9,6 +9,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from app.api.uploads import PRIVATE_DIR
+
 BASE_URL = "https://example.test"
 STORED = re.compile(r"^[0-9a-f]{32}\.[a-z0-9]+$")
 TG_ID = 555_001
@@ -502,16 +504,30 @@ def _fake_vision(monkeypatch, rows: int = 2):
     monkeypatch.setattr(vision, "parse_images", parse_images)
 
 
-def test_без_tg_id_ответ_ровно_по_тз(client):
+@pytest.fixture(scope="module")
+def token(client) -> str:
+    """Личная ссылка пользователя: теперь именно она говорит, чей это файл.
+
+    tg_id из запроса больше не опознаёт человека — он не секрет, и по нему
+    кто угодно залил бы операции в чужую книгу (см. test_upload_identity).
+    """
+    from app.db import session_scope
+    from app.service import get_or_create_user, issue_upload_token
+
+    with session_scope() as session:
+        return issue_upload_token(session, get_or_create_user(session, TG_ID, "Шорткат"))
+
+
+def test_без_токена_ответ_ровно_по_тз(client):
     """Клиент из ТЗ не должен увидеть ничего лишнего."""
     body = post_form(client, png(), filename="plain.png").json()
     assert set(body) == {"filename", "stored_as", "content_type", "size", "url"}
 
 
-def test_картинка_с_tg_id_разбирается_в_операции(client, monkeypatch):
+def test_картинка_по_личной_ссылке_разбирается_в_операции(client, monkeypatch, token):
     _fake_vision(monkeypatch)
     response = post_raw(
-        client, png(), content_type="image/png", filename="shot.png", tg_id=TG_ID
+        client, png(), content_type="image/png", filename="shot.png", token=token
     )
     assert response.status_code == 200, response.text
     body = response.json()
@@ -531,14 +547,14 @@ def test_картинка_с_tg_id_разбирается_в_операции(cl
         assert any(u["tg_id"] == TG_ID for u in users.json())
 
 
-def test_tg_id_можно_прислать_полем_формы(client, monkeypatch):
+def test_токен_можно_прислать_полем_формы(client, monkeypatch, token):
     _fake_vision(monkeypatch, rows=1)
-    response = post_form(client, png(), filename="form.png", tg_id=str(TG_ID))
+    response = post_form(client, png(), filename="form.png", token=token)
     assert response.status_code == 200, response.text
     assert response.json()["ingested"] is True
 
 
-def test_разбор_можно_выключить(client, monkeypatch):
+def test_разбор_можно_выключить(client, monkeypatch, token):
     def boom(*args, **kwargs):
         raise AssertionError("разбор не должен был запуститься")
 
@@ -546,43 +562,74 @@ def test_разбор_можно_выключить(client, monkeypatch):
 
     monkeypatch.setattr(vision, "parse_images", boom)
     body = post_raw(
-        client, png(), content_type="image/png", tg_id=TG_ID, analyze="false"
+        client, png(), content_type="image/png", token=token, analyze="false"
     ).json()
     assert "ingested" not in body
 
 
-def test_звук_с_tg_id_не_идёт_в_разбор_картинок(client, monkeypatch):
+def test_файл_без_разбора_всё_равно_принадлежит_хозяину(client, monkeypatch, token):
+    """Разбор выключен — но файл лежит в закрытом каталоге и обязан открыться.
+
+    Хозяин файла находится единственным способом: по записи о загрузке.
+    Если её не создать, закрытый каталог не отдаст человеку его же файл,
+    а ссылку на этот файл мы ему уже вернули.
+    """
+    from app.ingest import vision
+
+    monkeypatch.setattr(vision, "parse_images", lambda *a, **k: pytest.fail("не звать"))
+    body = post_raw(
+        client, png(), content_type="image/png", token=token, analyze="false"
+    ).json()
+
+    assert client.get(body["url"].removeprefix(BASE_URL)).status_code == 200
+    # И по личному ключу тоже: подпись живёт недолго, ключ — постоянно.
+    plain = client.get(
+        f"/files/{body['stored_as']}", headers={"X-Upload-Token": token}
+    )
+    assert plain.status_code == 200
+
+
+def test_звук_хозяина_открывается_хозяином(client, token):
+    """Звук не проходит через разбор картинок — и тоже мог остаться ничьим."""
+    body = post_raw(client, m4a(), content_type="audio/mp4", token=token).json()
+    assert client.get(body["url"].removeprefix(BASE_URL)).status_code == 200
+    assert client.get(f"/files/{body['stored_as']}").status_code == 401
+
+
+def test_звук_по_ссылке_не_идёт_в_разбор_картинок(client, monkeypatch, token):
     def boom(*args, **kwargs):
         raise AssertionError("звук — не картинка")
 
     from app.ingest import vision
 
     monkeypatch.setattr(vision, "parse_images", boom)
-    body = post_raw(client, m4a(), content_type="audio/mp4", tg_id=TG_ID).json()
+    body = post_raw(client, m4a(), content_type="audio/mp4", token=token).json()
     assert body["content_type"] == "audio/mp4"
     assert "ingested" not in body
 
 
-def test_ошибка_разбора_не_ломает_загрузку(client, monkeypatch, upload_dir: Path):
+def test_ошибка_разбора_не_ломает_загрузку(client, monkeypatch, upload_dir: Path, token):
     from app.ingest import vision
 
     def explode(*args, **kwargs):
         raise RuntimeError("модель не ответила")
 
     monkeypatch.setattr(vision, "parse_images", explode)
-    response = post_raw(client, png(), content_type="image/png", tg_id=TG_ID)
+    response = post_raw(client, png(), content_type="image/png", token=token)
 
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["ingested"] is False
     # Файл всё равно сохранён и доступен: загрузка не зависит от разбора.
-    assert (upload_dir / body["stored_as"]).is_file()
-    assert client.get(f"/files/{body['stored_as']}").status_code == 200
+    # Лежит он в закрытом подкаталоге — это файл опознанного человека, — и
+    # открывается по подписанной ссылке из того же ответа.
+    assert (upload_dir / PRIVATE_DIR / body["stored_as"]).is_file()
+    assert client.get(body["url"].removeprefix(BASE_URL)).status_code == 200
 
 
-def test_выключенная_модель_это_не_ошибка_загрузки(client):
+def test_выключенная_модель_это_не_ошибка_загрузки(client, token):
     """LLM_PROVIDER=none — штатный путь: файл принят, операций не добавилось."""
-    body = post_raw(client, png(), content_type="image/png", tg_id=TG_ID).json()
+    body = post_raw(client, png(), content_type="image/png", token=token).json()
     assert body["ingested"] is False
     assert STORED.match(body["stored_as"])
 

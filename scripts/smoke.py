@@ -233,11 +233,69 @@ def main() -> None:
     else:
         check("POST /upload (тело)", OK if status == 200 and stored else FAIL, str(data)[:70])
 
-    if stored:
-        payload, ctype = multipart({}, {"file": ("m.png", PNG_1PX, "image/png")})
-        status, data = call(base, "/upload", method="POST", body=payload, content_type=ctype)
-        check("POST /upload (multipart)", OK if status == 200 else FAIL, f"HTTP {status}")
+    payload, ctype = multipart({}, {"file": ("m.png", PNG_1PX, "image/png")})
+    status, data = call(base, "/upload", method="POST", body=payload, content_type=ctype)
+    check("POST /upload (multipart)", OK if status == 200 else FAIL, f"HTTP {status}")
 
+    # Опознание: чужой ключ не пускает, а tg_id без служебного ключа
+    # больше никому ничего не засчитывает — ради этого всё и делалось.
+    # Эти проверки не зависят от того, удалась ли загрузка выше: они и
+    # есть смысл задачи, и молча пропадать из отчёта им нельзя.
+    status, data = call(
+        base, "/upload", method="POST", body=PNG_1PX, content_type="image/png",
+        headers={"X-Upload-Token": "fm_" + "z" * 43},
+    )
+    check("чужой ключ загрузки отвергнут", OK if status == 401 else FAIL, f"HTTP {status}")
+
+    status, data = call(
+        # Заведомо посторонний id: если проверка вдруг провалится,
+        # мусор не уедет в книгу живого человека.
+        base, "/upload?tg_id=1", method="POST", body=PNG_1PX,
+        content_type="image/png",
+    )
+    ignored = status == 200 and isinstance(data, dict) and "ingested" not in data
+    check(
+        "tg_id без служебного ключа игнорируется",
+        OK if ignored else FAIL, f"HTTP {status}",
+    )
+
+    # Опознание закрыло запись, но половина задачи — «что именно скинул», и
+    # это чужие скриншоты банка. Проверяем обе двери: список и сам файл.
+    status, link = call(base, "/api/v1/me/upload-link", headers=auth)
+    my_token = link.get("token") if isinstance(link, dict) else ""
+    if not my_token:
+        check("личный файл закрыт от посторонних", SKIP, f"нет личной ссылки, HTTP {status}")
+    else:
+        status, mine = call(
+            base, "/upload?analyze=false", method="POST", body=PNG_1PX,
+            content_type="image/png", headers={"X-Upload-Token": my_token}, timeout=120,
+        )
+        name = mine.get("stored_as", "") if isinstance(mine, dict) else ""
+        signed = mine.get("url", "") if isinstance(mine, dict) else ""
+        if not name:
+            check("личный файл закрыт от посторонних", FAIL, str(mine)[:70])
+        else:
+            status, _ = call(base, f"/files/{name}")
+            check(
+                "личный файл закрыт от посторонних",
+                OK if status == 401 else FAIL, f"HTTP {status}",
+            )
+            status, listed = call(base, "/files")
+            hidden = isinstance(listed, dict) and all(
+                f["name"] != name for f in listed.get("files", [])
+            )
+            check(
+                "личного файла нет в общем списке", OK if hidden else FAIL,
+                f"{len(listed.get('files', []))} файлов" if isinstance(listed, dict) else "",
+            )
+            query = signed.split("?", 1)[1] if "?" in signed else ""
+            status, raw = call(base, f"/files/{name}?{query}")
+            check(
+                "хозяину его файл отдаётся по подписи",
+                OK if status == 200 and isinstance(raw, bytes) else FAIL, f"HTTP {status}",
+            )
+
+    if stored:
         status, data = call(base, "/files")
         found = isinstance(data, dict) and any(f["name"] == stored for f in data.get("files", []))
         check(
@@ -267,6 +325,15 @@ def main() -> None:
                 OK if status in (400, 403, 404, 422) else FAIL,
                 f"HTTP {status}",
             )
+    else:
+        # Пропуск обязан быть виден в сводке: молчаливо исчезнувшая
+        # проверка читается как пройденная, а это худший вид отчёта.
+        for name in (
+            "GET /files", "ссылка в /files пригодна снаружи", "GET /files/{name}",
+            "обход пути ../../.env", "обход пути ..%2f..%2f.env",
+            "обход пути %2e%2e%2f.env",
+        ):
+            check(name, SKIP, "нет имени файла: загрузка выше не прошла")
 
     # --- что должно быть закрыто -------------------------------------------
     status, _ = call(base, "/api/v1/me/summary")

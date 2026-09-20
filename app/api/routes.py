@@ -7,37 +7,65 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
-from datetime import date, datetime
+from datetime import datetime
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.analytics import insights as insights_mod
 from app.analytics import reports as reports_mod
-from app.analytics.periods import Period, day, month, parse_period, split_into_weeks, week, year
+from app.analytics.periods import GRANULARITY_TITLE, WEEK, Period, split_into_weeks, year
 from app.api import schemas as s
+from app.api.analytics import PERIOD_HELP, resolve_period
+from app.api.analytics import analytics as analytics_router
 from app.api.auth import current_user, db_session, require_service_key
+from app.api.uploads import file_url, public_base, store_image
+from app.config import Settings, get_settings
 from app.ledger.invariants import run_all
-from app.models import Operation, OperationSource, User
+from app.models import ImportBatch, Operation, OperationSource, User
 from app.service import (
     add_quick_expense,
     answer_question,
     average_actions_per_day,
+    batch_operations,
+    batch_questions,
+    batches_by_operation,
     count_open_questions,
     get_or_create_user,
     ingest_screenshot,
     ingest_statement,
+    issue_upload_token,
     latest_data_month,
     open_questions,
+    recent_imports,
+    refresh_streak,
     report_for,
+    rotate_upload_token,
     skip_question,
+    user_batch,
 )
 
 log = logging.getLogger(__name__)
 
 me = APIRouter(prefix="/api/v1/me", tags=["Mini App"])
+# Разрезы вкладки «Отчёты» вынесены в отдельный модуль, но адресом остаются
+# в /api/v1/me и едут вместе с ним: отдельного подключения в app.py не нужно,
+# иначе тот же путь зарегистрировался бы дважды.
+me.include_router(analytics_router)
 ingest = APIRouter(
     prefix="/api/v1/ingest", tags=["Служебная заливка"], dependencies=[Depends(require_service_key)]
 )
@@ -47,22 +75,8 @@ MAX_UPLOAD = 12 * 1024 * 1024
 
 
 def _resolve_period(session: Session, user_id: int, spec: str | None) -> Period:
-    """Период из строки. По умолчанию — месяц, за который есть данные."""
-    if not spec or spec == "auto":
-        return latest_data_month(session, user_id)
-    today = date.today()
-    if spec == "today":
-        return day(today)
-    if spec == "week":
-        return week(today)
-    if spec == "month":
-        return month(today.year, today.month)
-    if spec == "year":
-        return year(today.year)
-    try:
-        return parse_period(spec, today=today)
-    except ValueError as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    """Период из строки. Разбор общий с /me/analytics — он там и живёт."""
+    return resolve_period(session, user_id, spec)
 
 
 # --------------------------------------------------------------------------
@@ -72,23 +86,32 @@ def _resolve_period(session: Session, user_id: int, spec: str | None) -> Period:
 
 @me.get("/summary", response_model=s.SummaryOut, summary="Всё для главного экрана")
 def summary(
-    period: str | None = Query(default=None, description="auto|today|week|month|year|2026-09"),
+    period: str | None = Query(default=None, description=PERIOD_HELP),
     with_insights: bool = Query(default=True),
     user: User = Depends(current_user),
     session: Session = Depends(db_session),
 ) -> s.SummaryOut:
     window = _resolve_period(session, user.id, period)
+    # Тихий день засчитываем в серию при открытии сводки: если система
+    # ни о чём не спросила, требовать от человека действий не за что.
+    refresh_streak(session, user)
     report = report_for(session, user.id, window)
 
     items = insights_mod.collect(session, user.id, report) if with_insights else []
     questions = open_questions(session, user.id, limit=10)
+    # Срезы подходящей длины: неделя режется днями, месяц — неделями, год —
+    # месяцами. Для месяца срезы и есть недели, второй раз их не считаем.
+    granularity, parts = reports_mod.slice_breakdown(session, user.id, window)
+    if granularity == WEEK:
+        weekly = parts
+    else:
+        weekly = [
+            (chunk, reports_mod.spend_total(session, user.id, chunk))
+            for chunk in split_into_weeks(window)
+        ]
     weeks = [
-        s.WeekSliceOut(
-            label=chunk.label,
-            start=chunk.start,
-            amount=s.MoneyOut.of(reports_mod.spend_total(session, user.id, chunk)),
-        )
-        for chunk in split_into_weeks(window)
+        s.WeekSliceOut(label=chunk.label, start=chunk.start, amount=s.MoneyOut.of(amount))
+        for chunk, amount in weekly
     ]
     pct = None
     if report.prev_spend_total:
@@ -98,6 +121,7 @@ def summary(
         period=s.PeriodOut(
             label=window.label, start=window.start, end=window.end, days=window.days
         ),
+        prev_period=s.period_out(window.shifted_back()),
         spend=s.MoneyOut.of(report.spend_total),
         income=s.MoneyOut.of(report.income_total),
         net=s.MoneyOut.of(report.net, sign=True),
@@ -110,6 +134,9 @@ def summary(
         essential=s.MoneyOut.of(report.essential_total),
         optional=s.MoneyOut.of(report.optional_total),
         weeks=weeks,
+        granularity=granularity,
+        granularity_title=GRANULARITY_TITLE[granularity],
+        slices=[s.slice_out(chunk, amount) for chunk, amount in parts],
         questions=[s.QuestionOut.of(item) for item in questions],
         open_questions=count_open_questions(session, user.id),
         insights=[s.InsightOut.of(item) for item in items],
@@ -172,11 +199,16 @@ def skip(
 
 @me.get("/operations", response_model=list[s.OperationOut], summary="Операции за период")
 def operations(
+    request: Request,
     period: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
     only_spending: bool = Query(default=False),
+    with_sources: bool = Query(
+        default=False, description="Показать, из какого файла приехала каждая операция"
+    ),
     user: User = Depends(current_user),
     session: Session = Depends(db_session),
+    settings: Settings = Depends(get_settings),
 ) -> list[s.OperationOut]:
     window = _resolve_period(session, user.id, period)
     query = (
@@ -191,7 +223,19 @@ def operations(
     )
     if only_spending:
         query = query.where(Operation.spend_amount != 0)
-    return [s.OperationOut.of(op) for op in session.scalars(query).all()]
+    found = list(session.scalars(query).all())
+    if not with_sources:
+        return [s.OperationOut.of(op) for op in found]
+
+    # Один запрос на весь список, а не по запросу на операцию: след не
+    # должен стоить N+1 похода в базу.
+    sources = batches_by_operation(session, user.id, [op.id for op in found])
+    return [
+        s.OperationOut.of(
+            op, sources=_source_refs(request, settings, sources.get(op.id, []))
+        )
+        for op in found
+    ]
 
 
 @me.get("/insights", response_model=list[s.InsightOut], summary="Советы по итогам периода")
@@ -216,7 +260,7 @@ def quick_expense(
     session: Session = Depends(db_session),
 ) -> s.IngestResultOut:
     row, outcome = add_quick_expense(
-        session, user, payload.text, when=payload.occurred_at
+        session, user, payload.text, when=payload.occurred_at, channel="miniapp"
     )
     if row is None:
         return s.IngestResultOut(ok=False, error=outcome.error)
@@ -243,7 +287,17 @@ async def upload_statement(
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "файл больше 12 МБ")
     if not data:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "пустой файл")
-    outcome = ingest_statement(session, user, data, file.filename or "statement.csv")
+    name = file.filename or "statement.csv"
+    user_id = user.id
+
+    def work():
+        owner = session.get(User, user_id)
+        return ingest_statement(session, owner, data, name, channel="miniapp")
+
+    # Разбор выписки — это ещё и полный пересчёт книги, секунды процессора.
+    # В корутине он встал бы поперёк и API, и бота, который живёт в том же
+    # процессе: на демонстрации это выглядит как «залил файл — всё упало».
+    outcome = await asyncio.to_thread(work)
     return _ingest_out(outcome)
 
 
@@ -256,8 +310,10 @@ async def upload_images(
     files: list[UploadFile] = File(..., description="Скриншоты или фотографии чеков"),
     user: User = Depends(current_user),
     session: Session = Depends(db_session),
+    settings: Settings = Depends(get_settings),
 ) -> s.IngestResultOut:
     blobs: list[bytes] = []
+    shown_name = ""
     for item in files[:10]:
         data = await item.read()
         if len(data) > MAX_UPLOAD:
@@ -266,10 +322,30 @@ async def upload_images(
             )
         if data:
             blobs.append(data)
+            shown_name = shown_name or (item.filename or "")
     if not blobs:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "пустая загрузка")
 
-    outcome = ingest_screenshot(session, user, blobs)
+    # Картинку сохраняем так же, как это делает /upload: иначе в «Что я
+    # присылал» у Mini App пустая карточка без файла, и посмотреть, что
+    # именно ты прислал, не на что. Имя на диске одно на загрузку, поэтому
+    # при нескольких картинках в след попадает первая.
+    stored_as, content_type = store_image(settings, blobs[0])
+    user_id = user.id
+
+    def work():
+        owner = session.get(User, user_id)
+        return ingest_screenshot(
+            session, owner, blobs, channel="miniapp",
+            stored_as=stored_as, content_type=content_type,
+            # Имя из запроса — единственное, чем две присылки отличаются
+            # в списке: без него обе называются «statement».
+            filename=shown_name,
+        )
+
+    # Разбор картинки ходит в сеть и считает пересчёт: в корутине он
+    # останавливает и API, и бота в том же процессе (см. upload_statement).
+    outcome = await asyncio.to_thread(work)
     result = _ingest_out(outcome)
     result.source = {
         "receipt": "Чек",
@@ -278,22 +354,189 @@ async def upload_images(
     return result
 
 
+# --------------------------------------------------------------------------
+# Персональная ссылка для загрузки и след загруженного файла
+# --------------------------------------------------------------------------
+
+
+def _upload_link_out(
+    request: Request, settings: Settings, user: User, token: str
+) -> s.UploadLinkOut:
+    """Собирает ответ про ссылку.
+
+    Адрес общий для всех и токена не содержит: секрет едет заголовком,
+    потому что полный URL со строкой запроса пишут все прокси подряд, а
+    ссылкой человек может поделиться целиком, не заметив, что отдал доступ.
+    """
+    base = public_base(settings, request)
+    return s.UploadLinkOut(
+        url=f"{base}/upload",
+        token=token,
+        curl=(
+            f'curl -X POST "{base}/upload" '
+            f'-H "X-Upload-Token: {token}" '
+            f'-H "Content-Type: image/png" --data-binary @shot.png'
+        ),
+        issued_at=user.upload_token_at,
+    )
+
+
+@me.get(
+    "/upload-link",
+    response_model=s.UploadLinkOut,
+    summary="Личная ссылка для отправки файлов с телефона",
+)
+def upload_link(
+    request: Request,
+    user: User = Depends(current_user),
+    session: Session = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> s.UploadLinkOut:
+    """Токен создаётся при первом обращении, дальше отдаётся тот же."""
+    return _upload_link_out(request, settings, user, issue_upload_token(session, user))
+
+
+@me.post(
+    "/upload-link/rotate",
+    response_model=s.UploadLinkOut,
+    summary="Выпустить новую ссылку, старую отозвать",
+)
+def upload_link_rotate(
+    request: Request,
+    user: User = Depends(current_user),
+    session: Session = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> s.UploadLinkOut:
+    """Если ссылку засветили — эта ручка немедленно ломает старую."""
+    return _upload_link_out(request, settings, user, rotate_upload_token(session, user))
+
+
+def _own_file_url(request: Request, settings: Settings, batch: ImportBatch) -> str | None:
+    """Ссылка на свой файл — с подписью.
+
+    Личный файл лежит в закрытом каталоге и по голому адресу не
+    отдаётся. Подпись в ссылке — единственный способ показать превью в
+    Mini App: тег <img> заголовков не отправляет.
+    """
+    if not batch.stored_as:
+        return None
+    return file_url(settings, request, batch.stored_as, signed=True)
+
+
+def _source_refs(
+    request: Request, settings: Settings, batches: list[ImportBatch]
+) -> list[s.SourceRefOut]:
+    return [
+        s.SourceRefOut.of(batch, file_url=_own_file_url(request, settings, batch))
+        for batch in batches
+    ]
+
+
+def _import_out(
+    request: Request, settings: Settings, session: Session, batch: ImportBatch
+) -> s.ImportOut:
+    return s.ImportOut.of(
+        batch,
+        operations=len(batch_operations(session, batch)),
+        questions=len(batch_questions(session, batch)),
+        file_url=_own_file_url(request, settings, batch),
+    )
+
+
+@me.get("/imports", response_model=list[s.ImportOut], summary="Что я присылал")
+def imports(
+    request: Request,
+    limit: int = Query(default=20, ge=1, le=100),
+    user: User = Depends(current_user),
+    session: Session = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> list[s.ImportOut]:
+    return [
+        _import_out(request, settings, session, batch)
+        for batch in recent_imports(session, user.id, limit=limit)
+    ]
+
+
+@me.get(
+    "/imports/{batch_id}",
+    response_model=s.ImportDetailOut,
+    summary="Что получилось из одной загрузки",
+)
+def import_detail(
+    batch_id: int,
+    request: Request,
+    user: User = Depends(current_user),
+    session: Session = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> s.ImportDetailOut:
+    batch = user_batch(session, user.id, batch_id)
+    if batch is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "загрузка не найдена")
+    found = batch_operations(session, batch)
+    # След заполняем и здесь, одним запросом на весь список: операция,
+    # склеенная из двух присылок, обязана выглядеть одинаково и в карточке
+    # загрузки, и в списке операций — иначе клиент рисует её по-разному в
+    # двух местах, а вторая половина её источников не видна вовсе.
+    sources = batches_by_operation(session, user.id, [op.id for op in found])
+    return s.ImportDetailOut(
+        batch=_import_out(request, settings, session, batch),
+        operations=[
+            s.OperationOut.of(
+                op, sources=_source_refs(request, settings, sources.get(op.id, []))
+            )
+            for op in found
+        ],
+        questions=[s.QuestionOut.of(item) for item in batch_questions(session, batch)],
+    )
+
+
 @me.get("/checkup", summary="Сходятся ли цифры")
 def checkup(
+    period: str | None = Query(default=None, description=PERIOD_HELP),
     user: User = Depends(current_user),
     session: Session = Depends(db_session),
 ) -> dict:
-    window = latest_data_month(session, user.id)
+    """Предъявляет сходимость на всех уровнях, а не только недели в месяц.
+
+    Кейс снимает баллы за «суммы недельных срезов не складываются в
+    месячный», и одна проверка закрывала ровно эту формулировку. Проверок
+    четыре уровня: дни и недели в месяц, недели и месяцы в год, плюс
+    категории, продавцы и дни недели — каждая часть считается отдельным
+    запросом к проводкам.
+    """
+    window = _resolve_period(session, user.id, period)
     total = reports_mod.spend_total(session, user.id, window)
-    by_weeks = sum(
-        reports_mod.spend_total(session, user.id, chunk) for chunk in split_into_weeks(window)
+    checks = reports_mod.additivity_checks(session, user.id, window, with_days=True)
+
+    # Год вокруг того же месяца: месяцы в год — тот уровень, который в
+    # тестах есть, а в продукте до сих пор не показывался.
+    around = year(window.start.year)
+    if not window.is_calendar_year:
+        checks += reports_mod.additivity_checks(session, user.id, around, with_days=False)
+
+    by_weeks = next(
+        (check.parts for check in checks if check.parts_name == "недели"), total
     )
     result = run_all(session, user.id)
     return {
-        "ok": result.ok and by_weeks == total,
+        "ok": result.ok and all(check.ok for check in checks),
+        # Поля старого ответа: на них смотрит уже собранный клиент.
         "weeks_sum_matches_month": by_weeks == total,
         "month_total_kopecks": total,
         "weeks_total_kopecks": by_weeks,
+        "period": window.label,
+        "levels": [
+            {
+                "parts": check.parts_name,
+                "title": check.title,
+                "unit": check.unit,
+                "total_kopecks": check.total,
+                "parts_kopecks": check.parts,
+                "parts_count": check.parts_count,
+                "ok": check.ok,
+            }
+            for check in checks
+        ],
         "problems": result.problems,
     }
 
@@ -316,6 +559,7 @@ def _ingest_out(outcome) -> s.IngestResultOut:  # noqa: ANN001 — service.Inges
         operations=outcome.operations,
         questions=outcome.questions,
         unresolved=s.MoneyOut.of(outcome.unresolved),
+        batch_id=batch.id,
     )
 
 
@@ -350,8 +594,16 @@ async def ingest_screenshot_endpoint(
     if not blobs:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "пустая загрузка")
 
-    user = _target_user(session, tg_id, display_name)
-    outcome = ingest_screenshot(session, user, blobs)
+    user_id = _target_user(session, tg_id, display_name).id
+
+    def work():
+        owner = session.get(User, user_id)
+        return ingest_screenshot(session, owner, blobs, channel="service")
+
+    # Разбор картинки — шесть секунд сети и счёта. Оставить его в корутине
+    # значит на эти шесть секунд остановить весь процесс: и остальные
+    # запросы API, и бота, который живёт здесь же (за туннелем это 502).
+    outcome = await asyncio.to_thread(work)
     log.info("заливка скриншотов для %s: %s", tg_id, outcome.error or "ок")
     return _ingest_out(outcome)
 
@@ -371,7 +623,9 @@ async def ingest_statement_endpoint(
     if len(data) > MAX_UPLOAD:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "файл велик")
     user = _target_user(session, tg_id, display_name)
-    outcome = ingest_statement(session, user, data, file.filename or "statement.csv")
+    outcome = ingest_statement(
+        session, user, data, file.filename or "statement.csv", channel="service"
+    )
     return _ingest_out(outcome)
 
 
@@ -386,7 +640,8 @@ def ingest_expense_endpoint(
 ) -> s.IngestResultOut:
     user = _target_user(session, tg_id)
     row, outcome = add_quick_expense(
-        session, user, text, source=OperationSource.MANUAL, when=occurred_at
+        session, user, text, source=OperationSource.MANUAL, when=occurred_at,
+        channel="service",
     )
     if row is None:
         return s.IngestResultOut(ok=False, error=outcome.error)

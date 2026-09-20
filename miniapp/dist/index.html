@@ -24,6 +24,12 @@
   --green:#4CC86A; --green-d:#2FA854; --green-soft:#E1F6E7;
   --coral:#FF7A59; --coral-d:#E4573A; --coral-soft:#FFE8E1;
   --dot:rgba(27,36,48,.9);
+  /* Живая геометрия экрана. В WebView Telegram window.innerHeight больше
+     фактически видимой высоты (viewportStableHeight), а env(safe-area-inset-
+     bottom) на iOS приходит нулём — из-за этого нижняя карточка оставалась
+     под панелью и до неё нельзя было долистать. Настоящие значения меряет
+     fitViewport(); то, что здесь, — только запасной вариант. */
+  --vh:100vh; --eaten:0px; --navh:78px; --safeb:env(safe-area-inset-bottom,0px);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0}
@@ -41,9 +47,18 @@ body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
     linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%)}
 body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.05;
   background-image:radial-gradient(var(--dot) 1.1px, transparent 1.3px);background-size:17px 17px}
-.phone{position:relative;z-index:1;max-width:430px;margin:0 auto;min-height:100vh;
-  padding:env(safe-area-inset-top,0px) 16px calc(12px + env(safe-area-inset-bottom,0px));
-  overflow-x:hidden}
+.phone{position:relative;z-index:1;max-width:430px;margin:0 auto;min-height:var(--vh);
+  padding:env(safe-area-inset-top,0px) 16px 0;
+  overflow-x:hidden;
+  /* Место под прибитую навигацию. Без него последняя карточка —
+     а это как раз вход в инструкцию для айфона — остаётся под ней
+     и до неё физически не долистать. Высота панели и «съеденная» клиентом
+     полоса не угадываются константой: на iPhone в Telegram они другие и
+     меняются при раскрытии окна, поэтому их измеряет fitViewport(). */
+  padding-bottom:calc(var(--navh) + var(--eaten) + var(--safeb) + 40px)}
+/* Пока включён показ настроений, над панелью висит плашка — освобождаем
+   под неё место, иначе она накрывает последнюю карточку. */
+.phone.chipon{padding-bottom:calc(var(--navh) + var(--eaten) + var(--safeb) + 86px)}
 .hidden{display:none!important}
 .muted{color:var(--hint)}
 .tiny{font-size:11.5px}
@@ -410,11 +425,6 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .wk .bar.max{background:repeating-linear-gradient(115deg,var(--gold) 0 9px,#FFCE63 9px 18px)}
 .wk .bar.zero{background:var(--card-2)}
 .wk .lb{font-size:9px;font-weight:800;color:var(--hint);text-align:center;line-height:1.2}
-.wcheck{display:flex;align-items:center;gap:8px;margin-top:11px;padding:9px 11px;border-radius:13px;
-  border:2.5px solid var(--stroke);font-size:11.5px;font-weight:800;line-height:1.35}
-.wcheck.ok{background:var(--green-soft)}
-.wcheck.bad{background:var(--coral-soft)}
-.wcheck .icbox{width:20px;height:20px;flex:0 0 20px}
 
 .catrow{display:flex;align-items:center;gap:10px;padding:6px 0}
 .catrow .icbox{width:34px;height:34px;flex:0 0 34px;border-radius:11px;background:#fff;
@@ -472,10 +482,183 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .facts .fv{font-size:19px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .facts .fk{font-size:10px;color:var(--hint);font-weight:800;margin-top:2px;line-height:1.25}
 
+/* ================= ПЕРЕКЛЮЧАТЕЛЬ ПЕРИОДА ================= */
+.pcard{background:var(--card);border:3px solid var(--stroke);border-radius:20px;padding:13px;
+  margin-bottom:14px;box-shadow:0 5px 0 var(--stroke);transition:opacity .2s}
+.pcard.pload{opacity:.62}
+.pseg{display:flex;gap:4px;background:var(--card-2);border:2.5px solid var(--stroke);
+  border-radius:14px;padding:4px}
+.pseg button{flex:1;min-width:0;font:inherit;font-size:12.5px;font-weight:900;color:var(--hint);
+  background:none;border:0;border-radius:10px;padding:9px 2px;cursor:pointer;
+  transition:background .18s,color .18s,transform .08s}
+.pseg button.on{background:var(--gold);color:#1B2430;box-shadow:0 2px 0 var(--stroke)}
+.pseg button:active{transform:translateY(2px)}
+.pseg button:disabled{opacity:.45;cursor:default}
+.pnav{display:flex;align-items:center;gap:8px;margin-top:10px}
+.pnav .lb{flex:1;min-width:0;text-align:center;font-size:14px;font-weight:900;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pnav .lb i{display:block;font-style:normal;font-size:10.5px;font-weight:800;
+  color:var(--hint);margin-top:2px}
+.pnav button{width:40px;height:40px;flex:0 0 40px;display:grid;place-items:center;font:inherit;
+  font-size:18px;font-weight:900;color:var(--ink);background:var(--card-2);cursor:pointer;
+  border:2.5px solid var(--stroke);border-radius:13px;box-shadow:0 3px 0 var(--stroke)}
+.pnav button:active{transform:translateY(3px);box-shadow:none}
+.pnav button:disabled{opacity:.32;box-shadow:none;cursor:default;transform:none}
+.pnote{font-size:11px;font-weight:700;color:var(--hint);margin-top:9px;line-height:1.42}
+
+/* ================= ГРАФИКИ (инлайновый SVG, без библиотек) ================= */
+.chart{margin-top:2px}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart .gr{stroke:var(--line);stroke-width:1.6}
+.chart .bx{fill:var(--gold-soft);stroke:var(--stroke);stroke-width:2.4;
+  transform-box:fill-box;transform-origin:50% 100%;
+  animation:bar-grow .7s cubic-bezier(.22,1.25,.36,1) both}
+.chart .bx.max{fill:var(--gold)}
+.chart .bx.zero{fill:var(--card-2)}
+.chart .bx.neg{fill:var(--green-soft);transform-origin:50% 0%}
+.chart .bx.hot{fill:var(--coral-soft)}
+@keyframes bar-grow{0%{transform:scaleY(.03)}100%{transform:scaleY(1)}}
+.chart .vl{font-size:9px;font-weight:900;fill:var(--ink)}
+.chart .xl{font-size:8.4px;font-weight:800;fill:var(--hint)}
+.chart .hit{fill:#000;opacity:0;cursor:pointer}
+.chart .hit:active{opacity:.07}
+.chartnote{font-size:10.5px;font-weight:700;color:var(--hint);margin-top:8px;line-height:1.4}
+.donutrow{display:flex;align-items:center;gap:12px;margin-top:12px}
+.donutrow .dn{width:92px;height:92px;flex:0 0 92px}
+.donutrow .dl{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}
+.donutrow .dl .dr{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:800}
+.donutrow .dl .dr b{margin-left:auto;font-size:13px;font-weight:900;white-space:nowrap}
+.donutrow .dl .sw{width:13px;height:13px;flex:0 0 13px;border-radius:4px;border:2px solid var(--stroke)}
+.donutrow .dl .sw.a{background:var(--green)}
+.donutrow .dl .sw.b{background:var(--coral)}
+
+/* ================= СХОДИМОСТЬ ================= */
+.conv{border:2.5px solid var(--stroke);border-radius:15px;padding:10px 11px;margin-top:11px;
+  background:var(--green-soft)}
+.conv.bad{background:var(--coral-soft)}
+.conv .ch{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:900;line-height:1.3}
+.conv .ch .icbox{width:20px;height:20px;flex:0 0 20px}
+.conv .cr{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:800;color:var(--ink);
+  padding:4px 0 0}
+.conv .cr .icbox{width:14px;height:14px;flex:0 0 14px}
+.conv .cr .vv{margin-left:auto;white-space:nowrap;font-weight:900}
+.conv .cn{font-size:10.5px;font-weight:700;color:var(--hint);margin-top:7px;line-height:1.42}
+
+/* ================= ТОП МЕСТ, СРЕДНИЙ ЧЕК, ИЗМЕНЕНИЯ ================= */
+.mrow{display:flex;align-items:center;gap:9px;padding:7px 0;width:100%;text-align:left;
+  font:inherit;color:var(--ink);background:none;border:0;cursor:pointer}
+.mrow:active{opacity:.7}
+.mrow .rk{width:24px;height:24px;flex:0 0 24px;display:grid;place-items:center;border-radius:8px;
+  background:var(--card-2);border:2px solid var(--stroke);font-size:10.5px;font-weight:900}
+.mrow .ic2{width:30px;height:30px;flex:0 0 30px;border-radius:10px;background:#fff;
+  border:2.5px solid var(--stroke);padding:3px}
+/* Внутри строки лежат <span>: без display:block имя, подпись и полоска
+   встают в одну строку, а полоска вырождается в вертикальную чёрточку. */
+.mrow .nm,.mrow .sb,.mrow .tr,.mrow .r>span{display:block}
+.mrow .nm{font-size:12.5px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow .sb{font-size:10.5px;font-weight:700;color:var(--hint);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow .tr{height:8px;border-radius:5px;background:var(--chip);border:2px solid var(--stroke);
+  margin-top:5px;overflow:hidden}
+.mrow .tr i{display:block;height:100%;width:0;background:var(--coral);
+  transition:width .9s cubic-bezier(.2,1,.3,1)}
+.mrow .r{text-align:right;white-space:nowrap}
+.mrow .r .vv{font-size:12.5px;font-weight:900}
+.mrow .r .cc{font-size:10px;font-weight:800;color:var(--hint);margin-top:2px}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:900;
+  border:2.5px solid var(--stroke);border-radius:999px;padding:5px 10px;background:var(--card-2)}
+.chip.up{background:var(--coral-soft)}
+.chip.down{background:var(--green-soft)}
+.chip .icbox{width:11px;height:11px;flex:0 0 11px}
+.twocol{display:flex;gap:10px}
+.twocol>div{flex:1;min-width:0}
+.twocol .ct{font-size:10.5px;font-weight:900;color:var(--hint);margin-bottom:7px}
+
+/* ================= ПОДПИСКИ ================= */
+.subrow{display:flex;align-items:center;gap:9px;background:var(--card-2);
+  border:2.5px solid var(--stroke);border-radius:14px;padding:9px 10px;margin-bottom:8px}
+.subrow:last-child{margin-bottom:0}
+.subrow .icbox{width:32px;height:32px;flex:0 0 32px;border-radius:10px;background:#fff;
+  border:2.5px solid var(--stroke);padding:3px}
+.subrow .nm,.subrow .sb,.subrow .r>span{display:block}
+.subrow .nm{font-size:12.5px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.subrow .sb{font-size:10.5px;font-weight:700;color:var(--hint);margin-top:2px}
+.subrow .r{margin-left:auto;text-align:right;white-space:nowrap}
+.subrow .r .vv{font-size:13px;font-weight:900}
+.subrow .r .yy{font-size:10px;font-weight:800;color:var(--hint);margin-top:2px}
+.subtot{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 11px;border-radius:13px;
+  background:var(--coral-soft);border:2.5px solid var(--stroke);font-size:12px;font-weight:900}
+.subtot .icbox{width:19px;height:19px;flex:0 0 19px}
+.subtot .vv{margin-left:auto;white-space:nowrap}
+
+/* ================= ЛИСТ ОПЕРАЦИЙ (провал из цифры) ================= */
+.oprow{display:flex;gap:10px;align-items:flex-start;padding:11px 0;border-bottom:2px dashed var(--line)}
+.oprow:last-child{border-bottom:0;padding-bottom:0}
+.oprow .icbox{width:32px;height:32px;flex:0 0 32px;border-radius:10px;background:#fff;
+  border:2.5px solid var(--stroke);padding:3px}
+.oprow .t{font-size:13px;font-weight:900;line-height:1.25}
+.oprow .dt{font-size:10.5px;font-weight:700;color:var(--hint);margin-top:2px}
+.oprow .ex{font-size:11px;font-weight:700;color:var(--hint);margin-top:6px;line-height:1.42;
+  background:var(--card-2);border:2px solid var(--line);border-radius:11px;padding:7px 9px}
+.oprow .src{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:800;
+  color:var(--hint);margin-top:6px}
+.oprow .src .icbox{width:14px;height:14px;flex:0 0 14px;border:0;background:none;padding:0;border-radius:0}
+.oprow .r{margin-left:auto;text-align:right;white-space:nowrap}
+.oprow .r .a{font-size:13px;font-weight:900}
+.oprow .r .s2{font-size:10px;font-weight:800;color:var(--hint);margin-top:3px}
+.oprow .r .s2.zero,.oprow .r .s2.neg{color:var(--green-d)}
+.opsum{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:13px;
+  background:var(--green-soft);border:2.5px solid var(--stroke);font-size:12px;font-weight:900}
+.opsum .icbox{width:19px;height:19px;flex:0 0 19px}
+.opsum .vv{margin-left:auto;white-space:nowrap}
+
+/* ================= НАСТРОЕНИЯ ГРОША ================= */
+.moods{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.moodcell{display:flex;flex-direction:column;align-items:center;font:inherit;color:var(--ink);
+  background:var(--card-2);border:2.5px solid var(--stroke);border-radius:16px;
+  padding:4px 5px 9px;box-shadow:0 3px 0 var(--stroke);cursor:pointer;
+  transition:transform .08s,box-shadow .08s,background .18s}
+.moodcell:active{transform:translateY(3px);box-shadow:none}
+.moodcell.sel{background:var(--gold-soft)}
+.moodcell .mbox{width:78px;height:78px}
+.moodcell .mn{font-size:11px;font-weight:900;margin-top:-4px}
+.moodcell .md{font-size:9.5px;font-weight:700;color:var(--hint);text-align:center;margin-top:3px;
+  line-height:1.25}
+.moodchip{position:fixed;left:50%;transform:translateX(-50%);z-index:45;
+  bottom:calc(var(--navh) + var(--eaten) + var(--safeb) + 18px);
+  display:flex;align-items:center;gap:9px;padding:7px 9px 7px 13px;background:var(--card);
+  border:3px solid var(--stroke);border-radius:999px;box-shadow:0 4px 0 var(--stroke);
+  font-size:11.5px;font-weight:900;white-space:nowrap;max-width:calc(100% - 24px);
+  animation:chip-in .28s cubic-bezier(.3,1.3,.5,1) both}
+/* Своя анимация, а не общая ist-in: та доводит transform до none и стирает
+   центрирование translateX(-50%) — плашка уезжала за правый край. */
+@keyframes chip-in{0%{opacity:0;transform:translate(-50%,8px)}
+  100%{opacity:1;transform:translate(-50%,0)}}
+.moodchip button{font:inherit;font-size:11px;font-weight:900;cursor:pointer;background:var(--gold);
+  color:#1B2430;border:2.5px solid var(--stroke);border-radius:999px;padding:4px 11px}
+.moodchip button:active{transform:translateY(2px)}
+
+/* ================= ПУСТОЙ ПЕРИОД ================= */
+.empty{text-align:center;padding:22px 16px;background:var(--card-2);border:3px dashed var(--stroke);
+  border-radius:20px;margin-bottom:14px}
+.empty .icbox{width:44px;height:44px;margin:0 auto 8px}
+.empty .t{font-size:14px;font-weight:900;line-height:1.35}
+.empty .d{font-size:11.5px;font-weight:700;color:var(--hint);margin-top:6px;line-height:1.42}
+
 /* ================= НАВИГАЦИЯ ================= */
-.nav{position:sticky;bottom:calc(8px + env(safe-area-inset-bottom,0px));display:flex;gap:4px;
-  background:var(--card);border:3px solid var(--stroke);border-radius:18px;padding:6px;margin-top:10px;
-  box-shadow:0 5px 0 var(--stroke);z-index:20}
+/* Навигация прибита к низу экрана: она нужна под рукой всегда, а не
+   должна уезжать вместе с прокруткой. Отсюда fixed вместо sticky. */
+.saybox{display:flex;align-items:flex-end;gap:8px}
+.mas-hi{flex:0 0 78px;width:78px;background:none;border:0;padding:0;cursor:pointer}
+.mas-hi .mas{width:78px;height:78px;display:block}
+.saybox .bubble{flex:1;min-width:0}
+
+.nav{position:fixed;left:50%;transform:translateX(-50%);z-index:40;
+  width:min(414px,calc(100% - 16px));bottom:calc(8px + var(--eaten) + var(--safeb));
+  display:flex;gap:4px;padding:6px;
+  background:var(--card);border:3px solid var(--stroke);border-radius:18px;
+  box-shadow:0 5px 0 var(--stroke)}
 .nav button{position:relative;flex:1;background:none;border:0;border-radius:12px;padding:6px 0;font:inherit;
   font-size:9.5px;font-weight:900;color:var(--hint);cursor:pointer;display:flex;flex-direction:column;
   align-items:center;gap:3px;transition:background .2s,color .2s}
@@ -669,7 +852,11 @@ img.ic{object-fit:cover}
 .howto-open .go{font-size:20px;font-weight:900;color:var(--hint);line-height:1}
 .sheet{
   position:fixed;inset:0;z-index:60;background:var(--bg);overflow-y:auto;
-  padding:calc(env(safe-area-inset-top,0px) + 14px) 0 calc(env(safe-area-inset-bottom,0px) + 24px);
+  /* bottom по измеренной видимой высоте, а не по разметочной: иначе низ
+     инструкции (и листа операций) уезжает под системную зону клиента и до
+     кнопки «Понятно» не долистать. */
+  bottom:var(--eaten);
+  padding:calc(env(safe-area-inset-top,0px) + 14px) 0 calc(var(--safeb) + 28px);
   animation:sheet-in .2s ease-out
 }
 @keyframes sheet-in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
@@ -844,6 +1031,52 @@ try { tg?.ready(); tg?.expand(); } catch (e) {}
 try { tg?.setHeaderColor?.('#FBF0D9'); } catch (e) {}
 try { tg?.setBackgroundColor?.('#F3E4C6'); } catch (e) {}
 
+/* --------------------------------------------------------------------------
+   Геометрия экрана. Жалоба «низ не долистывается» — не про вёрстку, а про
+   измерения: в WebView Telegram на iOS window.innerHeight больше фактически
+   видимой высоты (tg.viewportStableHeight), env(safe-area-inset-bottom)
+   приходит нулём, а высота нижней панели зависит от шрифта клиента. Раньше
+   под панель отводилась константа 104px — её и съедала системная зона.
+   Теперь всё меряется и уезжает в CSS-переменные.
+   -------------------------------------------------------------------------- */
+function fitViewport() {
+  const root = document.documentElement.style;
+  let stable = 0, inner = 0;
+  try { stable = Math.round(tg?.viewportStableHeight || 0); } catch (e) {}
+  try { inner = Math.round(window.innerHeight || 0); } catch (e) {}
+  /* Разница между разметочной и видимой высотой — те самые недостижимые
+     60–90px. Зажимаем в 0…220: кривое значение не должно подвесить панель
+     посреди экрана. */
+  const eaten = (stable > 0 && inner > stable) ? Math.min(220, inner - stable) : 0;
+  let safe = 0;
+  try {
+    safe = Math.max(
+      Math.round(tg?.safeAreaInset?.bottom || 0),
+      Math.round(tg?.contentSafeAreaInset?.bottom || 0),
+    );
+  } catch (e) {}
+  const nav = document.getElementById('nav');
+  const navh = nav ? Math.round(nav.getBoundingClientRect().height) : 0;
+  const vh = stable || inner;
+  if (vh > 0) root.setProperty('--vh', vh + 'px');
+  root.setProperty('--eaten', eaten + 'px');
+  /* Ноль от клиента не значит «отступа нет» — значит «не сказал».
+     env() в этом случае честнее нашей цифры, поэтому не перетираем. */
+  if (safe > 0) root.setProperty('--safeb', safe + 'px');
+  if (navh > 0) root.setProperty('--navh', navh + 'px');
+}
+fitViewport();
+window.addEventListener('resize', fitViewport);
+window.addEventListener('orientationchange', () => setTimeout(fitViewport, 260));
+['viewportChanged', 'safeAreaChanged', 'contentSafeAreaChanged'].forEach((evt) => {
+  try { tg?.onEvent?.(evt, fitViewport); } catch (e) {}
+});
+/* Панель меняет высоту от длины подписей и системного шрифта — без
+   наблюдателя отступ под ней снова стал бы константой на глаз. */
+try { new ResizeObserver(fitViewport).observe(document.getElementById('nav')); } catch (e) {}
+/* Клиент сообщает окончательную высоту не сразу после ready(). */
+[120, 400, 1200].forEach((ms) => setTimeout(fitViewport, ms));
+
 function authHeaders() {
   const h = {};
   const init = tg?.initData;
@@ -907,7 +1140,7 @@ function humanError(e) {
 /* Запасные данные: страница обязана что-то показывать, даже если API не
    ответил. Это демонстрационный набор, тот же, что в тестах. Ключ game
    пересобирает настоящий движок геймификации. */
-const FALLBACK = {"offline":true,"period":{"label":"Сентябрь 2026","days":30},"spend":{"kopecks":12561820,"text":"125 618,20 ₽"},"income":{"kopecks":30124000,"text":"301 240 ₽"},"avg_per_day":{"kopecks":418727,"text":"4 187,27 ₽"},"prev_spend":{"kopecks":11298300,"text":"112 983 ₽"},"spend_delta":{"kopecks":1263520,"text":"+12 635,20 ₽"},"spend_delta_pct":11.2,"awareness":{"percent":99,"score":0.996,"unclear":{"kopecks":50000,"text":"500 ₽"},"unknown":{"kopecks":50000,"text":"500 ₽"},"uncategorized":{"kopecks":0,"text":"0 ₽"},"unallocated_cash":{"kopecks":0,"text":"0 ₽"}},"categories":[{"code":"housing","title":"Жильё и ЖКХ","emoji":"🏠","essential":true,"amount":{"kopecks":7680000,"text":"76 800 ₽"},"share":0.6114,"prev_amount":{"kopecks":7680000,"text":"76 800 ₽"},"delta":{"kopecks":0,"text":"+0 ₽"},"delta_pct":0.0},{"code":"groceries","title":"Продукты","emoji":"🛒","essential":true,"amount":{"kopecks":2392490,"text":"23 924,90 ₽"},"share":0.1905,"prev_amount":{"kopecks":1875900,"text":"18 759 ₽"},"delta":{"kopecks":516590,"text":"+5 165,90 ₽"},"delta_pct":27.5},{"code":"taxi","title":"Такси","emoji":"🚕","essential":false,"amount":{"kopecks":696710,"text":"6 967,10 ₽"},"share":0.0555,"prev_amount":{"kopecks":578800,"text":"5 788 ₽"},"delta":{"kopecks":117910,"text":"+1 179,10 ₽"},"delta_pct":20.4},{"code":"cafe","title":"Кафе и рестораны","emoji":"🍽","essential":false,"amount":{"kopecks":675140,"text":"6 751,40 ₽"},"share":0.0537,"prev_amount":{"kopecks":399500,"text":"3 995 ₽"},"delta":{"kopecks":275640,"text":"+2 756,40 ₽"},"delta_pct":69.0},{"code":"delivery","title":"Доставка еды","emoji":"🛵","essential":false,"amount":{"kopecks":528680,"text":"5 286,80 ₽"},"share":0.0421,"prev_amount":{"kopecks":485300,"text":"4 853 ₽"},"delta":{"kopecks":43380,"text":"+433,80 ₽"},"delta_pct":8.9},{"code":"home","title":"Товары для дома","emoji":"🪑","essential":false,"amount":{"kopecks":310000,"text":"3 100 ₽"},"share":0.0247,"prev_amount":{"kopecks":0,"text":"0 ₽"},"delta":{"kopecks":310000,"text":"+3 100 ₽"},"delta_pct":null},{"code":"subscriptions","title":"Подписки","emoji":"🔁","essential":false,"amount":{"kopecks":188800,"text":"1 888 ₽"},"share":0.015,"prev_amount":{"kopecks":188800,"text":"1 888 ₽"},"delta":{"kopecks":0,"text":"+0 ₽"},"delta_pct":0.0},{"code":"connection","title":"Связь и интернет","emoji":"📶","essential":true,"amount":{"kopecks":90000,"text":"900 ₽"},"share":0.0072,"prev_amount":{"kopecks":90000,"text":"900 ₽"},"delta":{"kopecks":0,"text":"+0 ₽"},"delta_pct":0.0}],"essential":{"kopecks":10162490,"text":"101 624,90 ₽"},"optional":{"kopecks":2399330,"text":"23 993,30 ₽"},"weeks":[{"label":"1–6 сентября","amount":{"kopecks":8264470,"text":"82 644,70 ₽"}},{"label":"7–13 сентября","amount":{"kopecks":2563110,"text":"25 631,10 ₽"}},{"label":"14–20 сентября","amount":{"kopecks":322160,"text":"3 221,60 ₽"}},{"label":"21–27 сентября","amount":{"kopecks":1412080,"text":"14 120,80 ₽"}},{"label":"28–30 сентября","amount":{"kopecks":0,"text":"0 ₽"}}],"questions":[{"id":2,"kind":"incoming_unknown","question":"Пришло 500 ₽ от Катя Н., назначение «за обед» — что это?","options":[{"code":"share","label":"Вернули долю"},{"code":"debt_back","label":"Вернули долг"},{"code":"gift","label":"Подарок"},{"code":"income","label":"Это доход"}],"explanation":"Поступление от физлица без зафиксированного долга. В назначении есть пометка про совместную трату, но подходящего счёта не нашлось. Пока не отнесено ни к доходу, ни к возврату — иначе цифры бы соврали.","amount":{"kopecks":50000,"text":"500 ₽"},"occurred_at":"2026-09-22T13:37:00"},{"id":3,"kind":"cash_spent_on","question":"Из снятых 5 000 ₽ от 09.09 не объяснено 3 000 ₽. На что ушли?","options":[{"code":"groceries","label":"Продукты"},{"code":"cafe","label":"Кафе и рестораны"},{"code":"taxi","label":"Такси"},{"code":"clothes","label":"Одежда и обувь"},{"code":"electronics","label":"Техника и гаджеты"},{"code":"health","label":"Здоровье"},{"code":"home","label":"Товары для дома"},{"code":"other","label":"Прочее"}],"explanation":"Снятие в банкомате — перемещение денег между моими активами, а не трата. Тратой они станут, когда будет известно, на что ушли.","amount":{"kopecks":500000,"text":"5 000 ₽"},"occurred_at":"2026-09-09T08:50:00"},{"id":1,"kind":"shared_bill_heads","question":"«WHITE RABBIT RESTORAN» на 8 000 ₽ — на скольких человек делили? Пока считаю, что на 5.","options":[{"code":"2","label":"2 чел."},{"code":"3","label":"3 чел."},{"code":"4","label":"4 чел."},{"code":"5","label":"5 чел."},{"code":"more","label":"Больше"}],"explanation":"Счёт 8000 ₽ разделён на 5 чел.: моя доля 1600 ₽, остальные 6400 ₽ — долг компании. В расходы попадает только моя доля.","amount":{"kopecks":800000,"text":"8 000 ₽"},"occurred_at":"2026-09-14T21:30:00"}],"open_questions":3,"insights":[{"title":"Проездной выгоднее такси","detail":"8 поездок на 6 967,10 ₽, из них 5 — короткие, на 3 602,90 ₽. Месячный проездной стоит 3 070 ₽: при такой частоте он окупается.","saving":{"kopecks":53290,"text":"532,90 ₽"}},{"title":"Продукты: рост на 28%","detail":"Было 18 759 ₽, стало 23 924,90 ₽ — плюс 5 165,90 ₽ к прошлому периоду.","saving":null},{"title":"Подписок: 4","detail":"APPLE ICLOUD STORAGE, МТС услуги связи, ЯНДЕКС ПЛЮС, VK MUSIC PODPISKA — 2 788 ₽ в месяц, 33 456 ₽ в год. Списываются сами, поэтому и не замечаются.","saving":null},{"title":"Доставка догоняет продукты","detail":"Доставка 5 286,80 ₽ при тратах на продукты 23 924,90 ₽ — это 22% сверху. Наценка доставки обычно съедает разницу в цене продуктов.","saving":{"kopecks":158604,"text":"1 586,04 ₽"}},{"title":"YANDEX GO: 8 раз за период","detail":"Средний чек 870,88 ₽, в сумме 6 967,10 ₽. По одной покупке это незаметно, за период — ощутимо.","saving":null},{"title":"Наличными на руках 3 000 ₽","detail":"Пока не сказано, на что они ушли, эти деньги не попадают в статистику. Одно голосовое — и они разложатся по категориям.","saving":null},{"title":"Осознанность 99%","detail":"Непонятно, куда относится неразобранных поступлений на 500 ₽. Это единственное, что мешает цифрам быть точными.","saving":null}],"streak":{"days":12,"best":18,"actions_per_day":1.67},"operations_count":48,"debts_owed_to_me":{"kopecks":0,"text":"0 ₽"},"debts_i_owe":{"kopecks":0,"text":"0 ₽"},"game":{"level":{"number":4,"title":"Знаток своих денег","xp":1434,"xp_total_next":1500,"progress":0.868},"quests":[{"code":"resolve_unknown","kind":"system","title":"Разобрать поступления","detail":"1 операция на 500 ₽","progress":0.0,"xp":10,"done":false,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"answer_three","kind":"system","title":"Три ответа за месяц","detail":"0 из 3 спорных операций закрыто","progress":0.0,"xp":30,"done":false,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"import_month","kind":"system","title":"Закрыть месяц выпиской","detail":"Выписка за этот месяц загружена","progress":1.0,"xp":25,"done":true,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"awareness_95","kind":"system","title":"Осознанность 95 %","detail":"Сейчас 99 % оборота с понятным смыслом","progress":1.0,"xp":40,"done":true,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"streak_week","kind":"system","title":"Неделя без пропусков","detail":"Серия 12 дней подряд","progress":1.0,"xp":35,"done":true,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"surf_coffee_2000","kind":"sponsor","title":"Кофе на 2 000 ₽","detail":"Потратьте 2 000 ₽ в Surf Coffee за месяц. Сейчас 1 820,50 ₽ из 2 000 ₽","progress":0.9103,"xp":60,"done":false,"sponsor":"Surf Coffee","reward":"Капучино в подарок","deadline":"2026-09-24"},{"code":"yandex_go_5","kind":"sponsor","title":"Пять поездок","detail":"Совершите 5 поездок за месяц. Сейчас 6 из 5","progress":1.0,"xp":50,"done":true,"sponsor":"Яндекс Go","reward":"Промокод −30 % на следующую поездку","deadline":"2026-09-20"},{"code":"lenta_10000","kind":"sponsor","title":"Продукты на 10 000 ₽","detail":"Купите продуктов на 10 000 ₽. Сейчас 6 036,20 ₽ из 10 000 ₽","progress":0.6036,"xp":80,"done":false,"sponsor":"Лента","reward":"500 бонусных баллов","deadline":"2026-09-27"},{"code":"dodo_700","kind":"sponsor","title":"Первый заказ","detail":"Закажите на 700 ₽. Сейчас 0 ₽ из 700 ₽","progress":0.0,"xp":40,"done":false,"sponsor":"Додо Пицца","reward":"Додстер в подарок","deadline":"2026-09-30"}],"achievements":[{"code":"first_import","title":"Первый шаг","detail":"Загрузили выписку и увидели настоящие цифры","earned":true,"earned_at":"2026-09-20","progress":1.0,"hint":null},{"code":"three_banks","title":"Все карты на стол","detail":"Счета 3 банков в одной книге","earned":true,"earned_at":null,"progress":1.0,"hint":null},{"code":"streak","title":"Серия: две недели","detail":"Четырнадцать дней подряд. Следующая ступень — 30","earned":true,"earned_at":"2026-09-20","progress":1.0,"hint":null},{"code":"awareness","title":"Честные 99 %","detail":"Неясного почти не осталось","earned":true,"earned_at":null,"progress":1.0,"hint":null},{"code":"clean_board","title":"Чистая доска","detail":"Осталось ответить на 3 — и доска чистая","earned":false,"earned_at":null,"progress":0.25,"hint":"Осталось ответить на 3 — и доска чистая"},{"code":"voice","title":"Голос за кадром","detail":"Первая трата наличными, записанная голосом. Следующая ступень — 5","earned":true,"earned_at":"2026-09-09","progress":1.0,"hint":null},{"code":"three_months","title":"Три месяца в книге","detail":"История за 3 месяца — есть с чем сравнивать","earned":true,"earned_at":null,"progress":1.0,"hint":null},{"code":"debts_settled","title":"Долги сведены","detail":"Ни одного открытого долга и ни одной невозвращённой доли","earned":true,"earned_at":"2026-09-26","progress":1.0,"hint":null},{"code":"refund_found","title":"Вернул своё","detail":"Возврат записан минусом к трате, а не доходом","earned":true,"earned_at":"2026-09-17","progress":1.0,"hint":null},{"code":"thrifty_month","title":"Экономный месяц","detail":"Считается по итогам завершённого месяца — аванса тут не бывает","earned":false,"earned_at":null,"progress":0.0,"hint":"Считается по итогам завершённого месяца — аванса тут не бывает"}],"map":[{"code":"w1","kind":"week","state":"done","title":"Неделя 1","detail":"1–6 сентября","amount":{"kopecks":8264470,"text":"82 644,70 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"chest-first_import","kind":"chest","state":"done","title":"Первый шаг","detail":"Загрузили выписку и увидели настоящие цифры","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"w2","kind":"week","state":"done","title":"Неделя 2","detail":"7–13 сентября","amount":{"kopecks":2563110,"text":"25 631,10 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"q3","kind":"question","state":"current","title":"Спорная операция","detail":"Из снятых 5 000 ₽ от 09.09 не объяснено 3 000 ₽. На что ушли?","amount":{"kopecks":500000,"text":"5 000 ₽"},"action":{"type":"question","id":3}},{"code":"w3","kind":"week","state":"current","title":"Неделя 3","detail":"14–20 сентября","amount":{"kopecks":322160,"text":"3 221,60 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"q1","kind":"question","state":"current","title":"Спорная операция","detail":"«WHITE RABBIT RESTORAN» на 8 000 ₽ — на скольких человек делили? Пока считаю, что на 5.","amount":{"kopecks":800000,"text":"8 000 ₽"},"action":{"type":"question","id":1}},{"code":"quest-yandex_go_5","kind":"quest","state":"done","title":"Яндекс Go: Пять поездок","detail":"Совершите 5 поездок за месяц. Сейчас 6 из 5","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"chest-clean_board","kind":"chest","state":"locked","title":"Чистая доска","detail":"Осталось ответить на 3 — и доска чистая","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"w4","kind":"week","state":"locked","title":"Неделя 4","detail":"21–27 сентября","amount":{"kopecks":1412080,"text":"14 120,80 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"q2","kind":"question","state":"current","title":"Спорная операция","detail":"Пришло 500 ₽ от Катя Н., назначение «за обед» — что это?","amount":{"kopecks":50000,"text":"500 ₽"},"action":{"type":"question","id":2}},{"code":"quest-surf_coffee_2000","kind":"quest","state":"current","title":"Surf Coffee: Кофе на 2 000 ₽","detail":"Потратьте 2 000 ₽ в Surf Coffee за месяц. Сейчас 1 820,50 ₽ из 2 000 ₽","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"quest-lenta_10000","kind":"quest","state":"current","title":"Лента: Продукты на 10 000 ₽","detail":"Купите продуктов на 10 000 ₽. Сейчас 6 036,20 ₽ из 10 000 ₽","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"w5","kind":"week","state":"locked","title":"Неделя 5","detail":"28–30 сентября","amount":{"kopecks":0,"text":"0 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"quest-dodo_700","kind":"quest","state":"current","title":"Додо Пицца: Первый заказ","detail":"Закажите на 700 ₽. Сейчас 0 ₽ из 700 ₽","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"chest-thrifty_month","kind":"chest","state":"locked","title":"Экономный месяц","detail":"Считается по итогам завершённого месяца — аванса тут не бывает","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"finish","kind":"finish","state":"locked","title":"Финиш месяца","detail":"По текущему темпу выйдет 149 083,30 ₽","amount":{"kopecks":14908330,"text":"149 083,30 ₽"},"action":{"type":"tab","tab":"reports"}}]}};
+const FALLBACK = {"offline":true,"period":{"label":"Сентябрь 2026","days":30},"prev_period":{"label":"Август 2026","days":31},"spend":{"kopecks":12561820,"text":"125 618,20 ₽"},"income":{"kopecks":30124000,"text":"301 240 ₽"},"avg_per_day":{"kopecks":418727,"text":"4 187,27 ₽"},"prev_spend":{"kopecks":11360500,"text":"113 605 ₽"},"spend_delta":{"kopecks":1201320,"text":"+12 013,20 ₽"},"spend_delta_pct":10.6,"awareness":{"percent":99,"score":0.996,"unclear":{"kopecks":50000,"text":"500 ₽"},"unknown":{"kopecks":50000,"text":"500 ₽"},"uncategorized":{"kopecks":0,"text":"0 ₽"},"unallocated_cash":{"kopecks":0,"text":"0 ₽"}},"categories":[{"code":"housing","title":"Жильё и ЖКХ","emoji":"🏠","essential":true,"amount":{"kopecks":7680000,"text":"76 800 ₽"},"share":0.6114,"prev_amount":{"kopecks":7680000,"text":"76 800 ₽"},"delta":{"kopecks":0,"text":"+0 ₽"},"delta_pct":0.0},{"code":"groceries","title":"Продукты","emoji":"🛒","essential":true,"amount":{"kopecks":2392490,"text":"23 924,90 ₽"},"share":0.1905,"prev_amount":{"kopecks":1875900,"text":"18 759 ₽"},"delta":{"kopecks":516590,"text":"+5 165,90 ₽"},"delta_pct":27.5},{"code":"taxi","title":"Такси","emoji":"🚕","essential":false,"amount":{"kopecks":696710,"text":"6 967,10 ₽"},"share":0.0555,"prev_amount":{"kopecks":641000,"text":"6 410 ₽"},"delta":{"kopecks":55710,"text":"+557,10 ₽"},"delta_pct":8.7},{"code":"cafe","title":"Кафе и рестораны","emoji":"🍽","essential":false,"amount":{"kopecks":675140,"text":"6 751,40 ₽"},"share":0.0537,"prev_amount":{"kopecks":399500,"text":"3 995 ₽"},"delta":{"kopecks":275640,"text":"+2 756,40 ₽"},"delta_pct":69.0},{"code":"delivery","title":"Доставка еды","emoji":"🛵","essential":false,"amount":{"kopecks":528680,"text":"5 286,80 ₽"},"share":0.0421,"prev_amount":{"kopecks":485300,"text":"4 853 ₽"},"delta":{"kopecks":43380,"text":"+433,80 ₽"},"delta_pct":8.9},{"code":"home","title":"Товары для дома","emoji":"🪑","essential":false,"amount":{"kopecks":310000,"text":"3 100 ₽"},"share":0.0247,"prev_amount":{"kopecks":0,"text":"0 ₽"},"delta":{"kopecks":310000,"text":"+3 100 ₽"},"delta_pct":null},{"code":"subscriptions","title":"Подписки","emoji":"🔁","essential":false,"amount":{"kopecks":188800,"text":"1 888 ₽"},"share":0.015,"prev_amount":{"kopecks":188800,"text":"1 888 ₽"},"delta":{"kopecks":0,"text":"+0 ₽"},"delta_pct":0.0},{"code":"connection","title":"Связь и интернет","emoji":"📶","essential":true,"amount":{"kopecks":90000,"text":"900 ₽"},"share":0.0072,"prev_amount":{"kopecks":90000,"text":"900 ₽"},"delta":{"kopecks":0,"text":"+0 ₽"},"delta_pct":0.0}],"essential":{"kopecks":10162490,"text":"101 624,90 ₽"},"optional":{"kopecks":2399330,"text":"23 993,30 ₽"},"weeks":[{"label":"1–6 сентября","amount":{"kopecks":8264470,"text":"82 644,70 ₽"}},{"label":"7–13 сентября","amount":{"kopecks":2563110,"text":"25 631,10 ₽"}},{"label":"14–20 сентября","amount":{"kopecks":322160,"text":"3 221,60 ₽"}},{"label":"21–27 сентября","amount":{"kopecks":1412080,"text":"14 120,80 ₽"}},{"label":"28–30 сентября","amount":{"kopecks":0,"text":"0 ₽"}}],"granularity":"week","granularity_title":"По неделям","slices":[{"label":"1–6 сентября","start":"2026-09-01T00:00:00","end":"2026-09-07T00:00:00","amount":{"kopecks":8264470,"text":"82 644,70 ₽"}},{"label":"7–13 сентября","start":"2026-09-07T00:00:00","end":"2026-09-14T00:00:00","amount":{"kopecks":2563110,"text":"25 631,10 ₽"}},{"label":"14–20 сентября","start":"2026-09-14T00:00:00","end":"2026-09-21T00:00:00","amount":{"kopecks":322160,"text":"3 221,60 ₽"}},{"label":"21–27 сентября","start":"2026-09-21T00:00:00","end":"2026-09-28T00:00:00","amount":{"kopecks":1412080,"text":"14 120,80 ₽"}},{"label":"28–30 сентября","start":"2026-09-28T00:00:00","end":"2026-10-01T00:00:00","amount":{"kopecks":0,"text":"0 ₽"}}],"questions":[{"id":2,"kind":"incoming_unknown","question":"Пришло 500 ₽ от Катя Н., назначение «за обед» — что это?","options":[{"code":"share","label":"Вернули долю"},{"code":"debt_back","label":"Вернули долг"},{"code":"gift","label":"Подарок"},{"code":"income","label":"Это доход"}],"explanation":"Поступление от физлица без зафиксированного долга. В назначении есть пометка про совместную трату, но подходящего счёта не нашлось. Пока не отнесено ни к доходу, ни к возврату — иначе цифры бы соврали.","amount":{"kopecks":50000,"text":"500 ₽"},"occurred_at":"2026-09-22T13:37:00"},{"id":3,"kind":"cash_spent_on","question":"Из снятых 5 000 ₽ от 09.09 не объяснено 3 000 ₽. На что ушли?","options":[{"code":"groceries","label":"Продукты"},{"code":"cafe","label":"Кафе и рестораны"},{"code":"taxi","label":"Такси"},{"code":"clothes","label":"Одежда и обувь"},{"code":"electronics","label":"Техника и гаджеты"},{"code":"health","label":"Здоровье"},{"code":"home","label":"Товары для дома"},{"code":"other","label":"Прочее"}],"explanation":"Снятие в банкомате — перемещение денег между моими активами, а не трата. Тратой они станут, когда будет известно, на что ушли.","amount":{"kopecks":500000,"text":"5 000 ₽"},"occurred_at":"2026-09-09T08:50:00"},{"id":1,"kind":"shared_bill_heads","question":"«WHITE RABBIT RESTORAN» на 8 000 ₽ — на скольких человек делили? Пока считаю, что на 5.","options":[{"code":"2","label":"2 чел."},{"code":"3","label":"3 чел."},{"code":"4","label":"4 чел."},{"code":"5","label":"5 чел."},{"code":"more","label":"Больше"}],"explanation":"Счёт 8000 ₽ разделён на 5 чел.: моя доля 1600 ₽, остальные 6400 ₽ — долг компании. В расходы попадает только моя доля.","amount":{"kopecks":800000,"text":"8 000 ₽"},"occurred_at":"2026-09-14T21:30:00"}],"open_questions":3,"insights":[{"title":"Проездной выгоднее такси","detail":"8 поездок на 6 967,10 ₽, из них 5 — короткие, на 3 602,90 ₽. Месячный проездной стоит 3 070 ₽: при такой частоте он окупается.","saving":{"kopecks":53290,"text":"532,90 ₽"}},{"title":"Продукты: рост на 28%","detail":"Было 18 759 ₽, стало 23 924,90 ₽ — плюс 5 165,90 ₽ к прошлому периоду.","saving":null},{"title":"Подписок: 4","detail":"APPLE ICLOUD STORAGE, МТС услуги связи, ЯНДЕКС ПЛЮС, VK MUSIC PODPISKA — 2 788 ₽ в месяц, 33 456 ₽ в год. Списываются сами, поэтому и не замечаются.","saving":null},{"title":"Доставка догоняет продукты","detail":"Доставка 5 286,80 ₽ при тратах на продукты 23 924,90 ₽ — это 22% сверху. Наценка доставки обычно съедает разницу в цене продуктов.","saving":{"kopecks":158604,"text":"1 586,04 ₽"}},{"title":"YANDEX GO: 8 раз за период","detail":"Средний чек 870,88 ₽, в сумме 6 967,10 ₽. По одной покупке это незаметно, за период — ощутимо.","saving":null},{"title":"Наличными на руках 3 000 ₽","detail":"Пока не сказано, на что они ушли, эти деньги не попадают в статистику. Одно голосовое — и они разложатся по категориям.","saving":null},{"title":"Осознанность 99%","detail":"Непонятно, куда относится неразобранных поступлений на 500 ₽. Это единственное, что мешает цифрам быть точными.","saving":null}],"streak":{"days":12,"best":18,"actions_per_day":1.67},"operations_count":48,"debts_owed_to_me":{"kopecks":0,"text":"0 ₽"},"debts_i_owe":{"kopecks":0,"text":"0 ₽"},"game":{"level":{"number":4,"title":"Знаток своих денег","xp":1434,"xp_total_next":1500,"progress":0.868},"quests":[{"code":"resolve_unknown","kind":"system","title":"Разобрать поступления","detail":"1 операция на 500 ₽","progress":0.0,"xp":10,"done":false,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"answer_three","kind":"system","title":"Три ответа за месяц","detail":"0 из 3 спорных операций закрыто","progress":0.0,"xp":30,"done":false,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"import_month","kind":"system","title":"Закрыть месяц выпиской","detail":"Выписка за этот месяц загружена","progress":1.0,"xp":25,"done":true,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"awareness_95","kind":"system","title":"Осознанность 95 %","detail":"Сейчас 99 % оборота с понятным смыслом","progress":1.0,"xp":40,"done":true,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"streak_week","kind":"system","title":"Неделя без пропусков","detail":"Серия 12 дней подряд","progress":1.0,"xp":35,"done":true,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"surf_coffee_2000","kind":"sponsor","title":"Кофе на 2 000 ₽","detail":"Потратьте 2 000 ₽ в Surf Coffee за месяц. Сейчас 1 820,50 ₽ из 2 000 ₽","progress":0.9103,"xp":60,"done":false,"sponsor":"Surf Coffee","reward":"Капучино в подарок","deadline":"2026-09-24"},{"code":"yandex_go_5","kind":"sponsor","title":"Пять поездок","detail":"Совершите 5 поездок за месяц. Сейчас 6 из 5","progress":1.0,"xp":50,"done":true,"sponsor":"Яндекс Go","reward":"Промокод −30 % на следующую поездку","deadline":"2026-09-20"},{"code":"lenta_10000","kind":"sponsor","title":"Продукты на 10 000 ₽","detail":"Купите продуктов на 10 000 ₽. Сейчас 6 036,20 ₽ из 10 000 ₽","progress":0.6036,"xp":80,"done":false,"sponsor":"Лента","reward":"500 бонусных баллов","deadline":"2026-09-27"},{"code":"dodo_700","kind":"sponsor","title":"Первый заказ","detail":"Закажите на 700 ₽. Сейчас 0 ₽ из 700 ₽","progress":0.0,"xp":40,"done":false,"sponsor":"Додо Пицца","reward":"Додстер в подарок","deadline":"2026-09-30"}],"achievements":[{"code":"first_import","title":"Первый шаг","detail":"Загрузили выписку и увидели настоящие цифры","earned":true,"earned_at":"2026-09-20","progress":1.0,"hint":null},{"code":"three_banks","title":"Все карты на стол","detail":"Счета 3 банков в одной книге","earned":true,"earned_at":null,"progress":1.0,"hint":null},{"code":"streak","title":"Серия: две недели","detail":"Четырнадцать дней подряд. Следующая ступень — 30","earned":true,"earned_at":"2026-09-20","progress":1.0,"hint":null},{"code":"awareness","title":"Честные 99 %","detail":"Неясного почти не осталось","earned":true,"earned_at":null,"progress":1.0,"hint":null},{"code":"clean_board","title":"Чистая доска","detail":"Осталось ответить на 3 — и доска чистая","earned":false,"earned_at":null,"progress":0.25,"hint":"Осталось ответить на 3 — и доска чистая"},{"code":"voice","title":"Голос за кадром","detail":"Первая трата наличными, записанная голосом. Следующая ступень — 5","earned":true,"earned_at":"2026-09-09","progress":1.0,"hint":null},{"code":"three_months","title":"Три месяца в книге","detail":"История за 3 месяца — есть с чем сравнивать","earned":true,"earned_at":null,"progress":1.0,"hint":null},{"code":"debts_settled","title":"Долги сведены","detail":"Ни одного открытого долга и ни одной невозвращённой доли","earned":true,"earned_at":"2026-09-26","progress":1.0,"hint":null},{"code":"refund_found","title":"Вернул своё","detail":"Возврат записан минусом к трате, а не доходом","earned":true,"earned_at":"2026-09-17","progress":1.0,"hint":null},{"code":"thrifty_month","title":"Экономный месяц","detail":"Считается по итогам завершённого месяца — аванса тут не бывает","earned":false,"earned_at":null,"progress":0.0,"hint":"Считается по итогам завершённого месяца — аванса тут не бывает"}],"map":[{"code":"w1","kind":"week","state":"done","title":"Неделя 1","detail":"1–6 сентября","amount":{"kopecks":8264470,"text":"82 644,70 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"chest-first_import","kind":"chest","state":"done","title":"Первый шаг","detail":"Загрузили выписку и увидели настоящие цифры","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"w2","kind":"week","state":"done","title":"Неделя 2","detail":"7–13 сентября","amount":{"kopecks":2563110,"text":"25 631,10 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"q3","kind":"question","state":"current","title":"Спорная операция","detail":"Из снятых 5 000 ₽ от 09.09 не объяснено 3 000 ₽. На что ушли?","amount":{"kopecks":500000,"text":"5 000 ₽"},"action":{"type":"question","id":3}},{"code":"w3","kind":"week","state":"current","title":"Неделя 3","detail":"14–20 сентября","amount":{"kopecks":322160,"text":"3 221,60 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"q1","kind":"question","state":"current","title":"Спорная операция","detail":"«WHITE RABBIT RESTORAN» на 8 000 ₽ — на скольких человек делили? Пока считаю, что на 5.","amount":{"kopecks":800000,"text":"8 000 ₽"},"action":{"type":"question","id":1}},{"code":"quest-yandex_go_5","kind":"quest","state":"done","title":"Яндекс Go: Пять поездок","detail":"Совершите 5 поездок за месяц. Сейчас 6 из 5","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"chest-clean_board","kind":"chest","state":"locked","title":"Чистая доска","detail":"Осталось ответить на 3 — и доска чистая","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"w4","kind":"week","state":"locked","title":"Неделя 4","detail":"21–27 сентября","amount":{"kopecks":1412080,"text":"14 120,80 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"q2","kind":"question","state":"current","title":"Спорная операция","detail":"Пришло 500 ₽ от Катя Н., назначение «за обед» — что это?","amount":{"kopecks":50000,"text":"500 ₽"},"action":{"type":"question","id":2}},{"code":"quest-surf_coffee_2000","kind":"quest","state":"current","title":"Surf Coffee: Кофе на 2 000 ₽","detail":"Потратьте 2 000 ₽ в Surf Coffee за месяц. Сейчас 1 820,50 ₽ из 2 000 ₽","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"quest-lenta_10000","kind":"quest","state":"current","title":"Лента: Продукты на 10 000 ₽","detail":"Купите продуктов на 10 000 ₽. Сейчас 6 036,20 ₽ из 10 000 ₽","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"w5","kind":"week","state":"locked","title":"Неделя 5","detail":"28–30 сентября","amount":{"kopecks":0,"text":"0 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"quest-dodo_700","kind":"quest","state":"current","title":"Додо Пицца: Первый заказ","detail":"Закажите на 700 ₽. Сейчас 0 ₽ из 700 ₽","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"chest-thrifty_month","kind":"chest","state":"locked","title":"Экономный месяц","detail":"Считается по итогам завершённого месяца — аванса тут не бывает","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"finish","kind":"finish","state":"locked","title":"Финиш месяца","detail":"По текущему темпу выйдет 149 083,30 ₽","amount":{"kopecks":14908330,"text":"149 083,30 ₽"},"action":{"type":"tab","tab":"reports"}}]}};
 
 /* ==========================================================================
    2. МЕЛОЧЬ
@@ -919,6 +1152,15 @@ const el = (h) => { const t = document.createElement('template'); t.innerHTML = 
 const NB = ' ⁠';
 const num = (n) => Math.round(n).toLocaleString('ru-RU').replace(/[\s  ]/g, NB);
 const money = (n) => num(n) + NB + '₽';
+/* Сумма, посчитанная у нас, обязана выглядеть ровно как сумма с сервера:
+   money() округляет до рубля, и «348 811 ₽» рядом с «348 810,60 ₽» читалось
+   бы как расхождение там, где его нет. */
+function moneyK(kopecks) {
+  const v = Math.round(Number(kopecks) || 0);
+  const a = Math.abs(v), rub = Math.floor(a / 100), cop = a % 100;
+  return (v < 0 ? '−' : '') + num(rub)
+    + (cop ? ',' + String(cop).padStart(2, '0') : '') + NB + '₽';
+}
 const fixed = (t) => String(t == null ? '' : t).replace(/[\s  ]/g, NB);
 /* деньги с бэкенда приходят объектом {kopecks, text} — текст уже посчитан */
 const m = (v) => fixed(v && v.text ? v.text : '0 ₽');
@@ -948,6 +1190,12 @@ function haptic(kind = 'light') {
 const MONTHS = ['января','февраля','марта','апреля','мая','июня',
                 'июля','августа','сентября','октября','ноября','декабря'];
 const WEEKDAYS = ['вс','пн','вт','ср','чт','пт','сб'];
+const MONTHS_NOM = ['Январь','Февраль','Март','Апрель','Май','Июнь',
+                    'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const MONTHS_SHORT = ['янв','фев','мар','апр','май','июн',
+                      'июл','авг','сен','окт','ноя','дек'];
+/* Дробное число по-русски: «1,67 действия в день». */
+const dec2 = (v) => (Math.round((Number(v) || 0) * 100) / 100).toFixed(2).replace('.', ',');
 function shortDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -1016,8 +1264,10 @@ function catIcon(code) {
 /* ==========================================================================
    4. МАСКОТ ГРОШ
    ========================================================================== */
-function MASCOT(uid) { return `
-<svg class="mas s-proud" viewBox="0 0 200 200" role="img" aria-label="Грош — маскот приложения">
+/* fixed — витринная копия с вкладки «Награды»: она показывает одно
+   состояние и не должна переключаться вместе с живым Грошем. */
+function MASCOT(uid, state, fixed) { return `
+<svg class="mas${fixed ? ' mas-fx' : ''} s-${state || 'proud'}" viewBox="0 0 200 200" role="img" aria-label="Грош — маскот приложения">
  <defs>
    <clipPath id="MID-eL"><ellipse cx="86" cy="86" rx="11.2" ry="15.2"/></clipPath>
    <clipPath id="MID-eR"><ellipse cx="114" cy="86" rx="11.2" ry="15.2"/></clipPath>
@@ -1200,33 +1450,159 @@ function MASCOT(uid) { return `
 
 /* Состояние маскота. setAttribute('class', ...) целиком — это заодно
    сбрасывает .tap, оставшийся от предыдущего касания. */
-const mstate = {cur: null};
-function setMascot(s) {
-  mstate.cur = s;
-  document.querySelectorAll('.mas').forEach((n) => n.setAttribute('class', 'mas s-' + s));
-}
-function reapplyMascot() { setMascot(mstate.cur || autoMascot()); }
-/* Состояние по умолчанию — это обратная связь, а не украшение: пока есть
-   неразобранное, Грош озадачен, когда всё сходится — доволен. */
-function autoMascot() {
-  if (!SUM) return 'think';
-  if (busyUpload) return 'think';
-  if (kop(SUM.awareness?.unclear) > 0 || (SUM.open_questions || 0) > 0) return 'curious';
+/* Движок настроения один. Раньше их было два: mood() выбирал состояние по
+   числам, а reapplyMascot() тут же перекрывал его старым autoMascot() — на
+   экране всегда оказывалось одно и то же «озадачен». Теперь всё сводится к
+   paintMood(), и разные состояния действительно видны. */
+function setMascot(s) { setMood(s, 0); }
+function reapplyMascot() { paintMood(); }
+/* Короткая реакция: показать состояние и вернуться к расчётному. */
+function mascotFor(ms, back) { setMood(ms, back || 2000); }
+/* Вернуть расчётное состояние прямо сейчас. */
+function clearMood() { busyMood = null; clearTimeout(moodT); paintMood(); }
+let tapT = null;
+/* Настроение Гроша выбирается по числам, а не случайно. Шесть состояний
+   отличаются глазами, ртом, наклоном и прыжком, и каждое означает
+   конкретное положение дел — иначе анимация была бы просто украшением.
+
+     sad     — серия сорвана либо траты заметно выше прошлого месяца
+     curious — есть неразобранные деньги: он показывает на них
+     think   — идёт загрузка или разбор, он соображает
+     party   — получено достижение или круглая серия
+     hype    — всё разобрано только что
+     proud   — всё понятно и спокойно
+*/
+function mood(where) {
+  if (busyMood) return busyMood;
+  const d = SUM || {};
+  const un = kop(d.awareness?.unclear);
+  const open = d.open_questions || 0;
+  const st = d.streak || {};
+  const days = st.days || 0;
+
+  if (where === 'awards') {
+    const fresh = (GAME?.achievements || []).filter((a) => a.earned).length;
+    return fresh && days && days % 7 === 0 ? 'party' : fresh ? 'proud' : 'curious';
+  }
+  if (where === 'questions') return open ? 'curious' : 'hype';
+  if (where === 'reports') {
+    const delta = kop(d.spend_delta);
+    const prev = kop(d.prev_spend);
+    if (prev && delta > prev * 0.15) return 'sad';
+    if (prev && delta < 0) return 'proud';
+    return 'think';
+  }
+  // главная
+  if (days === 0) return 'sad';
+  if (un > 0 || open > 0) return 'curious';
+  if (days % 7 === 0) return 'party';
   return 'proud';
 }
-function mascotFor(ms, back) {
-  setMascot(ms);
-  clearTimeout(mascotFor._t);
-  mascotFor._t = setTimeout(() => setMascot(autoMascot()), back || 2000);
+
+/* Временное настроение: загрузка, только что ответили, поймали достижение.
+   Держится несколько секунд и уступает место расчётному. */
+let busyMood = null;
+let moodT = null;
+function setMood(state, holdMs) {
+  busyMood = state;
+  clearTimeout(moodT);
+  paintMood();
+  if (holdMs) moodT = setTimeout(() => { busyMood = null; paintMood(); }, holdMs);
 }
-let tapT = null;
+function paintMood() {
+  const state = mood(TAB);
+  /* .mas-fx — витрина состояний на «Наградах»: шесть Грошей, каждый со
+     своим состоянием навсегда. Их перекрашивать нельзя. */
+  document.querySelectorAll('.mas:not(.mas-fx)').forEach((svg) => {
+    svg.className.baseVal = 'mas s-' + state
+      + (svg.classList.contains('tap') ? ' tap' : '');
+  });
+  const now = $('moodNow');
+  if (now) now.textContent = (MOOD_INFO.find((x) => x.s === state) || {}).n || state;
+  document.querySelectorAll('.moodcell').forEach((cell) => {
+    cell.classList.toggle('sel', cell.dataset.mood === state);
+  });
+}
+
+/* Шесть состояний Гроша: что означает каждое. Один и тот же список
+   показывается на «Наградах» и подписывает режим показа. */
+const MOOD_INFO = [
+  {s: 'proud',   n: 'Доволен',   d: 'всё объяснено, трат не прибавилось'},
+  {s: 'curious', n: 'Озадачен',  d: 'есть неразобранные деньги и вопросы'},
+  {s: 'think',   n: 'Считает',   d: 'идёт загрузка, ответ или пересчёт'},
+  {s: 'hype',    n: 'На взводе', d: 'вы только что закрыли вопрос'},
+  {s: 'party',   n: 'Праздник',  d: 'достижение, пустая очередь, круглая серия'},
+  {s: 'sad',     n: 'Грустит',   d: 'серия сорвана, ошибка или скачок трат'},
+];
+
+/* Режим показа: на демонстрации нужно увидеть все шесть состояний подряд, а
+   по-настоящему они включаются только по своим поводам. Долгое нажатие на
+   Гроша перебирает их вручную; плашка внизу напоминает, что это показ, а не
+   настоящее положение дел. */
+let moodDemo = -1;
+function cycleMood(state) {
+  if (state) moodDemo = Math.max(0, MOOD_INFO.findIndex((x) => x.s === state));
+  else moodDemo = (moodDemo + 1) % MOOD_INFO.length;
+  const info = MOOD_INFO[moodDemo];
+  haptic('medium');
+  setMood(info.s, 0);
+  moodChip(info);
+  say(null, 'Показ настроения: <b>' + esc(info.n) + '</b> — ' + esc(info.d) + '.');
+}
+function stopMoodDemo() {
+  moodDemo = -1;
+  moodChip(null);
+  clearMood();
+  say(null, tapLine());
+  haptic('light');
+}
+function moodChip(info) {
+  let chip = $('moodChip');
+  $('app')?.classList.toggle('chipon', !!info);
+  if (!info) { if (chip) chip.remove(); return; }
+  if (!chip) {
+    chip = el('<div class="moodchip" id="moodChip"></div>');
+    document.body.appendChild(chip);
+  }
+  chip.innerHTML = 'Показ: ' + esc(info.n)
+    + '<button type="button" data-moodnext="1">Дальше</button>'
+    + '<button type="button" data-moodoff="1">Вернуть</button>';
+}
+
+/* Один обработчик на всех Грошей: тап — реакция, долгое нажатие — перебор
+   состояний. Отдельная кнопка «дальше» для этого не нужна, а на
+   демонстрации перебор под рукой. */
+function bindMascotButton(btn) {
+  if (!btn || btn.dataset.masBound) return;
+  btn.dataset.masBound = '1';
+  let timer = null, longFired = false;
+  const start = () => {
+    longFired = false;
+    clearTimeout(timer);
+    timer = setTimeout(() => { longFired = true; cycleMood(); }, 550);
+  };
+  const stop = () => clearTimeout(timer);
+  btn.addEventListener('pointerdown', start);
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach((k) => btn.addEventListener(k, stop));
+  btn.addEventListener('contextmenu', (e) => e.preventDefault());
+  btn.onclick = () => {
+    if (longFired) { longFired = false; return; }
+    if (moodDemo >= 0) { stopMoodDemo(); return; }
+    tapMascot();
+  };
+}
+
 function tapMascot() {
   haptic('light');
-  document.querySelectorAll('.mas').forEach((svg) => {
+  document.querySelectorAll('.mas:not(.mas-fx)').forEach((svg) => {
     svg.classList.remove('tap'); void svg.getBoundingClientRect(); svg.classList.add('tap');
   });
   clearTimeout(tapT);
-  tapT = setTimeout(() => document.querySelectorAll('.mas').forEach((s) => s.classList.remove('tap')), 620);
+  tapT = setTimeout(() => document.querySelectorAll('.mas:not(.mas-fx)')
+    .forEach((s) => s.classList.remove('tap')), 620);
+  // Тап — это радость на пару секунд, а потом он снова показывает,
+  // как дела на самом деле.
+  setMood('hype', 1800);
   say(null, tapLine());
 }
 /* Реплики собраны из настоящих чисел: маскот не болтает, а пересказывает
@@ -1347,8 +1723,96 @@ let busyUpload = false;
 let busyAnswer = false;
 let netError = '';
 let lastXp = null;
+let AN = null;         // ответ /me/analytics — разрезы выбранного периода
+let OPS = {spec: null, list: null, truncated: false};  // ответ /me/operations
+let pbusy = false;     // идёт перечитывание после смены периода
 
 const SCREEN = $('screen');
+const OPS_LIMIT = 500;
+
+/* ==========================================================================
+   6.5 ПЕРИОД: день · неделя · месяц · год
+   Кейс требует аналитику за периоды разной длины. Бэкенд это умел всегда
+   (app/analytics/periods.parse_period), а приложение всегда просило auto —
+   человек видел только месяц. Здесь состояние выбора и перевод его в тот
+   самый параметр period, который понимает API: YYYY-MM-DD, YYYY-Www,
+   YYYY-MM, YYYY. Шаг назад поэтому не ограничен одним «вчера».
+   ========================================================================== */
+const GRANS = [
+  {key: 'day',   name: 'День',   max: 45, unitTo: 'дню',     unitIn: 'день',   tail: 'дня',    slices: 'дней',
+   note: 'Календарный день. Стрелки листают по дням назад.'},
+  {key: 'week',  name: 'Неделя', max: 26, unitTo: 'неделе',  unitIn: 'неделю', tail: 'недели', slices: 'дней',
+   note: 'Календарная неделя с понедельника, срезы — по дням.'},
+  {key: 'month', name: 'Месяц',  max: 24, unitTo: 'месяцу',  unitIn: 'месяц',  tail: 'месяца', slices: 'недель',
+   note: 'Календарный месяц, срезы — по неделям, обрезанным границей месяца.'},
+  {key: 'year',  name: 'Год',    max: 4,  unitTo: 'году',    unitIn: 'год',    tail: 'года',   slices: 'месяцев',
+   note: 'Календарный год, срезы — по месяцам. 53 недельных столбика сюда не влезли бы.'},
+];
+let PERIOD = {gran: 'month', back: 0};
+try {
+  const saved = JSON.parse(sessionStorage.getItem('hm.period') || 'null');
+  if (saved && GRANS.some((g) => g.key === saved.gran)) {
+    PERIOD = {gran: saved.gran, back: Math.max(0, Number(saved.back) || 0)};
+  }
+} catch (e) {}
+
+function granDef(key) {
+  return GRANS.find((g) => g.key === (key || PERIOD.gran)) || GRANS[2];
+}
+const pad2 = (n) => String(n).padStart(2, '0');
+/* Номер недели по ISO-8601 — ровно тот, что ждёт date.fromisocalendar на
+   сервере: неделя принадлежит году своего четверга. */
+function isoWeekSpec(d) {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7) + 3);
+  const first = new Date(Date.UTC(t.getUTCFullYear(), 0, 4));
+  first.setUTCDate(first.getUTCDate() - ((first.getUTCDay() + 6) % 7) + 3);
+  const week = 1 + Math.round((t - first) / 604800000);
+  return t.getUTCFullYear() + '-W' + pad2(week);
+}
+/* Строка для ?period=. Для текущего периода отдаём короткий ключ: так
+   ответ совпадает с тем, что показывает бот по /today, /week, /month. */
+function periodSpec() {
+  const g = granDef().key, b = Math.max(0, PERIOD.back || 0);
+  const now = new Date();
+  if (g === 'day') {
+    if (!b) return 'today';
+    const d = new Date(now); d.setDate(d.getDate() - b);
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  }
+  if (g === 'week') {
+    if (!b) return 'week';
+    const d = new Date(now); d.setDate(d.getDate() - 7 * b);
+    return isoWeekSpec(d);
+  }
+  if (g === 'year') return b ? String(now.getFullYear() - b) : 'year';
+  if (!b) return 'month';
+  const d = new Date(now.getFullYear(), now.getMonth() - b, 1);
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1);
+}
+function savePeriod() {
+  try { sessionStorage.setItem('hm.period', JSON.stringify(PERIOD)); } catch (e) {}
+}
+/* Смена периода: сразу перерисовываем переключатель (человек видит, что
+   нажатие сработало), потом подтягиваем цифры и рисуем их. */
+async function applyPeriod(gran, back) {
+  const g = granDef(gran);
+  const next = {gran: g.key, back: Math.max(0, Math.min(g.max, back || 0))};
+  if (next.gran === PERIOD.gran && next.back === PERIOD.back) return;
+  if (pbusy) return;
+  PERIOD = next;
+  savePeriod();
+  haptic('light');
+  pbusy = true;
+  setMood('think', 0);
+  render();
+  try { await refresh(true); } finally {
+    pbusy = false;
+    if (moodDemo < 0) clearMood();
+    render();
+  }
+}
+function stepPeriod(delta) { applyPeriod(PERIOD.gran, (PERIOD.back || 0) + delta); }
 
 /* ==========================================================================
    7. КОЛЬЦО ОСОЗНАННОСТИ
@@ -1598,6 +2062,19 @@ function intakeCard() {
 /* ==========================================================================
    10. ВКЛАДКА «МЕСЯЦ»
    ========================================================================== */
+/* Тропа месяца. Живёт на вкладке «Награды»: на главной её место занимает
+   кольцо осознанности, а путь по станциям — это про прогресс, и читается
+   он рядом с уровнем и достижениями. */
+function routeBlock() {
+  const d = SUM, f = d.forecast;
+  return `<div class="saybox"><div class="bubble" id="bubble">${bubbleText()}</div></div>`
+    + `<div class="route" id="route"><svg class="line" id="routeLine" aria-hidden="true"></svg>
+    <div id="nodes"></div>
+    <div class="flagline"><span class="icbox">${icon('flag', true)}</span>
+      <span>${esc(d.period?.label || 'Тропа месяца')}${f && f.show ? ' · день ' + f.days_passed + ' из ' + f.days_total : ''}</span></div>
+  </div>`;
+}
+
 function viewMonth() {
   const d = SUM, a = d.awareness || {}, st = d.streak || {days: 0, best: 0};
   const lvl = GAME && GAME.level ? GAME.level : null;
@@ -1607,12 +2084,12 @@ function viewMonth() {
 
   let html = banners();
 
-  /* реплика Гроша + тропа месяца */
-  html += `<div class="saybox"><div class="bubble" id="bubble">${bubbleText()}</div></div>`;
-  html += `<div class="route" id="route"><svg class="line" id="routeLine" aria-hidden="true"></svg>
-    <div id="nodes"></div>
-    <div class="flagline"><span class="icbox">${icon('flag', true)}</span>
-      <span>${esc(d.period?.label || 'Тропа месяца')}${f && f.show ? ' · день ' + f.days_passed + ' из ' + f.days_total : ''}</span></div>
+  /* Грош на главной: он здесь не украшение, а индикатор — по его виду
+     сразу понятно, всё ли разобрано. И его приятно трогать. */
+  html += `<div class="saybox">
+    <button class="mas-hi" id="masTap" type="button" aria-label="Потрогать Гроша">
+      ${MASCOT('hi', mood('month'))}</button>
+    <div class="bubble" id="bubble">${bubbleText()}</div>
   </div>`;
 
   /* кольцо осознанности + уровень */
@@ -1654,6 +2131,11 @@ function viewMonth() {
       <span class="rn">Сундук на ${goal}-й день</span>
       <span class="track"><i data-w="${Math.min(100, Math.round((st.days || 0) / goal * 100))}%"></i></span>
       <span>${st.days || 0}/${goal}</span></div>
+    ${st.actions_per_day ? `<div class="reward" style="margin-top:9px">
+      <span class="icbox">${icon('target', true)}</span>
+      <span class="rn">${dec2(st.actions_per_day)} ${plural(Math.round(st.actions_per_day),
+        'действие', 'действия', 'действий')} в день</span>
+      <span style="margin-left:auto">измерено</span></div>` : ''}
   </div>`;
 
   html += intakeCard();
@@ -1662,7 +2144,7 @@ function viewMonth() {
   if (f && f.show) {
     const racePct = Math.max(2, Math.min(100, Math.round(f.days_passed / Math.max(1, f.days_total) * 100)));
     html += `<div class="race">
-      <div class="h"><h2>Забег до конца месяца</h2><span class="sp"></span>
+      <div class="h"><h2>Забег до конца ${esc(granDef().tail)}</h2><span class="sp"></span>
         <span class="tag">день ${f.days_passed} из ${f.days_total}</span></div>
       <div class="cap">Если темп не изменится, к концу периода будет</div>
       <div class="big">${m(f.projected)}</div>
@@ -1748,7 +2230,7 @@ function renderPath() {
       : (n.state === 'locked' && n.kind === 'chest') ? icon('lock', true)
         : icon(STATION_ICON[n.kind] || 'cal', true);
     return `<div class="node ${cls.join(' ')}" data-i="${i}" style="margin-left:${off}px">
-      ${i === nowIdx ? '<button class="mapman" id="masTap" type="button" aria-label="Потрогать Гроша">' + MASCOT('map') + '</button>' : ''}
+      ${i === nowIdx ? '<button class="mapman" id="masTapRoute" type="button" aria-label="Потрогать Гроша">' + MASCOT('map', mood('awards')) + '</button>' : ''}
       <div class="dot" style="animation-delay:${i * 70}ms"><span class="icbox">${ic}</span></div>
       <div class="lbl" style="animation-delay:${i * 70 + 60}ms">
         <div class="lt"><div class="t">${txt(n.title)}</div><div class="s">${txt(n.detail || '')}</div></div>
@@ -1756,8 +2238,7 @@ function renderPath() {
     </div>`;
   }).join('');
 
-  const mt = $('masTap');
-  if (mt) mt.onclick = tapMascot;
+  bindMascotButton($('masTapRoute'));
   const past = $('pastBtn');
   if (past) past.onclick = () => { showPast = true; haptic('light'); renderPath(); };
   box.querySelectorAll('.node.go').forEach((node) => {
@@ -1805,19 +2286,362 @@ try {
 
 /* ==========================================================================
    11. ВКЛАДКА «ОТЧЁТЫ»
+   Витрина аналитики. Период любой длины (день, неделя, месяц, год), срезы
+   внутри него, предъявленная сходимость, категории, продавцы, дни недели,
+   средний чек, регулярные списания, кошельки маркетплейсов, прогноз, долги
+   и советы. Ни одного придуманного числа: итоги и срезы приходят из
+   /me/summary, разрезы — из /me/analytics, сами операции — из
+   /me/operations, и по любой цифре можно провалиться в её операции.
    ========================================================================== */
+
+/* Короткая подпись суммы для оси: «82к», «958». */
+function shortMoney(v) {
+  if (!v) return '0';
+  return Math.abs(v) >= 100000 ? num(v / 100000) + 'к' : num(v / 100);
+}
+
+/* --------------------------------------------------------------------------
+   Столбики. Инлайновый SVG: библиотек в проекте нет, а срезов бывает и три,
+   и тридцать один, и двенадцать — дивами это не сверстать одинаково.
+   -------------------------------------------------------------------------- */
+function svgBars(items, opts) {
+  const o = opts || {};
+  const W = 356, H = o.height || 138, FOOT = 15, HEAD = 15;
+  const n = items.length;
+  if (!n) return '';
+  const vals = items.map((x) => x.value);
+  const top = Math.max(1, ...vals);
+  const floor = Math.min(0, ...vals);
+  const span = (top - floor) || 1;
+  const plot = H - FOOT - HEAD;
+  const zeroY = HEAD + plot * (top / span);
+  const gap = n > 24 ? 1.6 : n > 12 ? 3 : 6;
+  const bw = Math.max(2.2, (W - gap * (n - 1)) / n);
+  const maxI = vals.indexOf(top);
+  const every = n <= 13 ? 1 : n <= 20 ? 2 : n <= 32 ? 5 : 0;
+  let bars = '', marks = '', hits = '';
+  items.forEach((it, k) => {
+    const x = k * (bw + gap);
+    const v = it.value;
+    const h = Math.max(v === 0 ? 2.5 : 3, Math.abs(v) / span * plot);
+    const y = v < 0 ? zeroY : zeroY - h;
+    const cls = ['bx'];
+    if (v === 0) cls.push('zero');
+    else if (v < 0) cls.push('neg');
+    else if (k === maxI) cls.push(o.hot ? 'hot' : 'max');
+    bars += '<rect class="' + cls.join(' ') + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1)
+      + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1)
+      + '" rx="' + Math.min(5, bw / 2.4).toFixed(1) + '"'
+      + ' style="animation-delay:' + Math.min(560, k * 26) + 'ms">'
+      + '<title>' + esc(it.label) + ' — ' + esc(it.text || '') + '</title></rect>';
+    if (every && k % every === 0) {
+      marks += '<text class="xl" x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - 3)
+        + '" text-anchor="middle">' + esc(it.short) + '</text>';
+    }
+    if (k === maxI && v > 0) {
+      const lx = Math.min(W - 16, Math.max(16, x + bw / 2));
+      marks += '<text class="vl" x="' + lx.toFixed(1) + '" y="' + Math.max(10, y - 4).toFixed(1)
+        + '" text-anchor="middle">' + esc(shortMoney(v)) + '</text>';
+    }
+    if (o.drill) {
+      hits += '<rect class="hit" data-drill="' + o.drill + '" data-key="' + (it.key != null ? it.key : k)
+        + '" x="' + (x - gap / 2).toFixed(1) + '" y="0" width="' + (bw + gap).toFixed(1)
+        + '" height="' + H + '"></rect>';
+    }
+  });
+  return '<div class="chart"><svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="'
+    + esc(o.alt || 'Столбчатая диаграмма') + '">'
+    + '<line class="gr" x1="0" y1="' + zeroY.toFixed(1) + '" x2="' + W + '" y2="' + zeroY.toFixed(1) + '"/>'
+    + bars + marks + hits + '</svg></div>';
+}
+
+/* Кольцо «надо / можно было не». Доля читается быстрее, чем две суммы. */
+function svgDonut(part, whole) {
+  if (whole <= 0) return '';
+  const R = 33, C = 2 * Math.PI * R, share = Math.max(0, Math.min(1, part / whole));
+  return '<svg class="dn" viewBox="0 0 84 84" role="img" aria-label="Доля обязательных трат">'
+    + '<g transform="rotate(-90 42 42)">'
+    + '<circle cx="42" cy="42" r="' + R + '" fill="none" stroke="#FF7A59" stroke-width="13"/>'
+    + '<circle cx="42" cy="42" r="' + R + '" fill="none" stroke="#4CC86A" stroke-width="13"'
+    + ' stroke-dasharray="' + (C * share).toFixed(1) + ' ' + (C * 2).toFixed(1) + '"/>'
+    + '</g>'
+    + '<circle cx="42" cy="42" r="' + (R - 6.5) + '" fill="none" stroke="#1B2430" stroke-width="2.5"/>'
+    + '<circle cx="42" cy="42" r="' + (R + 6.5) + '" fill="none" stroke="#1B2430" stroke-width="2.5"/>'
+    + '<text x="42" y="47" text-anchor="middle" font-size="16" font-weight="900" fill="#1B2430">'
+    + Math.round(share * 100) + '%</text></svg>';
+}
+
+/* --------------------------------------------------------------------------
+   Переключатель периода
+   -------------------------------------------------------------------------- */
+function periodCard() {
+  const g = granDef();
+  const off = !!(SUM && SUM.offline);
+  const back = PERIOD.back || 0;
+  const days = SUM?.period?.days || 0;
+  const dis = (cond) => (cond ? ' disabled' : '');
+  return `<div class="pcard${pbusy ? ' pload' : ''}" id="pcard">
+    <div class="h"><h2>Период</h2><span class="sp"></span>
+      <span class="tag">${days} ${plural(days, 'день', 'дня', 'дней')}</span></div>
+    <div class="pseg">${GRANS.map((x) => `<button type="button" data-gran="${x.key}"
+      class="${x.key === g.key ? 'on' : ''}"${dis(off)}>${x.name}</button>`).join('')}</div>
+    <div class="pnav">
+      <button type="button" data-pstep="1" aria-label="Предыдущий период"${dis(off || back >= g.max)}>&lsaquo;</button>
+      <div class="lb">${pbusy ? 'Считаю…' : esc(SUM?.period?.label || '')}
+        <i>${back ? 'на ' + back + ' ' + plural(back, 'шаг', 'шага', 'шагов') + ' назад' : 'текущий'}</i></div>
+      <button type="button" data-pstep="-1" aria-label="Следующий период"${dis(off || back <= 0)}>&rsaquo;</button>
+    </div>
+    <div class="pnote">${off
+      ? 'Демонстрационный набор: переключение периодов работает на живом API.'
+      : esc(g.note)}</div>
+  </div>`;
+}
+
+/* --------------------------------------------------------------------------
+   Срезы периода. Новый бэкенд отдаёт готовые slices с гранулярностью по
+   длине периода; старый — только weeks. Для года это важно: 53 недельных
+   столбика в 390 точек не помещаются, а 12 месячных — помещаются.
+   -------------------------------------------------------------------------- */
+function sliceShort(item, gran) {
+  const d = item.start ? new Date(item.start) : null;
+  if (d && !isNaN(d)) {
+    if (gran === 'day') return String(d.getDate());
+    if (gran === 'month') return MONTHS_SHORT[d.getMonth()];
+  }
+  return String(item.label || '').replace(/ [а-яё]+$/i, '');
+}
+function sliceItems() {
+  const raw = (SUM.slices && SUM.slices.length) ? SUM.slices : null;
+  if (raw) {
+    const gran = SUM.granularity || 'week';
+    return {
+      gran,
+      title: SUM.granularity_title || 'Срезы периода',
+      word: {day: 'дней', week: 'недель', month: 'месяцев'}[gran] || 'срезов',
+      items: raw.map((x) => ({
+        label: x.label, short: sliceShort(x, gran), value: kop(x.amount),
+        text: m(x.amount), start: x.start, end: x.end,
+      })),
+    };
+  }
+  const weeks = SUM.weeks || [];
+  return {
+    gran: 'week', title: 'По неделям', word: 'недель',
+    items: weeks.map((w, k) => ({
+      label: w.label, short: sliceShort(w, 'week'), value: kop(w.amount), text: m(w.amount),
+      start: w.start, end: (weeks[k + 1] && weeks[k + 1].start) || SUM.period?.end,
+    })),
+  };
+}
+
+/* --------------------------------------------------------------------------
+   Сходимость. Кейс отдельным пунктом снижает оценку за то, что недельные
+   срезы не складываются в месячный. У нас они складываются на всех уровнях
+   сразу — и это надо не рассказывать, а показывать.
+   -------------------------------------------------------------------------- */
+function convCard(sl) {
+  const total = kop(SUM.spend);
+  const own = sl.items.reduce((s, x) => s + x.value, 0);
+  const g = granDef();
+  /* Однодневный период режется на один день — говорить «сумма дней» о нём
+     бессмысленно, там складываются операции. */
+  const word = sl.items.length > 1 ? sl.word : 'операций';
+  /* Имя части («недели», «продавцы») — короткое: «недели складываются в
+     месяц» в каждой строке переносилось на две и выглядело рвано, а сам
+     факт уже сказан в заголовке карточки. */
+  const rows = (AN && AN.additivity ? AN.additivity : []).map((c) => ({
+    title: c.parts || c.title, ok: !!c.ok, count: c.parts_count, sum: kop(c.parts_total),
+  }));
+  if (!rows.length && sl.items.length > 1) {
+    rows.push({title: sl.word, ok: own === total, count: sl.items.length, sum: own});
+  }
+  /* Отдельная проверка нашими руками: сумма трат по операциям против итога,
+     который сервер посчитал по проводкам. Два независимых пути к одному
+     числу — самое честное, что можно показать. */
+  const ops = opsAll();
+  if (ops && !OPS.truncated) {
+    const osum = ops.reduce((s, o) => s + kop(o.spend), 0);
+    rows.push({title: 'операции', ok: osum === total, count: ops.length, sum: osum});
+  }
+  const allOk = own === total && rows.every((r) => r.ok);
+  const head = allOk
+    ? 'Сумма ' + word + ' в точности равна ' + g.unitTo
+    : 'Расхождение: ' + moneyK(own - total);
+  return `<div class="conv ${allOk ? '' : 'bad'}">
+    <div class="ch"><span class="icbox">${icon(allOk ? 'check' : 'warn', true)}</span>
+      <span>${esc(head)}</span></div>
+    ${rows.map((r) => `<div class="cr">
+      <span class="icbox">${icon(r.ok ? 'check' : 'warn', true)}</span>
+      <span>${esc(r.title)} · ${r.count}</span>
+      <span class="vv">${moneyK(r.sum)}</span></div>`).join('')}
+    <div class="cn">Слева — на какие части нарезан ${esc(g.unitIn)} и сколько их вышло,
+      справа — сумма этих частей. Каждая строка считается отдельным запросом к проводкам,
+      а не делением одного и того же числа: поэтому это проверка, а не иллюстрация.</div>
+  </div>`;
+}
+
+/* --------------------------------------------------------------------------
+   Провал в операции: любая цифра раскрывается до своих операций с
+   объяснением классификации и следом до файла, из которого она приехала.
+   -------------------------------------------------------------------------- */
+const KIND_RU = {
+  expense: 'трата', income: 'доход', transfer: 'перевод себе',
+  wallet_topup: 'пополнение кошелька', cash_withdrawal: 'снятие наличных',
+  cash_expense: 'наличные', debt_lend: 'дал в долг', debt_repay_in: 'мне вернули долг',
+  debt_borrow: 'занял', debt_repay_out: 'вернул долг', shared_bill: 'общий счёт',
+  reimbursement_in: 'вернули мою долю', refund: 'возврат товара',
+  adjustment: 'корректировка', unknown: 'смысл не установлен',
+};
+function opRow(o) {
+  const sp = kop(o.spend), am = kop(o.amount);
+  const src = (o.sources || [])[0];
+  const note = sp === 0 ? 'не трата'
+    : sp < 0 ? 'минус к тратам'
+      : sp === am ? 'трата целиком' : 'в тратах ' + m(o.spend);
+  return `<div class="oprow">
+    <div class="icbox">${o.category ? catIcon(o.category) : icon(sp === 0 ? 'scales' : 'coins', true)}</div>
+    <div style="flex:1;min-width:0">
+      <div class="t">${esc(o.title || 'Без названия')}</div>
+      <div class="dt">${esc(shortDate(o.occurred_at))} · ${esc(KIND_RU[o.kind] || o.kind || '')}</div>
+      ${o.explanation ? `<div class="ex">${txt(o.explanation)}</div>` : ''}
+      ${src ? `<div class="src"><span class="icbox">${icon('sheet', true)}</span>
+        <span>${esc(src.source || 'загрузка')}${src.filename ? ' · ' + esc(src.filename) : ''}</span></div>` : ''}
+    </div>
+    <div class="r"><div class="a">${m(o.amount)}</div>
+      <div class="s2 ${sp === 0 ? 'zero' : sp < 0 ? 'neg' : ''}">${esc(note)}</div></div>
+  </div>`;
+}
+
+let opsScrollY = 0;
+function closeOps() {
+  const sheet = $('opsheet');
+  if (!sheet) return;
+  sheet.remove();
+  document.body.style.overflow = '';
+  $('app').removeAttribute('inert');
+  try { tg?.enableVerticalSwipes?.(); } catch (e) {}
+  try { const b = tg?.BackButton; if (b) { b.offClick(closeOps); b.hide(); } } catch (e) {}
+  window.scrollTo(0, opsScrollY);
+  haptic('light');
+}
+function openOps(title, subtitle, list) {
+  closeOps();
+  opsScrollY = window.scrollY;
+  const spend = list.reduce((s, o) => s + kop(o.spend), 0);
+  const neutral = list.filter((o) => kop(o.spend) === 0).length;
+  const sheet = el(`<div class="sheet" id="opsheet" role="dialog" aria-modal="true" tabindex="-1">
+    <div class="wrap stack">
+      <div class="row" style="align-items:flex-start">
+        <h2>${esc(title)}</h2>
+        <button class="ghost" type="button" data-opsclose="1">Закрыть</button>
+      </div>
+      <div class="note" style="font-size:12.5px;margin-top:-6px">${txt(subtitle)}</div>
+      <div class="opsum"><span class="icbox">${icon('check', true)}</span>
+        <span>${list.length} ${plural(list.length, 'операция', 'операции', 'операций')} · в тратах</span>
+        <span class="vv">${moneyK(spend)}</span></div>
+      <div class="card">${list.length
+        ? list.map(opRow).join('')
+        : '<div class="note">Операций по этой строке за период не было.</div>'}</div>
+      ${neutral ? `<div class="note">${neutral} ${plural(neutral, 'операция', 'операции', 'операций')}
+        с пометкой «не трата»: переводы себе, долги и доли за компанию в расходы не попадают —
+        поэтому сумма операций меньше их номиналов.</div>` : ''}
+      <button class="opt done" type="button" data-opsclose="1">Понятно</button>
+    </div></div>`);
+  document.body.appendChild(sheet);
+  sheet.addEventListener('click', (e) => {
+    if (e.target.closest('[data-opsclose]')) closeOps();
+  });
+  sheet.scrollTop = 0;
+  sheet.focus({preventScroll: true});
+  document.body.style.overflow = 'hidden';
+  $('app').setAttribute('inert', '');
+  try { tg?.disableVerticalSwipes?.(); } catch (e) {}
+  try { const b = tg?.BackButton; if (b) { b.onClick(closeOps); b.show(); } } catch (e) {}
+  haptic('light');
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeOps(); });
+
+const opsAll = () => ((OPS.list && OPS.spec === periodSpec()) ? OPS.list : null);
+const normName = (s) => String(s || '').trim().toLowerCase();
+
+function drill(kind, key) {
+  const all = opsAll();
+  if (!all) {
+    openOps('Операции', 'Список операций за период не загрузился — проверьте связь и обновите экран.', []);
+    return;
+  }
+  const hint = 'Проверьте любую цифру: видно, сколько попало в траты, почему так решено и из какого файла приехала операция.';
+  if (kind === 'slice') {
+    const sl = sliceItems().items[Number(key)];
+    if (!sl) return;
+    const a = sl.start ? new Date(sl.start).getTime() : -Infinity;
+    const b = sl.end ? new Date(sl.end).getTime() : Infinity;
+    openOps(sl.label, hint, all.filter((o) => {
+      const t = new Date(o.occurred_at).getTime();
+      return t >= a && t < b;
+    }));
+    return;
+  }
+  if (kind === 'cat') {
+    const line = (SUM.categories || []).find((c) => c.code === key);
+    openOps(line ? line.title : 'Категория', hint, all.filter((o) => o.category === key));
+    return;
+  }
+  if (kind === 'merch') {
+    const k = normName(key);
+    openOps(key, hint, all.filter((o) => {
+      const t = normName(o.title);
+      return t === k || (t && k && (t.indexOf(k) >= 0 || k.indexOf(t) >= 0));
+    }));
+    return;
+  }
+  if (kind === 'wd') {
+    const idx = Number(key);
+    const line = (AN?.weekdays || []).find((w) => w.index === idx);
+    openOps(line ? line.title : 'День недели', hint, all.filter((o) => {
+      const d = new Date(o.occurred_at);
+      return !isNaN(d) && (d.getDay() + 6) % 7 === idx;
+    }));
+    return;
+  }
+  if (kind === 'all') {
+    openOps(SUM.period?.label || 'Период',
+      'Все операции периода, включая те, что не попадают в траты. ' + hint, all);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Сам экран
+   -------------------------------------------------------------------------- */
 function viewReports() {
   const d = SUM;
+  const g = granDef();
   const cats = d.categories || [];
-  const weeks = d.weeks || [];
-  const wsum = weeks.reduce((s, w) => s + kop(w.amount), 0);
-  const peak = Math.max(1, ...weeks.map((w) => kop(w.amount)));
   const maxCat = Math.max(1, ...cats.map((c) => kop(c.amount)));
   const deltaUp = kop(d.spend_delta) > 0;
   const optShare = kop(d.spend) ? Math.round(kop(d.optional) / kop(d.spend) * 100) : 0;
+  const sl = sliceItems();
+  const ops = opsAll();
+  const empty = kop(d.spend) === 0 && !(d.operations_count || 0);
 
   let html = banners();
+  html += periodCard();
 
+  if (empty) {
+    html += `<div class="empty">
+      <div class="icbox">${icon('cal', true)}</div>
+      <div class="t">За ${esc(d.period?.label || 'этот период')} операций нет</div>
+      <div class="d">Это не ошибка и не ноль «на всякий случай»: за выбранный период в книге
+        действительно ничего не проведено. Стрелка «&lsaquo;» листает назад,
+        а кнопка ниже вернёт к месяцу целиком.</div>
+      <button class="opt done" type="button" data-gran="month" style="margin-top:12px">Показать месяц</button>
+    </div>`;
+    html += `<div class="foot">Пустой период — тоже честный ответ. Выдуманных чисел здесь не бывает.</div>`;
+    return html;
+  }
+
+  /* --- итог периода --- */
+  const apd = d.streak?.actions_per_day;
   html += `<div class="card">
     <div class="h"><h2>Потрачено · ${esc(d.period?.label || '')}</h2><span class="sp"></span>
       <span class="tag">${d.operations_count || 0} ${plural(d.operations_count || 0, 'операция', 'операции', 'операций')}</span></div>
@@ -1827,56 +2651,169 @@ function viewReports() {
         ? ' · ' + Math.abs(d.spend_delta_pct).toFixed(0) + '%' : ''}</div>
       <div class="sub">получено ${m(d.income)}</div>
     </div>
-    <div class="need">
-      <div class="a"><div class="k">Так было надо</div><div class="v">${m(d.essential)}</div></div>
-      <div class="b"><div class="k">Можно было не (${optShare}%)</div><div class="v">${m(d.optional)}</div></div>
+    <div class="donutrow">
+      ${svgDonut(kop(d.essential), kop(d.spend))}
+      <div class="dl">
+        <div class="dr"><span class="sw a"></span>Так было надо<b>${m(d.essential)}</b></div>
+        <div class="dr"><span class="sw b"></span>Можно было не (${optShare}%)<b>${m(d.optional)}</b></div>
+        <div class="dr"><span class="sw" style="background:var(--card-2)"></span>В среднем в день<b>${m(d.avg_per_day)}</b></div>
+      </div>
     </div>
-    <div class="note" style="margin-top:11px">В среднем ${m(d.avg_per_day)} в день. В прошлом периоде было ${m(d.prev_spend)}.</div>
+    <div class="note" style="margin-top:11px">Предыдущий период${d.prev_period?.label
+      ? ' (' + esc(d.prev_period.label) + ')' : ''} — ${m(d.prev_spend)}.
+      ${apd ? 'Действий в приложении: ' + dec2(apd) + ' в день — это измерено по журналу, а не обещано.' : ''}</div>
+    <button class="opt" type="button" data-drill="all" style="margin-top:12px">Показать все операции периода</button>
   </div>`;
 
-  html += `<div class="card">
-    <div class="h"><h2>По неделям</h2><span class="sp"></span>
-      <span class="tag">${weeks.length} ${plural(weeks.length, 'срез', 'среза', 'срезов')}</span></div>
-    <div class="weeks">${weeks.map((w) => {
-      const v = kop(w.amount);
-      const h = v > 0 ? Math.max(8, Math.round(v / peak * 86)) : 4;
-      return `<div class="wk">
-        <div class="wv">${v > 0 ? num(Math.round(v / 100000)) + 'к' : '—'}</div>
-        <div class="bar ${v === peak && v > 0 ? 'max' : ''} ${v === 0 ? 'zero' : ''}" data-h="${h}px"></div>
-        <div class="lb">${esc(String(w.label).replace(/ [а-яё]+$/i, ''))}</div></div>`;
-    }).join('')}</div>
-    <div class="wcheck ${wsum === kop(d.spend) ? 'ok' : 'bad'}">
-      <span class="icbox">${icon(wsum === kop(d.spend) ? 'check' : 'warn', true)}</span>
-      <span>${wsum === kop(d.spend)
-        ? 'Сумма недель в точности равна месяцу'
-        : 'Расхождение: ' + money((wsum - kop(d.spend)) / 100)}</span></div>
-  </div>`;
+  /* --- срезы периода + сходимость --- */
+  if (sl.items.length > 1) {
+    html += `<div class="card">
+      <div class="h"><h2>${esc(sl.title)}</h2><span class="sp"></span>
+        <span class="tag">${sl.items.length} ${plural(sl.items.length, 'срез', 'среза', 'срезов')}</span></div>
+      ${svgBars(sl.items, {alt: sl.title, drill: 'slice'})}
+      <div class="chartnote">Нажмите на столбец — покажу операции этого среза.</div>
+      ${convCard(sl)}
+    </div>`;
+  } else if (ops && ops.length) {
+    html += `<div class="card">
+      <div class="h"><h2>Операции ${esc(g.tail === 'дня' ? 'дня' : 'периода')}</h2><span class="sp"></span>
+        <span class="tag">${ops.length}</span></div>
+      ${ops.slice(0, 12).map(opRow).join('')}
+      ${convCard(sl)}
+    </div>`;
+  }
 
-  html += `<div class="card">
-    <div class="h"><h2>Куда ушли деньги</h2><span class="sp"></span>
-      <span class="tag">${cats.length} ${plural(cats.length, 'категория', 'категории', 'категорий')}</span></div>
-    <div>${cats.map((c) => {
-      const up = c.delta_pct !== null && c.delta_pct !== undefined && c.delta_pct > 0;
-      const down = c.delta_pct !== null && c.delta_pct !== undefined && c.delta_pct < 0;
-      const showDelta = c.delta_pct !== null && c.delta_pct !== undefined && Math.abs(c.delta_pct) >= 5;
-      return `<div class="catrow">
-        <div class="icbox">${catIcon(c.code)}</div>
-        <div style="flex:1;min-width:0">
-          <div class="n">${esc(c.title)} <span>${Math.round((c.share || 0) * 100)}%${c.essential ? ' · обяз.' : ''}</span></div>
-          <div class="tr"><i data-w="${Math.max(5, Math.round(kop(c.amount) / maxCat * 100))}%"
-            style="background:${c.essential ? 'var(--green)' : 'var(--coral)'}"></i></div>
-        </div>
-        <div class="r"><div class="v">${m(c.amount)}</div>
-          <div class="d ${up ? 'up' : down ? 'down' : ''}">${showDelta
-            ? '<span class="icbox">' + icon(up ? 'up' : 'down', true) + '</span>' + Math.abs(c.delta_pct).toFixed(0) + '%'
-            : 'как в прошлом'}</div></div>
-      </div>`;
-    }).join('')}</div>
-    <div class="note" style="margin-top:9px">Зелёным — обязательные траты, коралловым — те, от которых можно отказаться.</div>
-  </div>`;
+  /* --- категории --- */
+  if (cats.length) {
+    html += `<div class="card">
+      <div class="h"><h2>Куда ушли деньги</h2><span class="sp"></span>
+        <span class="tag">${cats.length} ${plural(cats.length, 'категория', 'категории', 'категорий')}</span></div>
+      <div>${cats.map((c) => {
+        const up = c.delta_pct !== null && c.delta_pct !== undefined && c.delta_pct > 0;
+        const down = c.delta_pct !== null && c.delta_pct !== undefined && c.delta_pct < 0;
+        const showDelta = c.delta_pct !== null && c.delta_pct !== undefined && Math.abs(c.delta_pct) >= 5;
+        return `<div class="catrow" data-drill="cat" data-key="${esc(c.code)}" style="cursor:pointer">
+          <div class="icbox">${catIcon(c.code)}</div>
+          <div style="flex:1;min-width:0">
+            <div class="n">${esc(c.title)} <span>${Math.round((c.share || 0) * 100)}%${c.essential ? ' · обяз.' : ''}</span></div>
+            <div class="tr"><i data-w="${Math.max(5, Math.round(kop(c.amount) / maxCat * 100))}%"
+              style="background:${c.essential ? 'var(--green)' : 'var(--coral)'}"></i></div>
+          </div>
+          <div class="r"><div class="v">${m(c.amount)}</div>
+            <div class="d ${up ? 'up' : down ? 'down' : ''}">${showDelta
+              ? '<span class="icbox">' + icon(up ? 'up' : 'down', true) + '</span>' + Math.abs(c.delta_pct).toFixed(0) + '%'
+              : 'как в прошлом'}</div></div>
+        </div>`;
+      }).join('')}</div>
+      <div class="note" style="margin-top:9px">Зелёным — обязательные траты, коралловым — те, от которых
+        можно отказаться. Нажмите на категорию, чтобы увидеть её операции.</div>
+    </div>`;
+  }
 
-  /* Кошелёк маркетплейса: показываем, что деньги не «ушли в Озон»,
-     а разложились по настоящим полкам. */
+  /* --- что выросло, что упало --- */
+  if (AN && ((AN.grew || []).length || (AN.fell || []).length)) {
+    const chip = (c, dir) => `<span class="chip ${dir}">
+      <span class="icbox">${icon(dir === 'up' ? 'up' : 'down', true)}</span>
+      ${esc(c.title)} ${c.delta_pct === null || c.delta_pct === undefined
+        ? esc(c.direction === 'new' ? 'впервые' : 'пропало')
+        : (c.delta_pct > 0 ? '+' : '') + Math.round(c.delta_pct) + '%'}</span>`;
+    html += `<div class="card">
+      <div class="h"><h2>Что изменилось</h2><span class="sp"></span>
+        <span class="tag">к ${esc(AN.prev_period?.label || 'прошлому периоду')}</span></div>
+      <div class="twocol">
+        <div><div class="ct">Выросло</div>
+          <div class="chips">${(AN.grew || []).slice(0, 6).map((c) => chip(c, 'up')).join('') || '<span class="note">ничего</span>'}</div></div>
+        <div><div class="ct">Упало</div>
+          <div class="chips">${(AN.fell || []).slice(0, 6).map((c) => chip(c, 'down')).join('') || '<span class="note">ничего</span>'}</div></div>
+      </div>
+      <div class="note" style="margin-top:10px">Сравнение идёт с предыдущим периодом такой же длины,
+        а для календарного месяца — с календарным же прошлым месяцем.</div>
+    </div>`;
+  }
+
+  /* --- топ продавцов --- */
+  const merch = (AN && AN.top_merchants) || [];
+  if (merch.length) {
+    const topAmt = Math.max(1, ...merch.map((x) => kop(x.amount)));
+    html += `<div class="card">
+      <div class="h"><h2>Где оставлены деньги</h2><span class="sp"></span>
+        <span class="tag">${AN.merchants_total || merch.length} ${plural(AN.merchants_total || merch.length, 'продавец', 'продавца', 'продавцов')}</span></div>
+      ${merch.slice(0, 8).map((x, k) => `<button class="mrow" type="button"
+        data-drill="merch" data-key="${esc(x.name)}">
+        <span class="rk">${k + 1}</span>
+        <span class="ic2 icbox">${x.category ? catIcon(x.category) : icon('coins', true)}</span>
+        <span style="flex:1;min-width:0">
+          <span class="nm">${esc(x.name)}</span>
+          <span class="sb">${esc(x.category_title || 'без категории')} · средний чек ${m(x.average)}</span>
+          <span class="tr"><i data-w="${Math.max(4, Math.round(kop(x.amount) / topAmt * 100))}%"></i></span>
+        </span>
+        <span class="r"><span class="vv">${m(x.amount)}</span>
+          <span class="cc">${x.count} ${plural(x.count, 'раз', 'раза', 'раз')}</span></span>
+      </button>`).join('')}
+      <div class="note" style="margin-top:9px">Это не «топ по мнению системы», а полное разложение той же
+        суммы: продавцы складываются в итог периода. Возврат уменьшает сумму именно у своего продавца.</div>
+    </div>`;
+  }
+
+  /* --- дни недели --- */
+  const wd = (AN && AN.weekdays) || [];
+  if (wd.length === 7 && wd.some((x) => kop(x.amount))) {
+    const peak = AN.peak_weekday;
+    html += `<div class="card">
+      <div class="h"><h2>По дням недели</h2><span class="sp"></span>
+        ${peak ? `<span class="tag c">дороже всего ${esc(peak.title.toLowerCase())}</span>` : ''}</div>
+      ${svgBars(wd.map((x) => ({
+        label: x.title, short: x.short, value: kop(x.amount), text: m(x.amount), key: x.index,
+      })), {alt: 'Траты по дням недели', drill: 'wd', height: 124, hot: true})}
+      <div class="chartnote">Среднее считается делением на число таких дней в периоде, а не на семь:
+        иначе пятница «дороже» просто потому, что её в месяце пять.${peak
+        ? ' В ' + esc(peak.title.toLowerCase()) + ' в среднем ' + m(peak.avg_per_day) + ' за день.' : ''}</div>
+    </div>`;
+  }
+
+  /* --- средний чек --- */
+  const checks = (AN && AN.average_checks) || [];
+  if (checks.length) {
+    html += `<div class="card">
+      <div class="h"><h2>Средний чек</h2><span class="sp"></span>
+        <span class="tag">${checks.length} ${plural(checks.length, 'категория', 'категории', 'категорий')}</span></div>
+      ${checks.slice(0, 6).map((c) => `<button class="mrow" type="button"
+        data-drill="cat" data-key="${esc(c.code)}">
+        <span class="ic2 icbox">${catIcon(c.code)}</span>
+        <span style="flex:1;min-width:0">
+          <span class="nm">${esc(c.title)}</span>
+          <span class="sb">${c.count} ${plural(c.count, 'покупка', 'покупки', 'покупок')} на ${m(c.amount)} · крупнейшая ${m(c.biggest)}</span>
+        </span>
+        <span class="r"><span class="vv">${m(c.average)}</span><span class="cc">в среднем</span></span>
+      </button>`).join('')}
+      <div class="note" style="margin-top:9px">По одной покупке разница незаметна, за период — видна.</div>
+    </div>`;
+  }
+
+  /* --- подписки --- */
+  const subs = (AN && AN.subscriptions) || [];
+  if (subs.length) {
+    html += `<div class="card">
+      <div class="h"><h2>Регулярные списания</h2><span class="sp"></span>
+        <span class="tag c">${subs.length} ${plural(subs.length, 'подписка', 'подписки', 'подписок')}</span></div>
+      ${subs.map((x) => `<div class="subrow">
+        <span class="icbox">${x.category ? catIcon(x.category) : icon('clock', true)}</span>
+        <span style="flex:1;min-width:0">
+          <span class="nm">${esc(x.label)}</span>
+          <span class="sb">${esc(x.category_title || 'без категории')} · раз в ${x.period_days} ${plural(x.period_days, 'день', 'дня', 'дней')}${
+            x.next_charge_at ? ' · следующее ' + esc(fmtDeadline(x.next_charge_at)) : ''}</span>
+        </span>
+        <span class="r"><span class="vv">${m(x.monthly)}</span><span class="yy">${m(x.yearly)} в год</span></span>
+      </div>`).join('')}
+      <div class="subtot"><span class="icbox">${icon('warn', true)}</span>
+        <span>Списывается само: ${m(AN.subscriptions_monthly)} в месяц</span>
+        <span class="vv">${m(AN.subscriptions_yearly)} в год</span></div>
+      <div class="note" style="margin-top:9px">Подписки находятся по повторяющимся спискам одной и той же
+        суммы у одного и того же получателя — их и не замечают именно потому, что они списываются сами.</div>
+    </div>`;
+  }
+
+  /* --- кошельки маркетплейсов --- */
   const wallets = d.wallets || [];
   if (wallets.length) {
     html += `<div class="card">
@@ -1890,11 +2827,34 @@ function viewReports() {
         <div class="rest"><span class="icbox">${icon('coins', true)}</span>
           <span>остаток на кошельке</span><span class="vv">${m(w.balance)}</span></div>
       </div>`).join('')}
-      <div class="note" style="margin-top:10px">Пополнение кошелька — не трата: тратой оно становится, когда с кошелька что-то купили.</div>
+      <div class="note" style="margin-top:10px">Пополнение кошелька — не трата: тратой оно становится,
+        когда с кошелька что-то купили.</div>
     </div>`;
   }
 
-  /* Долги и остатки */
+  /* --- прогноз до конца периода --- */
+  const f = d.forecast;
+  if (f && f.show) {
+    const racePct = Math.max(2, Math.min(100, Math.round(f.days_passed / Math.max(1, f.days_total) * 100)));
+    html += `<div class="race">
+      <div class="h"><h2>Забег до конца ${esc(g.tail)}</h2><span class="sp"></span>
+        <span class="tag">день ${f.days_passed} из ${f.days_total}</span></div>
+      <div class="cap">Если темп не изменится, к концу периода будет</div>
+      <div class="big">${m(f.projected)}</div>
+      <div class="lane">
+        <div class="fill" id="raceFill"></div>
+        <div class="pin" id="racePin">${COIN_SVG}</div>
+        <span class="flag">${icon('flag', true)}</span>
+      </div>
+      <div class="race-foot">
+        <div><div class="k">Осталось потратить</div><div class="v">${m(f.remaining)}</div></div>
+        <div><div class="k">Это по</div><div class="v">${m(f.daily_rate)}<span style="font-size:11px;color:var(--hint)"> / день</span></div></div>
+      </div>
+      <input type="hidden" id="racePct" value="${racePct}">
+    </div>`;
+  }
+
+  /* --- долги и остатки --- */
   const owed = kop(d.debts_owed_to_me), iOwe = kop(d.debts_i_owe);
   const balances = d.balances || {};
   const bKeys = Object.keys(balances);
@@ -1913,12 +2873,13 @@ function viewReports() {
     </div>`;
   }
 
+  /* --- советы --- */
   const tips = d.insights || [];
   if (tips.length) {
     const saved = tips.reduce((s, t) => s + kop(t.saving), 0);
     html += `<div class="card">
       <div class="h"><h2>Советы Гроша</h2><span class="sp"></span>
-        ${saved ? `<span class="tag g">до −${money(saved / 100)}</span>` : ''}</div>
+        ${saved ? `<span class="tag g">до −${moneyK(saved)}</span>` : ''}</div>
       ${tips.map((t, i) => `<div class="tipcard ${i === 0 ? 'lead' : ''}">
         <div class="icbox">${icon(i === 0 ? 'bulb' : t.saving ? 'coins' : 'gem', true)}</div>
         <div><div class="t">${txt(t.title)}</div><div class="d">${txt(t.detail)}</div>
@@ -1926,7 +2887,13 @@ function viewReports() {
     </div>`;
   }
 
-  html += `<div class="foot">Все цифры посчитаны по вашим операциям. Переводы себе, долги<br>и доли за компанию в расходы не попадают.</div>`;
+  if (!AN && !(SUM && SUM.offline)) {
+    html += `<div class="note" style="margin-bottom:14px">Разрезы по продавцам, дням недели и подпискам
+      подтянутся, как только ответит /me/analytics. Итоги и срезы выше от него не зависят.</div>`;
+  }
+
+  html += `<div class="foot">Все цифры посчитаны по вашим операциям. Переводы себе, долги<br>и доли
+    за компанию в расходы не попадают.</div>`;
   return html;
 }
 
@@ -1963,7 +2930,7 @@ function viewQuestions() {
       </div>
       <div class="mascotbox">
         <div class="bubble" id="bubble">${bubbleText()}</div>
-        <button class="mas-tap" id="masTap" type="button" aria-label="Потрогать Гроша">${MASCOT('ask')}</button>
+        <button class="mas-tap" id="masTap" type="button" aria-label="Потрогать Гроша">${MASCOT('ask', mood('questions'))}</button>
       </div>
     </div>
     <div class="hero-foot">
@@ -2056,7 +3023,7 @@ async function answer(q, wrap, btn) {
   haptic('medium');
   btn.classList.add('picked');
   wrap.querySelectorAll('.ans').forEach((b) => { b.disabled = true; });
-  setMascot('party');
+  setMood('hype', 0);
   flashStreak();
 
   if (SUM.offline) {
@@ -2066,7 +3033,7 @@ async function answer(q, wrap, btn) {
     wrap.querySelectorAll('.ans').forEach((b) => { b.disabled = false; });
     btn.classList.remove('picked');
     busyAnswer = false;
-    setTimeout(() => setMascot(autoMascot()), 1200);
+    setTimeout(clearMood, 1200);
     return;
   }
 
@@ -2091,8 +3058,10 @@ async function answer(q, wrap, btn) {
           : 'Красота — всё объяснили. Понятно <b>' + out.awareness_percent + '%</b>.');
         /* Тихо подтягиваем свежие цифры: XP, категории и тропа обязаны
            сойтись с тем, что теперь в базе. */
+        /* Реакция по делу: очередь опустела — праздник, остались вопросы —
+           короткий всплеск и снова рабочее настроение. */
+        setMood(left ? 'hype' : 'party', left ? 1700 : 3200);
         await refresh(true, true);
-        setTimeout(() => setMascot(autoMascot()), 1200);
       }, 460);
     }, 300);
   } catch (e) {
@@ -2108,6 +3077,7 @@ async function answer(q, wrap, btn) {
 async function skipQuestion(q, wrap) {
   if (busyAnswer) return;
   haptic('light');
+  setMood('think', 1600);
   if (SUM.offline) { qerror(wrap, 'Демонстрационный режим: откладывать нечего.'); return; }
   busyAnswer = true;
   try {
@@ -2147,11 +3117,12 @@ function viewAwards() {
   const got = achs.filter((a) => a.earned).length;
 
   let html = banners();
+  html += routeBlock();
 
   if (lvl) {
     html += `<div class="lvlcard">
       <div class="top">
-        <button class="mas-tap" id="masTap" type="button" aria-label="Потрогать Гроша">${MASCOT('cup')}</button>
+        <button class="mas-tap" id="masTap" type="button" aria-label="Потрогать Гроша">${MASCOT('cup', mood('awards'))}</button>
         <div style="min-width:0">
           <div class="num">${lvl.number}<span> уровень</span></div>
           <div class="ttl">${esc(lvl.title)}</div>
@@ -2210,6 +3181,27 @@ function viewAwards() {
         ${!a.earned && a.progress > 0 ? `<span class="mini"><i data-w="${pct01(a.progress)}%"></i></span>` : ''}
       </button>`).join('')}</div>
     <div id="achNote"></div>
+  </div>`;
+
+  /* Витрина маскота. Она же объяснение: анимация — индикатор, а не
+     украшение. Каждая карточка включает своё состояние на живом Гроше,
+     долгое нажатие на самого Гроша перебирает их по кругу. */
+  html += `<div class="card">
+    <div class="h"><h2>Настроения Гроша</h2><span class="sp"></span>
+      <span class="tag">6 состояний</span></div>
+    <div class="moods">${MOOD_INFO.map((x, k) => `
+      <button class="moodcell" type="button" data-mood="${x.s}">
+        <span class="mbox">${MASCOT('mood' + k, x.s, true)}</span>
+        <span class="mn">${esc(x.n)}</span>
+        <span class="md">${esc(x.d)}</span>
+      </button>`).join('')}</div>
+    <div class="moodbar reward" style="margin-top:12px">
+      <span class="icbox">${icon('star', true)}</span>
+      <span class="rn">Сейчас Грош: <b id="moodNow">—</b></span>
+    </div>
+    <div class="note" style="margin-top:10px">Состояние выбирается по вашим числам: неразобранные
+      деньги — озадачен, сорванная серия — грустит, пустая очередь — праздник. Нажмите на карточку,
+      чтобы примерить состояние, или задержите палец на самом Гроше — он переберёт все шесть.</div>
   </div>`;
 
   html += `<div class="foot">Достижения не выдаются «за красивые глаза»: каждое выводится<br>из ваших операций и серии. Нечего показать — значит, ещё не заработано.</div>`;
@@ -2369,7 +3361,7 @@ async function sendCash(text) {
     return;
   }
   busyUpload = true;
-  setMascot('think');
+  setMood('think', 0);
   istatus('wait', 'Записываю «' + esc(text) + '»…');
   iprog(0.4);
   try {
@@ -2399,7 +3391,7 @@ async function runUpload(path, form, waitLabel, what) {
     return;
   }
   busyUpload = true;
-  setMascot('think');
+  setMood('think', 0);
   istatus('wait', waitLabel);
   iprog(0.03);
   try {
@@ -2460,14 +3452,19 @@ function render(focusId) {
   if (TAB === 'month') {
     bindIntake();
     if (lastStatus) istatus(lastStatus.kind, lastStatus.html);
+  }
+  if (TAB === 'questions') renderQueue(focusId);
+  if (TAB === 'awards') {
+    bindAwards();
     renderPath();
     if (routeRO && $('route')) { try { routeRO.observe($('route')); } catch (e) {} }
   }
-  if (TAB === 'questions') renderQueue(focusId);
-  if (TAB === 'awards') bindAwards();
 
-  const mt = $('masTap');
-  if (mt && TAB !== 'month') mt.onclick = tapMascot;
+  // Гроша на тропе рисует renderPath и вешает обработчик сам; здесь —
+  // тот Грош, что стоит в герое или в карточке уровня.
+  bindMascotButton($('masTap'));
+
+  paintMood();
 
   requestAnimationFrame(() => {
     if ($('arc')) setAwareness(SUM.awareness?.percent || 0, true);
@@ -2497,6 +3494,24 @@ function go(tab, focusId) {
 document.querySelectorAll('.nav button').forEach((b) => {
   b.addEventListener('click', () => go(b.dataset.tab));
 });
+
+/* Переключатель периода, провалы в операции и примерка настроений живут
+   внутри перерисовываемой разметки — вешать обработчики поимённо после
+   каждого render() значит однажды забыть. Один делегат на документ. */
+document.addEventListener('click', (e) => {
+  const t = e.target;
+  if (!t || typeof t.closest !== 'function') return;
+  const gran = t.closest('[data-gran]');
+  if (gran) { applyPeriod(gran.dataset.gran, 0); return; }
+  const step = t.closest('[data-pstep]');
+  if (step) { stepPeriod(Number(step.dataset.pstep)); return; }
+  const dr = t.closest('[data-drill]');
+  if (dr) { drill(dr.dataset.drill, dr.dataset.key); return; }
+  const md = t.closest('[data-mood]');
+  if (md) { cycleMood(md.dataset.mood); return; }
+  if (t.closest('[data-moodnext]')) { cycleMood(); return; }
+  if (t.closest('[data-moodoff]')) { stopMoodDemo(); }
+});
 /* иконки в статической разметке подставляем один раз */
 document.querySelectorAll('[data-ic]').forEach((n) => { n.innerHTML = icon(n.dataset.ic, true); });
 
@@ -2521,11 +3536,27 @@ function adoptGame(g, d) {
    посреди ответа на вопрос заново проигрывала бы весь каскад карточек. */
 async function refresh(silent, quiet) {
   try {
-    const d = await api('/me/summary?period=auto');
+    const spec = periodSpec();
+    /* Четыре запроса разом, а не по очереди: смена периода обязана быть
+       мгновенной. Итоги — обязательные, остальное — по возможности. */
+    const wantSummary = api('/me/summary?period=' + encodeURIComponent(spec));
+    /* Геймификация считается по текущему месяцу и от выбранного периода не
+       зависит: уровень, задания и тропа — про привычку, а не про отчёт. */
+    const wantGame = api('/me/game?period=auto').catch(() => null);
+    const wantAnalytics = api('/me/analytics?period=' + encodeURIComponent(spec)).catch(() => null);
+    const wantOps = api('/me/operations?period=' + encodeURIComponent(spec)
+      + '&limit=' + OPS_LIMIT + '&with_sources=true').catch(() => null);
+    const d = await wantSummary;
     SUM = d;
     netError = '';
-    let g = null;
-    try { g = await api('/me/game?period=auto'); } catch (e) { g = null; }
+    const g = await wantGame;
+    AN = await wantAnalytics;
+    const list = await wantOps;
+    OPS = {
+      spec,
+      list: Array.isArray(list) ? list : null,
+      truncated: Array.isArray(list) && list.length >= OPS_LIMIT,
+    };
     const prevXp = GAME && GAME.level ? GAME.level.xp : lastXp;
     GAME = adoptGame(g, d);
     if (GAME.level) {
@@ -2560,6 +3591,12 @@ async function load() {
     console.warn('API недоступен, показываю демонстрационные данные:', e.message);
     SUM = FALLBACK;
     GAME = adoptGame(FALLBACK.game, FALLBACK);
+    /* Запасной набор — один месяц. Показывать при нём переключатель
+       рабочим значило бы обещать то, чего без API не будет. */
+    AN = null;
+    OPS = {spec: null, list: null, truncated: false};
+    PERIOD = {gran: 'month', back: 0};
+    savePeriod();
     netError = '';
     render();
   }

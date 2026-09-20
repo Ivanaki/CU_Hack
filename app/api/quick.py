@@ -4,11 +4,19 @@
 
 Аутентификация третья по счёту. Mini App приходит с подписью Telegram,
 служебная заливка — с ключом от нашего же сервиса. Быстрая команда живёт
-на телефоне владельца: подписать initData ей нечем, поэтому она носит тот
-же служебный ключ. Но после тапа команда открывает веб-страницу с
-карточкой, а отдавать служебный ключ в браузер нельзя — по нему пишут
-данные любому пользователю. Поэтому ответ несёт короткоживущий токен:
-подписан тем же ключом, привязан к одному tg_id, живёт полчаса.
+на телефоне владельца: подписать initData ей нечем, поэтому она носит
+личную ссылку человека — тот же `X-Upload-Token`, что и загрузка файлов.
+
+Служебный ключ на телефоне лежать не должен, и раньше это было ошибкой:
+инструкция велела вшить в команду `INGEST_API_KEY`, а он открывает запись
+в книгу **любого** пользователя. Один показанный другу телефон — и
+обещание «посторонний не зальёт операции в чужую книгу» переставало
+действовать для всех сразу, потому что отзывать пришлось бы общий ключ.
+Личную ссылку человек отзывает сам, одной кнопкой, и только свою.
+
+После тапа команда открывает веб-страницу с карточкой, а отдавать секрет
+в браузер нельзя. Поэтому ответ несёт короткоживущий токен: подписан
+секретом сервера, привязан к одному tg_id, живёт полчаса.
 
 Формы ответов тоже свои. Виджету нужен не полный отчёт на сорок полей, а
 одна карточка, у которой все строки уже отформатированы: Shortcuts умеет
@@ -38,7 +46,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.analytics.periods import Period
-from app.api.auth import db_session
+from app.api.auth import db_session, same_secret
 from app.config import Settings, get_settings
 from app.models import User, fmt_money
 from app.service import (
@@ -50,6 +58,7 @@ from app.service import (
     latest_data_month,
     open_questions,
     report_for,
+    user_by_upload_token,
 )
 
 log = logging.getLogger(__name__)
@@ -104,7 +113,9 @@ def read_token(token: str, secret: str) -> int:
     if len(parts) != 3:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "испорченный токен")
     body = f"{parts[0]}.{parts[1]}"
-    if not hmac.compare_digest(_sign(body, secret), parts[2]):
+    # Подпись пришла из адреса: сравниваем байтами, иначе неASCII-символ
+    # в ней даёт 500 вместо честного «токен не тот».
+    if not same_secret(parts[2], _sign(body, secret)):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "подпись токена не сходится")
     if not parts[0].isdigit() or not parts[1].isdigit():
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "испорченный токен")
@@ -114,6 +125,7 @@ def read_token(token: str, secret: str) -> int:
 
 
 def _secret(settings: Settings) -> str:
+    """Служебный ключ. Им подписан пропуск на карточку и по нему пишут за других."""
     if not settings.ingest_api_key:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, "виджет выключен: не задан INGEST_API_KEY"
@@ -121,18 +133,40 @@ def _secret(settings: Settings) -> str:
     return settings.ingest_api_key
 
 
+def _card_secret(settings: Settings) -> str:
+    """Чем подписан пропуск на карточку.
+
+    Отдельно от служебного ключа: команда на телефоне теперь ходит по
+    личной ссылке человека, и требовать при этом заданный INGEST_API_KEY
+    незачем — служебного пути в таком запросе нет вовсе. Подпись всё
+    равно нужна, поэтому берём любой стабильный секрет сервера.
+    """
+    secret = settings.ingest_api_key or settings.bot_token or settings.upload_api_key
+    if not secret:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "виджет выключен: нечем подписать карточку, задайте BOT_TOKEN или INGEST_API_KEY",
+        )
+    return secret
+
+
 def widget_user(
     tg_id: int | None = Query(default=None, description="Telegram id, если идём по ключу"),
     t: str = Query(default="", description="токен карточки, выданный после тапа"),
     x_api_key: str = Header(default="", alias="X-API-Key"),
+    x_upload_token: str = Header(default="", alias="X-Upload-Token"),
     session: Session = Depends(db_session),
     settings: Settings = Depends(get_settings),
 ) -> User:
-    """Пользователь виджета: либо служебный ключ + tg_id, либо токен карточки."""
-    secret = _secret(settings)
+    """Пользователь виджета: пропуск карточки, личная ссылка или служебный ключ."""
     if t:
-        return get_or_create_user(session, read_token(t, secret))
-    if not hmac.compare_digest(x_api_key, secret):
+        return get_or_create_user(session, read_token(t, _card_secret(settings)))
+    if x_upload_token.strip():
+        user = user_by_upload_token(session, x_upload_token)
+        if user is None:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "ссылка не опознана")
+        return user
+    if not same_secret(x_api_key, _secret(settings)):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "нужен X-API-Key или токен карточки")
     if tg_id is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "по ключу нужен tg_id")
@@ -200,7 +234,7 @@ def build_card(
 
     spent = fmt_money(report.spend_total)
     awareness = report.awareness.percent
-    token = make_token(user.tg_id, _secret(settings))
+    token = make_token(user.tg_id, _card_secret(settings))
 
     # Одна готовая строка для «Показать уведомление»: если карточку не
     # открывать, человек всё равно видит итог тапа.
@@ -247,7 +281,10 @@ def build_card(
 
 
 class TapIn(BaseModel):
-    tg_id: int
+    # Не обязателен: по личной ссылке человек уже опознан, и присланный
+    # tg_id тогда ничего не решает — иначе командой одного человека можно
+    # было бы писать в книгу другого.
+    tg_id: int | None = None
     # Продиктованное. Пусто — человек просто открыл виджет посмотреть.
     text: str = Field(default="", max_length=200, examples=["кофе 300"])
     display_name: str = ""
@@ -260,6 +297,7 @@ def tap(
     session: Session = Depends(db_session),
     settings: Settings = Depends(get_settings),
     x_api_key: str = Header(default="", alias="X-API-Key"),
+    x_upload_token: str = Header(default="", alias="X-Upload-Token"),
 ) -> dict:
     """Единственный запрос, который делает быстрая команда.
 
@@ -267,17 +305,37 @@ def tap(
     и в счётчик действий он не попадает. Метрика «действий в день» считает
     то, чего инструмент требует от человека, а посмотреть на цифры человек
     приходит сам — засчитывать это себе в требуемые действия нечестно.
-    """
-    if not hmac.compare_digest(x_api_key, _secret(settings)):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "неверный X-API-Key")
 
-    user = get_or_create_user(session, payload.tg_id, payload.display_name)
+    Опознание — по личной ссылке человека (`X-Upload-Token`), той же, что
+    у загрузки файлов. Раньше команда носила служебный ключ, и это
+    сводило на нет весь смысл личных ссылок: тот же ключ открывает запись
+    в книгу **любого** пользователя, а живёт он на телефоне, который
+    показывают друзьям и отдают в сервис. Служебный путь остался нашему
+    серверному коду — по нему пишут за другого осознанно.
+    """
+    token = x_upload_token.strip()
+    if token:
+        user = user_by_upload_token(session, token)
+        if user is None:
+            log.warning("тап виджета с непризнанной ссылкой отклонён")
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "ссылка не опознана")
+        if payload.tg_id is not None and payload.tg_id != user.tg_id:
+            # Чужой id в теле по личной ссылке — либо старая команда, либо
+            # попытка записать соседу. И то и другое просто игнорируем.
+            log.warning("tg_id %s в тапе по личной ссылке — игнорирую", payload.tg_id)
+    elif same_secret(x_api_key, _secret(settings)):
+        if payload.tg_id is None:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "по служебному ключу нужен tg_id")
+        user = get_or_create_user(session, payload.tg_id, payload.display_name)
+    else:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "нужна личная ссылка или X-API-Key")
+
     said = (payload.text or "").strip()
     headline = ""
     error = ""
 
     if said.lower().strip(" .,!?") not in _NOTHING:
-        row, outcome = add_quick_expense(session, user, said)
+        row, outcome = add_quick_expense(session, user, said, channel="shortcut")
         if row is None:
             error = outcome.error
             headline = f"Не разобрал: «{said}»"
@@ -287,7 +345,7 @@ def tap(
     card = build_card(session, user, request=request, settings=settings, headline=headline)
     card["said"] = said
     card["error"] = error
-    log.info("тап виджета от %s: %s", payload.tg_id, error or headline or "просмотр")
+    log.info("тап виджета от %s: %s", user.tg_id, error or headline or "просмотр")
     return card
 
 

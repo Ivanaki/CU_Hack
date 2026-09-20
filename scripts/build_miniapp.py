@@ -23,10 +23,14 @@ from sqlalchemy import select  # noqa: E402
 
 from app.analytics import insights as insights_mod  # noqa: E402
 from app.analytics import reports as reports_mod  # noqa: E402
-from app.analytics.periods import month, split_into_weeks  # noqa: E402
+from app.analytics.periods import (  # noqa: E402
+    GRANULARITY_TITLE,
+    month,
+    split_into_weeks,
+)
 from app.api import schemas as s  # noqa: E402
 from app.api.game import state_out  # noqa: E402
-from app.db import session_scope  # noqa: E402
+from app.db import init_db, session_scope  # noqa: E402
 from app.gamification import game_state  # noqa: E402
 from app.models import User  # noqa: E402
 from app.service import average_actions_per_day, count_open_questions, open_questions  # noqa: E402
@@ -54,9 +58,15 @@ def build_payload(session, user: User) -> dict:
     if report.prev_spend_total:
         pct = round(report.spend_delta / report.prev_spend_total * 100, 1)
 
+    granularity, parts = reports_mod.slice_breakdown(session, user.id, DEMO_PERIOD)
+    previous = DEMO_PERIOD.shifted_back()
+
     return {
         "offline": True,
         "period": {"label": DEMO_PERIOD.label, "days": DEMO_PERIOD.days},
+        # С чем сравниваются prev_spend и prev_amount у категорий: для
+        # календарного месяца это прошлый календарный месяц.
+        "prev_period": {"label": previous.label, "days": previous.days},
         "spend": s.MoneyOut.of(report.spend_total).model_dump(),
         "income": s.MoneyOut.of(report.income_total).model_dump(),
         "avg_per_day": s.MoneyOut.of(report.avg_per_day).model_dump(),
@@ -68,6 +78,15 @@ def build_payload(session, user: User) -> dict:
         "essential": s.MoneyOut.of(report.essential_total).model_dump(),
         "optional": s.MoneyOut.of(report.optional_total).model_dump(),
         "weeks": weeks,
+        # Срезы той длины, которую разумно рисовать: у месяца это недели.
+        # Форма — как в ответе API, чтобы офлайн и онлайн рисовались одним
+        # кодом, а не двумя похожими.
+        "granularity": granularity,
+        "granularity_title": GRANULARITY_TITLE[granularity],
+        "slices": [
+            json.loads(s.slice_out(chunk, amount).model_dump_json())
+            for chunk, amount in parts
+        ],
         "questions": [
             json.loads(s.QuestionOut.of(item).model_dump_json()) for item in questions
         ],
@@ -104,8 +123,11 @@ def check(payload: dict) -> list[str]:
     weeks = sum(w["amount"]["kopecks"] for w in payload["weeks"])
     cats = sum(c["amount"]["kopecks"] for c in payload["categories"])
     split = payload["essential"]["kopecks"] + payload["optional"]["kopecks"]
+    slices = sum(part["amount"]["kopecks"] for part in payload["slices"])
     if weeks != spend:
         problems.append(f"недели {weeks} != месяц {spend}")
+    if slices != spend:
+        problems.append(f"срезы {slices} != месяц {spend}")
     if cats != spend:
         problems.append(f"категории {cats} != месяц {spend}")
     if split != spend:
@@ -132,6 +154,9 @@ def check(payload: dict) -> list[str]:
 
 
 def main() -> None:
+    # Схему подтягиваем сами: скрипт запускают отдельно от приложения,
+    # и после добавления колонки старая база иначе падает на чтении.
+    init_db()
     with session_scope() as session:
         user = session.scalars(select(User).order_by(User.id)).first()
         if user is None:

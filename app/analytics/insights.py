@@ -16,7 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.analytics.periods import Period
-from app.analytics.reports import PeriodReport
+from app.analytics.reports import PeriodReport, subscription_lines, subscriptions_cost
 from app.models import (
     AccountKind,
     Counterparty,
@@ -24,7 +24,6 @@ from app.models import (
     Operation,
     OperationKind,
     Posting,
-    Subscription,
     fmt_money,
 )
 
@@ -94,19 +93,19 @@ def taxi_vs_transit(session: Session, user_id: int, period: Period) -> Insight |
 
 
 def subscriptions_load(session: Session, user_id: int) -> Insight | None:
-    subs = session.scalars(
-        select(Subscription).where(Subscription.user_id == user_id, Subscription.active)
-    ).all()
+    """Совет и карточка подписок обязаны показывать одно и то же число,
+    поэтому и цена в месяц, и цена в год берутся из общего расчёта."""
+    subs = subscription_lines(session, user_id)
     if not subs:
         return None
-    monthly = sum(int(s.amount * 30 / max(1, s.period_days)) for s in subs)
+    monthly, yearly = subscriptions_cost(subs)
     if monthly < 30_000:
         return None
-    names = ", ".join(s.label for s in sorted(subs, key=lambda s: -s.amount)[:4])
+    names = ", ".join(line.label for line in subs[:4])
     return Insight(
         title=f"Подписок: {len(subs)}",
         detail=(
-            f"{names} — {fmt_money(monthly)} в месяц, {fmt_money(monthly * 12)} в год. "
+            f"{names} — {fmt_money(monthly)} в месяц, {fmt_money(yearly)} в год. "
             f"Списываются сами, поэтому и не замечаются."
         ),
         saving=0,

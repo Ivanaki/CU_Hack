@@ -7,11 +7,13 @@
 
 from __future__ import annotations
 
+import hmac
 import re
+import secrets
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.analytics import reports
@@ -24,13 +26,37 @@ from app.ingest.service import ImportResult, add_manual, import_file, import_ima
 from app.models import (
     DailyActivity,
     Decision,
+    ImportBatch,
     Money,
     Operation,
     OperationSource,
+    RawTransaction,
     ReviewItem,
     ReviewStatus,
     User,
 )
+
+
+@dataclass(slots=True)
+class BatchTrace:
+    """Что получилось из одной конкретной загрузки.
+
+    Отличается от полей IngestOutcome.operations/questions тем, что считает
+    не состояние книги после пересчёта, а вклад именно этого файла: человек
+    спрашивает «что распозналось из того, что я сейчас скинул», а не
+    «сколько всего у меня операций».
+    """
+
+    batch_id: int
+    added_rows: int
+    duplicates: int
+    operations: int
+    questions: int
+    # Сколько операций файл показал всего, включая те, что уже были в
+    # книге. Повторная присылка того же скриншота — обычное дело (человек
+    # фотографирует список раз в неделю, пересечение неизбежно), и без
+    # этого числа такая загрузка выглядит как «ничего не распозналось».
+    recognized: int = 0
 
 
 @dataclass(slots=True)
@@ -42,6 +68,8 @@ class IngestOutcome:
     error: str = ""
     # Что именно распознали на картинке: statement, receipt или other.
     image_kind: str = ""
+    # След загрузки: по нему видно, что дал именно этот файл.
+    trace: BatchTrace | None = None
 
     @property
     def ok(self) -> bool:
@@ -60,6 +88,273 @@ def get_or_create_user(session: Session, tg_id: int, display_name: str = "") -> 
     elif display_name and not user.display_name:
         user.display_name = display_name
     return user
+
+
+# --- персональный секрет загрузки ------------------------------------------
+#
+# Файлы со всех телефонов приходят на один адрес, поэтому «кто прислал»
+# решает не URL, а секрет в запросе. Логика живёт здесь, а не в ручке:
+# ссылку выдают и бот, и Mini App, и оба обязаны выдавать одну и ту же.
+
+# 32 байта — 256 бит энтропии. Перебрать по сети нельзя, а значит защита от
+# перебора не нужна как таковая: её роль выполняет длина.
+UPLOAD_TOKEN_BYTES = 32
+# Префикс не секретен и ничего не сообщает — он нужен, чтобы токен узнавался
+# глазами, если всё-таки окажется там, где ему не место.
+UPLOAD_TOKEN_PREFIX = "fm_"
+# Короче этого токеном быть не может: отсекаем мусор до похода в базу.
+UPLOAD_TOKEN_MIN_LEN = 16
+
+
+def _new_upload_token() -> str:
+    # Только secrets: random предсказуем по нескольким выдачам, а uuid4 —
+    # это идентификатор, у него фиксированы биты версии и варианта.
+    # Ничего производного от tg_id или времени: иначе перебор секрета
+    # сводится к перебору коротких чисел, ради ухода от которого всё и затеяно.
+    return UPLOAD_TOKEN_PREFIX + secrets.token_urlsafe(UPLOAD_TOKEN_BYTES)
+
+
+def issue_upload_token(session: Session, user: User) -> str:
+    """Ссылка человека на загрузку. Создаётся при первом обращении."""
+    if not user.upload_token:
+        user.upload_token = _new_upload_token()
+        user.upload_token_at = datetime.now()
+        session.flush()
+    return user.upload_token
+
+
+def rotate_upload_token(session: Session, user: User) -> str:
+    """Отзыв: старая ссылка перестаёт работать в тот же момент.
+
+    Токен в записи ровно один, поэтому перевыпуск и есть отзыв — отдельного
+    «отключить» не нужно, а человеку не приходится думать, что именно из
+    двух действий ему нужно.
+    """
+    user.upload_token = _new_upload_token()
+    user.upload_token_at = datetime.now()
+    session.flush()
+    return user.upload_token
+
+
+def user_by_upload_token(session: Session, token: str) -> User | None:
+    """Кому принадлежит секрет. None — не признали.
+
+    Индекс только сужает поиск, решение принимает постоянное по времени
+    сравнение байтов: сравнение в SQL зависит от коллации (в MySQL она по
+    умолчанию регистронезависимая), и считать его проверкой секрета
+    нельзя. Байты, а не строки, потому что токен приходит из запроса и
+    бывает каким угодно — на строках сравнение падает на не-ASCII.
+    """
+    raw = (token or "").strip()
+    if len(raw) < UPLOAD_TOKEN_MIN_LEN:
+        return None
+    user = session.scalar(select(User).where(User.upload_token == raw))
+    if user is None or not user.upload_token:
+        return None
+    if not hmac.compare_digest(raw.encode("utf-8"), user.upload_token.encode("utf-8")):
+        return None
+    return user
+
+
+# --- прослеживаемость: файл <-> операции ------------------------------------
+
+
+def _batch_rows(batch: ImportBatch):
+    """Сырые строки, которые показал этот файл: свои и уже известные.
+
+    Строка-дубль в базу не пишется — иначе сломалась бы дедупликация, —
+    поэтому по batch_id её не найти. Но её хеш мы запомнили в самой
+    загрузке, и по нему находится та строка, что приехала раньше. Без
+    этого повторная присылка того же скриншота показывала бы пустой
+    список: «файл приехал, ничего не вышло» — при восьми его операциях
+    на экране.
+    """
+    known = list(batch.duplicate_hashes or [])
+    seen = RawTransaction.batch_id == batch.id
+    if known:
+        seen = or_(seen, RawTransaction.dedup_hash.in_(known))
+    return RawTransaction.user_id == batch.user_id, seen
+
+
+def batch_operations(session: Session, batch: ImportBatch) -> list[Operation]:
+    """Операции, которые показала эта загрузка.
+
+    Идём через RawTransaction, а не через колонку в Operation: сырая
+    строка иммутабельна и переживает пересчёт, а операции при каждом
+    пересчёте пересобираются с нуля.
+    """
+    from_batch = select(RawTransaction.operation_id).where(
+        *_batch_rows(batch), RawTransaction.operation_id.is_not(None)
+    )
+    return list(
+        session.scalars(
+            select(Operation)
+            .where(Operation.user_id == batch.user_id, Operation.id.in_(from_batch))
+            .order_by(Operation.occurred_at.desc(), Operation.id)
+        ).all()
+    )
+
+
+def batch_questions(session: Session, batch: ImportBatch) -> list[ReviewItem]:
+    """Открытые вопросы, которые подняла эта загрузка.
+
+    Якорь вопроса — dedup_hash сырой строки, а не номер операции: операции
+    пересоздаются, хеш нет. Поэтому связь «файл -> вопрос» не рвётся после
+    ответа на соседний вопрос.
+    """
+    anchors = select(RawTransaction.dedup_hash).where(*_batch_rows(batch))
+    return list(
+        session.scalars(
+            select(ReviewItem)
+            .where(
+                ReviewItem.user_id == batch.user_id,
+                ReviewItem.status == ReviewStatus.OPEN,
+                ReviewItem.anchor_hash.in_(anchors),
+            )
+            .order_by(ReviewItem.priority.desc(), ReviewItem.id)
+        ).all()
+    )
+
+
+def trace_batch(session: Session, result: ImportResult) -> BatchTrace:
+    """Вклад одной загрузки в книгу. Считается после пересчёта."""
+    batch = result.batch
+    operations = int(
+        session.scalar(
+            select(func.count(func.distinct(RawTransaction.operation_id))).where(
+                RawTransaction.batch_id == batch.id,
+                RawTransaction.operation_id.is_not(None),
+            )
+        )
+        or 0
+    )
+    return BatchTrace(
+        batch_id=batch.id,
+        added_rows=len(result.new_rows),
+        duplicates=result.duplicates,
+        operations=operations,
+        questions=len(batch_questions(session, batch)),
+        # «Добавилось» и «видно по файлу» — разные числа, и подменять одно
+        # другим нельзя: первое отвечает «что изменилось», второе — «что я
+        # прислал». На повторной присылке они расходятся как 0 и 8.
+        recognized=len(batch_operations(session, batch)),
+    )
+
+
+def owner_of_file(session: Session, stored_as: str) -> int | None:
+    """Чей это файл на диске. None — ничей, такой записи у нас нет.
+
+    Единственная связь между именем файла и человеком — запись о
+    загрузке: имя генерируем мы и больше нигде не храним.
+    """
+    if not stored_as:
+        return None
+    return session.scalar(
+        select(ImportBatch.user_id).where(ImportBatch.stored_as == stored_as).limit(1)
+    )
+
+
+def remember_upload(
+    session: Session,
+    user_id: int,
+    *,
+    stored_as: str,
+    content_type: str = "",
+    size_bytes: int = 0,
+    channel: str = "",
+    filename: str = "",
+) -> ImportBatch | None:
+    """Записывает «этот файл принадлежит этому человеку» без разбора.
+
+    Нужна там, где разбор не состоялся: модель не ответила, файл не
+    картинка, разбор выключен флагом. Файл при этом уже лежит в закрытом
+    каталоге, а закрытый каталог отдаёт только хозяину — и если записи о
+    загрузке нет, хозяина не существует, и человек не может открыть
+    собственный файл. Пустой батч честно говорит «файл приехал, операций
+    из него нет», ровно как при нераспознанной картинке.
+
+    Идемпотентна: повторный вызов для того же имени ничего не создаёт.
+    """
+    if not stored_as:
+        return None
+    existing = session.scalar(
+        select(ImportBatch).where(ImportBatch.stored_as == stored_as).limit(1)
+    )
+    if existing is not None:
+        return existing
+    batch = ImportBatch(
+        user_id=user_id,
+        source="upload",
+        filename=filename or stored_as,
+        rows_total=0,
+        rows_new=0,
+        rows_duplicate=0,
+        stored_as=stored_as,
+        content_type=content_type,
+        size_bytes=size_bytes,
+        channel=channel,
+    )
+    session.add(batch)
+    session.flush()
+    return batch
+
+
+def owned_stored_names(session: Session) -> list[str]:
+    """Имена всех файлов, у которых есть хозяин."""
+    return [
+        name
+        for name in session.scalars(
+            select(ImportBatch.stored_as).where(ImportBatch.stored_as != "").distinct()
+        ).all()
+        if name
+    ]
+
+
+def recent_imports(session: Session, user_id: int, limit: int = 20) -> list[ImportBatch]:
+    return list(
+        session.scalars(
+            select(ImportBatch)
+            .where(ImportBatch.user_id == user_id)
+            .order_by(ImportBatch.created_at.desc(), ImportBatch.id.desc())
+            .limit(limit)
+        ).all()
+    )
+
+
+def user_batch(session: Session, user_id: int, batch_id: int) -> ImportBatch | None:
+    batch = session.get(ImportBatch, batch_id)
+    # Чужая загрузка для этого пользователя не существует — ровно так же,
+    # как и несуществующая: по ответу нельзя узнать, что она вообще есть.
+    if batch is None or batch.user_id != user_id:
+        return None
+    return batch
+
+
+def batches_by_operation(
+    session: Session, user_id: int, operation_ids: list[int]
+) -> dict[int, list[ImportBatch]]:
+    """Обратное направление: из каких файлов приехала каждая операция.
+
+    Операция может быть склеена из строк двух разных загрузок (скриншот и
+    пришедшая позже выписка), поэтому значение — список, а не одна запись.
+    """
+    if not operation_ids:
+        return {}
+    rows = session.execute(
+        select(RawTransaction.operation_id, ImportBatch)
+        .join(ImportBatch, RawTransaction.batch_id == ImportBatch.id)
+        .where(
+            RawTransaction.user_id == user_id,
+            RawTransaction.operation_id.in_(operation_ids),
+        )
+        .order_by(ImportBatch.created_at, ImportBatch.id)
+    ).all()
+    found: dict[int, list[ImportBatch]] = {}
+    for operation_id, batch in rows:
+        bucket = found.setdefault(int(operation_id), [])
+        if all(item.id != batch.id for item in bucket):
+            bucket.append(batch)
+    return found
 
 
 def record_action(
@@ -84,14 +379,39 @@ def record_action(
     row.manual_entries += manual
     row.imports += imports
 
+    _advance_streak(session, user, today)
+
+
+def _advance_streak(session: Session, user: User, today: date) -> None:
+    """Продлевает серию за сегодняшний день."""
     if user.streak_last_date == today:
         return
-    if user.streak_last_date == today - timedelta(days=1):
+    if user.streak_last_date and (today - user.streak_last_date).days == 1:
         user.streak_days += 1
     else:
         user.streak_days = 1
     user.streak_last_date = today
     user.best_streak = max(user.best_streak, user.streak_days)
+
+
+def keep_streak_alive(session: Session, user: User, *, today: date | None = None) -> None:
+    """Тихий день не рвёт серию.
+
+    Продукт обещает ноль действий в день, когда всё разобрано — и было бы
+    странно тем же продуктом за это наказывать. Поэтому день, в который
+    система сама ни о чём не спросила, засчитывается как пройденный: серия
+    про то, что человек держит свои деньги понятными, а не про то, что он
+    каждый день чем-то щёлкает.
+
+    Если же вопросы висят и человек их не трогает — серия рвётся честно,
+    потому что деньги остаются неразобранными.
+    """
+    today = today or date.today()
+    if user.streak_last_date == today:
+        return
+    if count_open_questions(session, user.id) > 0:
+        return
+    _advance_streak(session, user, today)
 
 
 def average_actions_per_day(session: Session, user_id: int, days: int = 30) -> float:
@@ -121,31 +441,68 @@ def average_actions_per_day(session: Session, user_id: int, days: int = 30) -> f
 
 
 def ingest_statement(
-    session: Session, user: User, data: bytes, filename: str
+    session: Session,
+    user: User,
+    data: bytes,
+    filename: str,
+    *,
+    channel: str = "",
+    stored_as: str = "",
+    content_type: str = "",
 ) -> IngestOutcome:
     try:
-        result = import_file(session, user.id, data, filename=filename)
+        result = import_file(
+            session, user.id, data, filename=filename,
+            channel=channel, stored_as=stored_as, content_type=content_type,
+        )
     except ValueError as exc:
         return IngestOutcome(None, 0, 0, 0, error=str(exc))
     record_action(session, user, imports=1)
     report = reclassify(session, user.id)
-    return IngestOutcome(result, report.operations, report.questions, report.unresolved_amount)
+    return IngestOutcome(
+        result, report.operations, report.questions, report.unresolved_amount,
+        trace=trace_batch(session, result),
+    )
 
 
-def ingest_screenshot(session: Session, user: User, images: list[bytes]) -> IngestOutcome:
-    """Картинка от пользователя: скриншот приложения банка или фото чека."""
-    result, kind = import_images(session, user.id, images)
+def ingest_screenshot(
+    session: Session,
+    user: User,
+    images: list[bytes],
+    *,
+    channel: str = "",
+    stored_as: str = "",
+    content_type: str = "",
+    filename: str = "",
+) -> IngestOutcome:
+    """Картинка от пользователя: скриншот приложения банка или фото чека.
+
+    stored_as и content_type — про файл, который лежит на диске после
+    /upload. Они доезжают до записи о загрузке, иначе связь «этот файл дал
+    эти операции» обрывается на границе HTTP: имя на диске живёт только в
+    JSON-ответе, а в базе его нет.
+    """
+    result, kind = import_images(
+        session, user.id, images,
+        channel=channel, stored_as=stored_as, content_type=content_type,
+        filename=filename,
+    )
     if result.batch.rows_total == 0:
+        # Пустой батч остаётся в базе намеренно: «файл приехал, но ничего не
+        # распозналось» — это тоже след, и без него файл выглядел бы
+        # непринятым.
         return IngestOutcome(
             result, 0, 0, 0,
             error="не удалось прочитать операции на картинке",
             image_kind=kind,
+            trace=trace_batch(session, result),
         )
     record_action(session, user, imports=1)
     report = reclassify(session, user.id)
     return IngestOutcome(
         result, report.operations, report.questions, report.unresolved_amount,
         image_kind=kind,
+        trace=trace_batch(session, result),
     )
 
 
@@ -197,15 +554,17 @@ def add_quick_expense(
     *,
     source: OperationSource = OperationSource.MANUAL,
     when: datetime | None = None,
+    channel: str = "",
 ) -> tuple[ParsedRow | None, IngestOutcome]:
     row = parse_quick_entry(text, when=when)
     if row is None:
         return None, IngestOutcome(None, 0, 0, 0, error="не нашёл сумму в сообщении")
-    result = add_manual(session, user.id, [row], origin=source)
+    result = add_manual(session, user.id, [row], origin=source, channel=channel)
     record_action(session, user, manual=1)
     report = reclassify(session, user.id)
     return row, IngestOutcome(
-        result, report.operations, report.questions, report.unresolved_amount
+        result, report.operations, report.questions, report.unresolved_amount,
+        trace=trace_batch(session, result),
     )
 
 
@@ -311,6 +670,11 @@ def skip_question(session: Session, user: User, review_id: int) -> None:
 
 def report_for(session: Session, user_id: int, period: Period) -> reports.PeriodReport:
     return reports.build_report(session, user_id, period)
+
+
+def refresh_streak(session: Session, user: User) -> None:
+    """Вызывается при открытии сводки: засчитывает тихий день, если он тихий."""
+    keep_streak_alive(session, user)
 
 
 def current_month(today: date | None = None) -> Period:

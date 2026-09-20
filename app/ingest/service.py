@@ -156,7 +156,17 @@ def import_rows(
     source: str,
     filename: str = "",
     origin: OperationSource = OperationSource.IMPORT,
+    channel: str = "",
+    stored_as: str = "",
+    content_type: str = "",
+    size_bytes: int = 0,
 ) -> ImportResult:
+    """Строки в базу одной загрузкой.
+
+    stored_as/content_type/size_bytes/channel не участвуют в импорте и нужны
+    только для следа: по записи о загрузке должно быть видно, какой именно
+    файл её породил и каким путём он пришёл.
+    """
     reg = AccountRegistry(session, user_id)
     batch = ImportBatch(
         user_id=user_id,
@@ -165,6 +175,10 @@ def import_rows(
         rows_total=len(rows),
         period_from=min((r.booked_at.date() for r in rows), default=None),
         period_to=max((r.booked_at.date() for r in rows), default=None),
+        channel=channel,
+        stored_as=stored_as,
+        content_type=content_type,
+        size_bytes=size_bytes,
     )
     session.add(batch)
     session.flush()
@@ -179,11 +193,16 @@ def import_rows(
     duplicates = 0
     superseded = 0
     consumed: set[int] = set()
+    # Хеши строк, которые уже лежат в базе с прошлого раза. Сами строки мы
+    # не пишем, иначе сломается дедупликация, — а связь «этот файл показал
+    # эти операции» без них рвётся ровно на повторной присылке.
+    known_again: list[str] = []
 
     for row in rows:
         digest = row.dedup_hash()
         if digest in existing_hashes:
             duplicates += 1
+            known_again.append(digest)
             continue
 
         account = resolve_account(reg, row)
@@ -195,6 +214,9 @@ def import_rows(
             if not origin.is_statement:
                 # Приехало из быстрого источника, а выписка уже есть — она точнее.
                 duplicates += 1
+                # Хеш уцелевшей строки, а не присланной: искать потом надо
+                # то, что действительно лежит в базе.
+                known_again.append(twin.dedup_hash)
                 continue
             # Выписка уточняет то, что раньше пришло скриншотом.
             _move_user_answers(session, user_id, twin.dedup_hash, digest)
@@ -222,6 +244,7 @@ def import_rows(
 
     batch.rows_new = len(created)
     batch.rows_duplicate = duplicates
+    batch.duplicate_hashes = known_again
     session.flush()
     return ImportResult(
         batch=batch, new_rows=created, duplicates=duplicates, superseded=superseded
@@ -229,22 +252,43 @@ def import_rows(
 
 
 def import_file(
-    session: Session, user_id: int, data: bytes, *, filename: str = ""
+    session: Session,
+    user_id: int,
+    data: bytes,
+    *,
+    filename: str = "",
+    channel: str = "",
+    stored_as: str = "",
+    content_type: str = "",
 ) -> ImportResult:
     bank, rows = parse_statement(data, filename=filename)
     return import_rows(
         session, user_id, rows, source=bank, filename=filename,
         origin=OperationSource.IMPORT,
+        channel=channel, stored_as=stored_as, content_type=content_type,
+        size_bytes=len(data),
     )
 
 
 def import_images(
-    session: Session, user_id: int, images: list[bytes], **kwargs
+    session: Session,
+    user_id: int,
+    images: list[bytes],
+    *,
+    channel: str = "",
+    stored_as: str = "",
+    content_type: str = "",
+    filename: str = "",
+    **kwargs,
 ) -> tuple[ImportResult, str]:
     """Картинка от пользователя: скриншот банка или фото чека.
 
     Вид определяет модель, а не пользователь: просить выбрать в меню
     «это чек или это скриншот» — лишний шаг там, где можно обойтись без него.
+
+    Поля следа объявлены явно, а не сложены в **kwargs: остаток kwargs
+    уходит в модель зрения, и «просто дописать filename» означало бы
+    передать его не в базу, а в разбор картинки.
     """
     from app.ingest.vision import parse_images  # noqa: PLC0415
 
@@ -256,7 +300,11 @@ def import_images(
     return (
         import_rows(
             session, user_id, result.rows, source=source,
-            filename=result.kind, origin=origin,
+            # Имени у картинки обычно нет — тогда в этом поле остаётся вид
+            # картинки, как и раньше. Связь с файлом держит stored_as.
+            filename=filename or result.kind, origin=origin,
+            channel=channel, stored_as=stored_as, content_type=content_type,
+            size_bytes=sum(len(image) for image in images),
         ),
         result.kind,
     )
@@ -275,10 +323,12 @@ def add_manual(
     rows: list[ParsedRow],
     *,
     origin: OperationSource = OperationSource.MANUAL,
+    channel: str = "",
 ) -> ImportResult:
     """Быстрый ручной или голосовой ввод — в основном наличные."""
     return import_rows(
-        session, user_id, rows, source="Вручную", filename="", origin=origin
+        session, user_id, rows, source="Вручную", filename="", origin=origin,
+        channel=channel,
     )
 
 

@@ -197,3 +197,80 @@ def test_долг_в_обратную_сторону_не_доход_и_не_р�
     )
     assert claim is not None
     assert claim.status == ClaimStatus.SETTLED
+
+
+def test_ответ_перевод_себе_не_становится_тратой(session, seeded):
+    """Штрафной пункт кейса: перевод себе не должен попадать в расходы.
+
+    Даже когда пары в выписках нет и человек сказал об этом сам — деньги
+    переезжают на другой его счёт, а не исчезают в «Прочем».
+    """
+    from datetime import datetime as _dt
+
+    from app.classify.pipeline import DecisionKind, reclassify
+    from app.ingest.base import ParsedRow
+    from app.ingest.service import import_rows
+    from app.models import Decision, OperationSource
+
+    row = ParsedRow(
+        booked_at=_dt(2026, 9, 29, 12, 0),
+        amount=-500_000,
+        description="Перевод Сидоров С. С.",
+        counterparty_raw="Сидоров С. С.",
+        bank="Т-Банк",
+        last4="4127",
+    )
+    import_rows(session, seeded, [row], source="Т-Банк", origin=OperationSource.IMPORT)
+    session.add(
+        Decision(
+            user_id=seeded,
+            anchor_hash=row.dedup_hash(),
+            kind=DecisionKind.SET_KIND,
+            payload={"kind": "self"},
+        )
+    )
+    session.flush()
+    reclassify(session, seeded, now=_dt(2026, 10, 10))
+
+    ops = session.scalars(
+        select(Operation).where(
+            Operation.user_id == seeded, Operation.rule == "user_decision"
+        )
+    ).all()
+    mine = [o for o in ops if o.amount == 500_000]
+    assert mine, "операция не пересоздалась"
+    assert all(o.kind == OperationKind.TRANSFER for o in mine)
+    assert all(o.spend_amount == 0 for o in mine), "перевод себе не может быть тратой"
+
+
+def test_пополнение_кошелька_без_выписки_маркетплейса_не_трата(session, seeded):
+    """Выписки маркетплейса ещё нет — пополнение всё равно не расход.
+
+    Раньше такое пополнение падало в обычные траты и получало выдуманную
+    категорию. Деньги должны ждать на счёте кошелька.
+    """
+    from datetime import datetime as _dt
+
+    from app.classify.pipeline import reclassify
+    from app.ingest.base import ParsedRow
+    from app.ingest.service import import_rows
+    from app.models import OperationSource
+
+    row = ParsedRow(
+        booked_at=_dt(2026, 9, 28, 10, 0),
+        amount=-450_000,
+        description="Пополнение Ozon Card кошелёк",
+        counterparty_raw="OZON CARD",
+        bank="Т-Банк",
+        last4="4127",
+    )
+    import_rows(session, seeded, [row], source="Т-Банк", origin=OperationSource.IMPORT)
+    reclassify(session, seeded, now=_dt(2026, 10, 10))
+
+    topups = [
+        o
+        for o in ops(session, seeded, OperationKind.WALLET_TOPUP)
+        if o.amount == 450_000
+    ]
+    assert topups, "пополнение кошелька не распознано"
+    assert topups[0].spend_amount == 0, "пополнение кошелька не может быть тратой"

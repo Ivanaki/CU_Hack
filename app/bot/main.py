@@ -12,13 +12,14 @@ from datetime import date
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
-from aiogram.filters import Command, CommandStart
-from aiogram.types import CallbackQuery, Message
+from aiogram.enums import ChatType, ParseMode
+from aiogram.filters import Command, CommandObject, CommandStart
+from aiogram.types import CallbackQuery, LinkPreviewOptions, Message
 
 from app.analytics import insights as insights_mod
 from app.analytics import reports as reports_mod
 from app.analytics.periods import Period, split_into_weeks, week, year
+from app.api.uploads import store_image
 from app.bot import keyboards as kb
 from app.bot import texts
 from app.config import get_settings
@@ -33,9 +34,11 @@ from app.service import (
     get_or_create_user,
     ingest_screenshot,
     ingest_statement,
+    issue_upload_token,
     latest_data_month,
     open_questions,
     report_for,
+    rotate_upload_token,
     skip_question,
 )
 
@@ -80,13 +83,77 @@ def _user(session, message_or_query) -> object:
 
 
 # --------------------------------------------------------------------------
+# Групповые чаты: ни цифр, ни ключей
+# --------------------------------------------------------------------------
+#
+# Эти два хендлера стоят первыми намеренно: aiogram проверяет их в порядке
+# объявления, и всё, что ниже, до группового чата уже не доходит.
+#
+# Privacy-mode телеграма здесь не помогает: команда, адресованная боту
+# (`/link@honest_month_bot`), доходит до него именно в такой форме. Без
+# фильтра бот публиковал личный ключ загрузки прямо в общий чат, а кнопка
+# «Выпустить новую» под этим сообщением работала для любого участника —
+# посторонний нажимал и получал уже свой ключ, опубликованный там же.
+# Это ровно тот сценарий, ради которого личная ссылка и делалась.
+
+
+def in_group(message: Message) -> bool:
+    return message.chat.type != ChatType.PRIVATE
+
+
+def query_in_group(query: CallbackQuery) -> bool:
+    return query.message is not None and query.message.chat.type != ChatType.PRIVATE
+
+
+async def _private_link(bot: Bot, payload: str = "") -> str:
+    """Ссылка на личный чат с ботом. Пусто — имя бота выяснить не удалось."""
+    try:
+        username = (await bot.me()).username
+    except Exception:
+        # Имя бота — украшение ответа, из-за него хендлер падать не должен.
+        log.warning("не удалось узнать имя бота для ссылки в личный чат")
+        return ""
+    if not username:
+        return ""
+    return f"https://t.me/{username}" + (f"?start={payload}" if payload else "")
+
+
+@dp.message(in_group)
+async def on_group_message(message: Message) -> None:
+    """В общем чате бот не показывает ни денег, ни ключа.
+
+    Отвечаем только на команды: на остальное в группе бот молчит, иначе
+    он будет вклиниваться в чужой разговор.
+    """
+    body = message.text or message.caption or ""
+    if not body.startswith("/"):
+        return
+    await message.reply(
+        texts.group_notice(await _private_link(message.bot, "link")),
+        link_preview_options=LinkPreviewOptions(is_disabled=True),
+    )
+
+
+@dp.callback_query(query_in_group)
+async def on_group_callback(query: CallbackQuery) -> None:
+    """Кнопка под сообщением в группе доступна всем — значит, не работает ни для кого."""
+    await query.answer("Это работает только в личном чате со мной", show_alert=True)
+
+
+# --------------------------------------------------------------------------
 # Команды
 # --------------------------------------------------------------------------
 
 
 @dp.message(CommandStart())
-async def cmd_start(message: Message) -> None:
+async def cmd_start(message: Message, command: CommandObject) -> None:
     await in_db(lambda s: _user(s, message) and None)
+    # Человек пришёл из группы по ссылке t.me/бот?start=link: он уже
+    # попросил ключ там, где мы отказались его показывать, и заставлять
+    # его набирать команду второй раз — лишний шаг на ровном месте.
+    if (command.args or "").strip() == "link":
+        await cmd_upload_link(message)
+        return
     await message.answer(texts.START, reply_markup=kb.main_menu())
 
 
@@ -163,6 +230,72 @@ async def cmd_questions(message: Message) -> None:
     await _push_next_question(message.chat.id, message.bot, message.from_user.id)
 
 
+def _upload_base() -> str:
+    """Внешний адрес сервиса для ссылки в боте.
+
+    У бота нет запроса, из которого можно было бы собрать адрес, поэтому
+    только настройка. Пусто — честно говорим об этом вместо ссылки на
+    localhost, по которой телефон никуда не попадёт.
+    """
+    return (get_settings().public_base_url or "").rstrip("/")
+
+
+def _upload_link_text(session, message_or_query, *, fresh: bool) -> str:
+    base = _upload_base()
+    if not base:
+        return (
+            "Внешний адрес сервиса не настроен: без него ссылка будет вести "
+            "в никуда. Задайте PUBLIC_BASE_URL в .env и перезапустите сервис."
+        )
+    user = _user(session, message_or_query)
+    token = rotate_upload_token(session, user) if fresh else issue_upload_token(session, user)
+    return texts.upload_link_message(
+        url=f"{base}/upload",
+        token=token,
+        issued_at=user.upload_token_at,
+        fresh=fresh,
+    )
+
+
+# Кириллическое имя команды aiogram разбирает, но клиент Telegram не делает
+# её кликабельной и в меню команд её не принимает — поэтому основное имя
+# латиницей, а /связь идёт синонимом тем же стеком декораторов.
+@dp.message(Command("link"))
+@dp.message(Command("связь"))
+async def cmd_upload_link(message: Message) -> None:
+    """Личная ссылка, по которой файлы с телефона попадают именно в его книгу."""
+    text = await in_db(_upload_link_text, message, fresh=False)
+    await message.answer(
+        text,
+        reply_markup=kb.upload_link_keyboard(),
+        # Ключ в сообщении, а адрес — наш же домен: предпросмотр тут ничего
+        # не добавляет, а лишний поход телеграма за страницей не нужен.
+        link_preview_options=LinkPreviewOptions(is_disabled=True),
+        # Сообщение с ключом не пересылается и не сохраняется: «перешлю
+        # другу свой адрес» — самый естественный способ его отдать.
+        protect_content=True,
+    )
+
+
+@dp.callback_query(F.data == "upload:rotate")
+async def on_upload_rotate(query: CallbackQuery) -> None:
+    # Проверка своя, не только в общем фильтре: эта кнопка выпускает секрет
+    # тому, кто её нажал, а не тому, кому сообщение адресовано. В общем
+    # чате это значит «посторонний нажал из любопытства — и получил ключ,
+    # опубликованный на весь чат».
+    if query.message is None or query.message.chat.type != ChatType.PRIVATE:
+        await query.answer("Ключ выпускается только в личном чате", show_alert=True)
+        return
+    text = await in_db(_upload_link_text, query, fresh=True)
+    await query.answer("Старая ссылка отозвана")
+    await query.message.answer(
+        text,
+        reply_markup=kb.upload_link_keyboard(),
+        link_preview_options=LinkPreviewOptions(is_disabled=True),
+        protect_content=True,
+    )
+
+
 @dp.message(Command("tips"))
 @dp.message(F.text == "Советы")
 async def cmd_tips(message: Message) -> None:
@@ -206,7 +339,9 @@ async def on_document(message: Message) -> None:
 
     def work(session):
         user = _user(session, message)
-        outcome = ingest_statement(session, user, data, document.file_name or "statement.csv")
+        outcome = ingest_statement(
+            session, user, data, document.file_name or "statement.csv", channel="bot"
+        )
         if not outcome.ok:
             return None, outcome
         return (
@@ -216,6 +351,7 @@ async def on_document(message: Message) -> None:
                 duplicates=outcome.imported.duplicates,
                 superseded=outcome.imported.superseded,
                 questions=outcome.questions,
+                trace=outcome.trace,
             ),
             outcome,
         )
@@ -240,7 +376,16 @@ async def on_photo(message: Message) -> None:
 
     def work(session):
         user = _user(session, message)
-        outcome = ingest_screenshot(session, user, [blob])
+        # Картинку сохраняем тем же способом, что и /upload: без этого в
+        # «Что я присылал» у всех, кто шлёт скриншоты боту (а это почти
+        # все), карточка без файла — нажать и посмотреть, что именно ты
+        # прислал, не на что. Запись на диск идёт здесь, потому что весь
+        # work уже выполняется в отдельном потоке.
+        stored_as, content_type = store_image(get_settings(), blob)
+        outcome = ingest_screenshot(
+            session, user, [blob], channel="bot",
+            stored_as=stored_as, content_type=content_type,
+        )
         if not outcome.ok:
             return None, outcome
         label = {"receipt": "Чек", "statement": "Скриншот"}.get(outcome.image_kind, "Картинка")
@@ -251,6 +396,7 @@ async def on_photo(message: Message) -> None:
                 duplicates=outcome.imported.duplicates,
                 superseded=outcome.imported.superseded,
                 questions=outcome.questions,
+                trace=outcome.trace,
             ),
             outcome,
         )
@@ -292,7 +438,7 @@ async def _handle_quick_entry(
 ) -> None:
     def work(session):
         user = _user(session, message)
-        row, outcome = add_quick_expense(session, user, text, source=source)
+        row, outcome = add_quick_expense(session, user, text, source=source, channel="bot")
         if row is None:
             return None, outcome
         return (
