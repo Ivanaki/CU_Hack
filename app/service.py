@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.analytics import reports
@@ -83,14 +84,38 @@ class IngestOutcome:
 
 
 def get_or_create_user(session: Session, tg_id: int, display_name: str = "") -> User:
+    """Находит человека или заводит его. Безопасна при одновременных запросах.
+
+    Mini App при открытии дёргает четыре ручки разом — сводку, геймификацию,
+    аналитику и операции. У нового человека все четыре не находят его и все
+    четыре пытаются завести: одна выигрывает, остальные падают на уникальном
+    индексе, и человек на первом же экране видит «API недоступен». Проверка
+    «нет — добавь» без обработки гонки здесь не работает по определению:
+    между SELECT и INSERT успевает вклиниться соседний запрос.
+
+    Поэтому вставка идёт в SAVEPOINT: проиграли гонку — откатываем только её
+    и перечитываем чужую запись, вместо того чтобы валить весь запрос.
+    """
     user = session.scalar(select(User).where(User.tg_id == tg_id))
-    if user is None:
-        user = User(tg_id=tg_id, display_name=display_name)
-        session.add(user)
-        session.flush()
-    elif display_name and not user.display_name:
-        user.display_name = display_name
-    return user
+    if user is not None:
+        if display_name and not user.display_name:
+            user.display_name = display_name
+        return user
+
+    try:
+        with session.begin_nested():
+            user = User(tg_id=tg_id, display_name=display_name)
+            session.add(user)
+            session.flush()
+        return user
+    except IntegrityError:
+        # Успел сосед. Его запись — та же самая, спорить не о чем.
+        user = session.scalar(select(User).where(User.tg_id == tg_id))
+        if user is None:  # не гонка, а что-то другое — молчать нельзя
+            raise
+        if display_name and not user.display_name:
+            user.display_name = display_name
+        return user
 
 
 # --- персональный секрет загрузки ------------------------------------------

@@ -255,3 +255,51 @@ def test_карта_и_сводка_открываются_на_одном_ме�
 
     weeks = [st for st in game["map"] if st["kind"] == "week"]
     assert sum(st["amount"]["kopecks"] for st in weeks) == summary["spend"]["kopecks"]
+
+
+def test_гонка_при_первом_открытии_не_роняет_запрос(_isolated_db, monkeypatch):
+    """Mini App при открытии дёргает четыре ручки параллельно.
+
+    У нового человека все четыре не находят его в базе и все четыре
+    пытаются завести. Одна выигрывает, остальные упираются в уникальный
+    индекс — и человек на первом же экране видит «API недоступен». Ровно
+    это увидел живой пользователь на боевом адресе.
+
+    Гонка воспроизводится честно, но без потоков: файловая база в тестах
+    одна на процесс, и параллельные соединения ловили бы «database is
+    locked» вместо проверяемого случая. Поэтому первому SELECT велено
+    вернуть пустоту — то же самое, что видит проигравший в гонке, пока
+    сосед ещё не закоммитил.
+    """
+    from sqlalchemy import func, select
+    from sqlalchemy.orm import Session
+
+    from app.db import init_db, session_scope
+    from app.models import User
+    from app.service import get_or_create_user
+
+    init_db()
+    tg_id = 7_654_321
+    with session_scope() as session:
+        get_or_create_user(session, tg_id, "Сосед")
+
+    seen = {"selects": 0}
+    real_scalar = Session.scalar
+
+    def blind_first(self, *args, **kwargs):
+        seen["selects"] += 1
+        if seen["selects"] == 1:
+            return None
+        return real_scalar(self, *args, **kwargs)
+
+    monkeypatch.setattr(Session, "scalar", blind_first)
+    with session_scope() as session:
+        user = get_or_create_user(session, tg_id, "Проигравший гонку")
+        assert user.tg_id == tg_id
+
+    monkeypatch.undo()
+    with session_scope() as session:
+        count = session.scalar(
+            select(func.count()).select_from(User).where(User.tg_id == tg_id)
+        )
+    assert count == 1, f"человек заведён {count} раз вместо одного"
