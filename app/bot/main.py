@@ -463,21 +463,26 @@ async def _handle_quick_entry(
 # --------------------------------------------------------------------------
 
 
-async def _push_next_question(chat_id: int, bot: Bot, tg_id: int) -> None:
+async def _push_next_question(
+    chat_id: int, bot: Bot, tg_id: int, *, include_skipped: bool = True
+) -> None:
     def work(session):
         user = get_or_create_user(session, tg_id)
-        items = open_questions(session, user.id, limit=1)
+        items = open_questions(session, user.id, limit=1, include_skipped=include_skipped)
         left = count_open_questions(session, user.id)
         if not items:
-            return None, None, 0
+            return None, None, left
         item = items[0]
         return texts.question_message(item, left=left - 1), item, left
 
-    text, item, _ = await in_db(work)
+    text, item, left = await in_db(work)
     if item is None:
         await bot.send_message(
             chat_id,
-            "Спорных операций нет. Все цифры за период разобраны.",
+            (
+                "Остались отложенные вопросы. Они доступны через /questions."
+                if left else "Спорных операций нет. Все цифры за период разобраны."
+            ),
         )
         return
     await bot.send_message(chat_id, text, reply_markup=kb.question_keyboard(item))
@@ -510,7 +515,9 @@ async def on_answer(query: CallbackQuery) -> None:
         f"<i>Осознанность: {awareness}% · серия {streak} дн.</i>",
         reply_markup=None,
     )
-    await _push_next_question(query.message.chat.id, query.bot, query.from_user.id)
+    await _push_next_question(
+        query.message.chat.id, query.bot, query.from_user.id, include_skipped=False
+    )
 
 
 @dp.callback_query(F.data.startswith("skip:"))
@@ -527,7 +534,9 @@ async def on_skip(query: CallbackQuery) -> None:
         f"{query.message.html_text}\n\n<i>Отложено. Сумма останется неразобранной.</i>",
         reply_markup=None,
     )
-    await _push_next_question(query.message.chat.id, query.bot, query.from_user.id)
+    await _push_next_question(
+        query.message.chat.id, query.bot, query.from_user.id, include_skipped=False
+    )
 
 
 @dp.callback_query(F.data.startswith("why:"))

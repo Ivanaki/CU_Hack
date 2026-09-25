@@ -635,12 +635,24 @@ def add_quick_expense(
 # --- очередь вопросов ------------------------------------------------------
 
 
-def open_questions(session: Session, user_id: int, limit: int = 20) -> list[ReviewItem]:
+def open_questions(
+    session: Session, user_id: int, limit: int = 20, *, include_skipped: bool = True
+) -> list[ReviewItem]:
+    statuses = (
+        (ReviewStatus.OPEN, ReviewStatus.SKIPPED)
+        if include_skipped else (ReviewStatus.OPEN,)
+    )
     return list(
         session.scalars(
             select(ReviewItem)
-            .where(ReviewItem.user_id == user_id, ReviewItem.status == ReviewStatus.OPEN)
-            .order_by(ReviewItem.priority.desc(), ReviewItem.id)
+            .where(
+                ReviewItem.user_id == user_id,
+                ReviewItem.status.in_(statuses),
+            )
+            .order_by(
+                ReviewItem.status == ReviewStatus.SKIPPED,
+                ReviewItem.priority.desc(), ReviewItem.id,
+            )
             .limit(limit)
         ).all()
     )
@@ -651,7 +663,10 @@ def count_open_questions(session: Session, user_id: int) -> int:
         session.scalar(
             select(func.count())
             .select_from(ReviewItem)
-            .where(ReviewItem.user_id == user_id, ReviewItem.status == ReviewStatus.OPEN)
+            .where(
+                ReviewItem.user_id == user_id,
+                ReviewItem.status.in_((ReviewStatus.OPEN, ReviewStatus.SKIPPED)),
+            )
         )
         or 0
     )
@@ -688,7 +703,9 @@ def answer_question(
     ответом «своими словами» и для остальных ответов ничего не меняет.
     """
     item = session.get(ReviewItem, review_id)
-    if item is None or item.user_id != user.id or item.status != ReviewStatus.OPEN:
+    if item is None or item.user_id != user.id or item.status not in (
+        ReviewStatus.OPEN, ReviewStatus.SKIPPED
+    ):
         return None
 
     text = (text or "").strip()
@@ -858,7 +875,7 @@ def _remember_decision(
 
 def skip_question(session: Session, user: User, review_id: int) -> None:
     item = session.get(ReviewItem, review_id)
-    if item is not None and item.user_id == user.id:
+    if item is not None and item.user_id == user.id and item.status == ReviewStatus.OPEN:
         item.status = ReviewStatus.SKIPPED
         item.resolved_at = datetime.now()
 

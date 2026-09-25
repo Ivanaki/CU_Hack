@@ -61,13 +61,8 @@ _PERSON_IN_TEXT = re.compile(r"\b[А-ЯЁ][а-яё]{2,}\s+[А-ЯЁ]\.(?:\s*[А-�
 AUTO_THRESHOLD = 0.75
 # Трата дороже этого без понятной категории — повод спросить.
 LARGE_UNCATEGORIZED = 500_000  # 5000 ₽
-# Место, в котором за всю книгу набежало меньше этого, спрашивать незачем:
-# вопрос стоит человеку внимания, а метрике такая мелочь почти ничего не
-# стоит. Порог именно по месту, а не по операции: четыре похода по 300–1100 ₽
-# в один и тот же «Bejs-Klab» — это 2 650 ₽ неясных денег, и по отдельности
-# ни одна из этих трат в вопрос не попадала, хотя вместе они заметны.
-# 1000 ₽ — примерно один поход куда-нибудь: ниже этого объяснять нечего.
-UNCLEAR_PLACE_MIN = 100_000  # 1000 ₽
+# Любая сумма, включённая в «Не разобрано», должна иметь вопрос. Мелкие
+# покупки по одному продавцу всё равно объединяются в одну карточку.
 
 
 class DecisionKind:
@@ -244,7 +239,7 @@ def rule_self_transfers(ctx: Ctx) -> None:
     for out in outgoing:
         if out.id in ctx.used:
             continue
-        if ctx.decision(out.dedup_hash, DecisionKind.NOT_TRANSFER):
+        if ctx.decision(out.dedup_hash, DecisionKind.NOT_TRANSFER) is not None:
             continue
         sent = -out.amount
         best: tuple[float, RawTransaction] | None = None
@@ -338,7 +333,7 @@ def _transfer_confidence(
     содержательный признак — явное указание в назначении, кошелёк
     маркетплейса или собственное имя в реквизитах.
     """
-    if ctx.decision(out.dedup_hash, DecisionKind.FORCE_TRANSFER):
+    if ctx.decision(out.dedup_hash, DecisionKind.FORCE_TRANSFER) is not None:
         return 1.0
 
     dst = _account(ctx, inc)
@@ -721,6 +716,7 @@ def _apply_forced_outgoing(
         explanation="Классифицировано вашим ответом.",
     )
     op.status = OperationStatus.CONFIRMED
+    op.explained = True
     build.expense(
         ctx.session, ctx.reg, op, account=_account(ctx, row), amount=amount, category=category
     )
@@ -880,19 +876,37 @@ def rule_debt_in(ctx: Ctx) -> None:
             remaining -= portion
 
         if remaining > 0:
-            # Вернули больше, чем должны: остаток пока не имеет смысла.
-            op = ctx.new_op(
-                kind=OperationKind.UNKNOWN,
-                occurred_at=row.booked_at,
-                title=f"Поступление сверх долга: {name}",
-                amount=remaining,
-                legs=[],
-                rule="debt_overpay",
-                confidence=0.3,
-                counterparty_id=row.counterparty_id,
-                explanation="Сумма превышает открытый долг, остаток не разобран.",
-            )
-            build.unknown(ctx.session, ctx.reg, op, account=_account(ctx, row), amount=remaining)
+            # Объяснить нужно только излишек: закрытая часть долга уже
+            # проведена и не должна второй раз стать доходом или расходом.
+            forced = ctx.decision(row.dedup_hash, DecisionKind.SET_KIND)
+            if forced:
+                _apply_forced_incoming(
+                    ctx, row, forced, name, amount=remaining, residual=True
+                )
+            else:
+                op = ctx.new_op(
+                    kind=OperationKind.UNKNOWN,
+                    occurred_at=row.booked_at,
+                    title=f"Поступление сверх долга: {name}",
+                    amount=remaining,
+                    legs=[],
+                    rule="debt_overpay",
+                    confidence=0.3,
+                    counterparty_id=row.counterparty_id,
+                    explanation="Сумма превышает открытый долг, остаток не разобран.",
+                    extra={"anchor": row.dedup_hash},
+                )
+                build.unknown(
+                    ctx.session, ctx.reg, op, account=_account(ctx, row), amount=remaining
+                )
+                ctx.ask(
+                    ReviewKind.INCOMING_UNKNOWN,
+                    f"Сверх возвращённого долга пришло {_rub(remaining)} от {name}. Что это?",
+                    _incoming_options(),
+                    anchor=row.dedup_hash,
+                    priority=_priority(remaining, 95),
+                    operation=op,
+                )
 
 
 # --------------------------------------------------------------------------
@@ -1091,6 +1105,15 @@ def rule_shared_bill(ctx: Ctx) -> None:
 # --------------------------------------------------------------------------
 
 
+def _incoming_options() -> list[dict]:
+    return [
+        {"code": "share", "label": "Вернули долю"},
+        {"code": "debt_back", "label": "Вернули долг"},
+        {"code": "gift", "label": "Подарок"},
+        {"code": "income", "label": "Это доход"},
+    ]
+
+
 def rule_unknown_incoming(ctx: Ctx) -> None:
     """Пришли деньги от человека, а зафиксированного долга нет.
 
@@ -1138,21 +1161,22 @@ def rule_unknown_incoming(ctx: Ctx) -> None:
                 + (f", назначение «{_purpose_note(row)}»" if _purpose_note(row) else "")
                 + " — что это?"
             ),
-            [
-                {"code": "share", "label": "Вернули долю"},
-                {"code": "debt_back", "label": "Вернули долг"},
-                {"code": "gift", "label": "Подарок"},
-                {"code": "income", "label": "Это доход"},
-            ],
+            _incoming_options(),
             anchor=row.dedup_hash,
             priority=_priority(row.amount, 95),
             operation=op,
         )
 
 
-def _apply_forced_incoming(ctx: Ctx, row: RawTransaction, forced: dict, name: str) -> None:
+def _apply_forced_incoming(
+    ctx: Ctx, row: RawTransaction, forced: dict, name: str,
+    *, amount: Money | None = None, residual: bool = False,
+) -> None:
     choice = forced.get("kind")
     account = _account(ctx, row)
+    value = row.amount if amount is None else amount
+    legs = [] if residual else [row]
+    extra = {"anchor": row.dedup_hash} if residual else None
 
     if choice in {"share", "debt_back"}:
         # Возврат моих же денег: гасим или, если гасить нечего, просто не
@@ -1163,16 +1187,17 @@ def _apply_forced_incoming(ctx: Ctx, row: RawTransaction, forced: dict, name: st
             kind=OperationKind.DEBT_REPAY_IN,
             occurred_at=row.booked_at,
             title=f"Возврат: {name}",
-            amount=row.amount,
-            legs=[row],
+            amount=value,
+            legs=legs,
             rule="user_decision",
             counterparty_id=row.counterparty_id,
             explanation="Вы указали, что это возврат ваших денег.",
+            extra=extra,
         )
         op.status = OperationStatus.CONFIRMED
         build.debt_repay_in(
             ctx.session, ctx.reg, op,
-            account=account, receivable=receivable, amount=row.amount,
+            account=account, receivable=receivable, amount=value,
         )
         return
 
@@ -1182,15 +1207,16 @@ def _apply_forced_incoming(ctx: Ctx, row: RawTransaction, forced: dict, name: st
         kind=OperationKind.INCOME,
         occurred_at=row.booked_at,
         title=f"Поступление: {name}",
-        amount=row.amount,
-        legs=[row],
+        amount=value,
+        legs=legs,
         rule="user_decision",
         category=category,
         counterparty_id=row.counterparty_id,
         explanation="Классифицировано вашим ответом.",
+        extra=extra,
     )
     op.status = OperationStatus.CONFIRMED
-    build.income(ctx.session, ctx.reg, op, account=account, amount=row.amount, category=category)
+    build.income(ctx.session, ctx.reg, op, account=account, amount=value, category=category)
 
 
 # --------------------------------------------------------------------------
@@ -1223,6 +1249,7 @@ def rule_fallback_expenses(ctx: Ctx) -> None:
         )
         if override:
             op.status = OperationStatus.CONFIRMED
+            op.explained = True
         if is_cash:
             build.cash_expense(
                 ctx.session, ctx.reg, op, amount=amount, category=category or cats.OTHER
@@ -1427,27 +1454,29 @@ def post_unallocated_cash(ctx: Ctx, now: datetime) -> None:
                 extra={"anchor": anchor},
             )
             op.status = OperationStatus.CONFIRMED
+            op.explained = True
             build.cash_expense(
                 ctx.session, ctx.reg, op, amount=unspent, category=category
             )
             continue
 
+        # Срок признания тратой не закрывает возможность объяснить её.
+        # Иначе категория «Наличные без назначения» остаётся в метрике,
+        # когда вопрос уже исчез из очереди.
+        if due <= now or now - withdrawal.occurred_at >= timedelta(days=3):
+            ctx.ask(
+                ReviewKind.CASH_SPENT_ON,
+                (
+                    f"Из снятых {_rub(withdrawal.amount)} от "
+                    f"{withdrawal.occurred_at:%d.%m} не объяснено "
+                    f"{_rub(unspent)}. На что ушли?"
+                ),
+                _category_options(),
+                anchor=anchor,
+                priority=_priority(unspent, 85),
+                operation=withdrawal,
+            )
         if due > now:
-            # Срок ещё не вышел, но спросить уже пора: через три дня человек
-            # ещё помнит, на что потратил, через две недели — уже нет.
-            if now - withdrawal.occurred_at >= timedelta(days=3):
-                ctx.ask(
-                    ReviewKind.CASH_SPENT_ON,
-                    (
-                        f"Из снятых {_rub(withdrawal.amount)} от "
-                        f"{withdrawal.occurred_at:%d.%m} не объяснено "
-                        f"{_rub(unspent)}. На что ушли?"
-                    ),
-                    _category_options(),
-                    anchor=anchor,
-                    priority=_priority(unspent, 85),
-                    operation=withdrawal,
-                )
             continue  # ещё есть время рассказать
         op = ctx.new_op(
             kind=OperationKind.ADJUSTMENT,
@@ -1636,11 +1665,32 @@ def post_unclear_places(ctx: Ctx) -> None:
             continue  # про эту операцию человек уже сказал отдельно
         cp = ctx.session.get(Counterparty, op.counterparty_id) if op.counterparty_id else None
         if cp is None or cp.kind == CounterpartyKind.PERSON:
-            continue  # перевод человеку — это не место, про него спрашивают иначе
+            # У строки без продавца нет ключа для общего правила по месту.
+            # Дать ей уйти в «Прочее» без вопроса означало бы ту же дыру,
+            # что и порог по мелким покупкам.
+            if anchor and not any(ask.anchor == anchor for ask in ctx.asks):
+                ctx.ask(
+                    ReviewKind.CATEGORY_UNCLEAR,
+                    f"{op.title} — {_rub(op.amount)}. Что это за трата?",
+                    _category_options(),
+                    anchor=anchor,
+                    priority=_priority(op.amount, 70),
+                    operation=op,
+                )
+            continue
         # Ключ — тот же, которым «мои места» считают два написания одним
         # местом: иначе «InterFood» и «INTERFOOD 12» дали бы два вопроса.
         key = places.place_key(cp.display_name)
         if not key:
+            if anchor and not any(ask.anchor == anchor for ask in ctx.asks):
+                ctx.ask(
+                    ReviewKind.CATEGORY_UNCLEAR,
+                    f"{op.title} — {_rub(op.amount)}. Что это за трата?",
+                    _category_options(),
+                    anchor=anchor,
+                    priority=_priority(op.amount, 70),
+                    operation=op,
+                )
             continue
         slot = groups.setdefault(
             key, {"name": cp.display_name, "pattern": cp.norm_key, "amount": 0, "ops": []}
@@ -1649,8 +1699,6 @@ def post_unclear_places(ctx: Ctx) -> None:
         slot["ops"].append(op)
 
     for slot in groups.values():
-        if slot["amount"] < UNCLEAR_PLACE_MIN:
-            continue
         count = len(slot["ops"])
         ctx.ask(
             ReviewKind.UNKNOWN_PLACE,
@@ -1857,8 +1905,21 @@ def _wipe_derived(session: Session, user_id: int) -> None:
 
 def _persist_questions(ctx: Ctx) -> None:
     """Сохраняет вопросы, на которые ещё нет ответа."""
+    answered_by = {
+        ReviewKind.INCOMING_UNKNOWN: (DecisionKind.SET_KIND,),
+        ReviewKind.OUTGOING_TO_PERSON: (DecisionKind.SET_KIND,),
+        ReviewKind.SHARED_BILL_HEADS: (DecisionKind.PARTICIPANTS,),
+        ReviewKind.IS_SELF_TRANSFER: (
+            DecisionKind.FORCE_TRANSFER, DecisionKind.NOT_TRANSFER,
+        ),
+        ReviewKind.CASH_SPENT_ON: (DecisionKind.CASH_ALLOCATION,),
+        ReviewKind.CATEGORY_UNCLEAR: (DecisionKind.SET_CATEGORY,),
+        ReviewKind.LARGE_UNCATEGORIZED: (DecisionKind.SET_CATEGORY,),
+    }
     for ask in ctx.asks:
-        if any(k == ask.anchor for (k, _) in ctx.decisions):
+        if (ask.anchor, DecisionKind.FREE_TEXT) in ctx.decisions:
+            continue
+        if any((ask.anchor, kind) in ctx.decisions for kind in answered_by.get(ask.kind, ())):
             continue
         ctx.session.add(
             ReviewItem(

@@ -65,6 +65,7 @@ FREE_OPTION = QuestionOptionOut(code="free", label="Своими словами"
 class QuestionOut(BaseModel):
     id: int
     kind: str
+    status: str
     question: str
     options: list[QuestionOptionOut]
     explanation: str = ""
@@ -80,6 +81,7 @@ class QuestionOut(BaseModel):
         return cls(
             id=item.id,
             kind=str(item.kind),
+            status=str(item.status),
             question=item.question,
             options=options,
             explanation=(op.explanation if op else ""),

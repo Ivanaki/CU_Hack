@@ -340,7 +340,10 @@ def open_questions_count(session: Session, user_id: int) -> int:
         session.scalar(
             select(func.count())
             .select_from(ReviewItem)
-            .where(ReviewItem.user_id == user_id, ReviewItem.status == ReviewStatus.OPEN)
+            .where(
+                ReviewItem.user_id == user_id,
+                ReviewItem.status.in_((ReviewStatus.OPEN, ReviewStatus.SKIPPED)),
+            )
         )
         or 0
     )

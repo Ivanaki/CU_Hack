@@ -3210,7 +3210,7 @@ function renderQueue(focusId) {
   box.innerHTML = '';
   if (!list.length) {
     box.appendChild(el(`<div class="alldone"><div class="icbox">${icon('check', true)}</div>
-      Спорных операций нет.<br>Все цифры за период разобраны.</div>`));
+      ${queueEmptyText()}</div>`));
     return;
   }
   list.forEach((q, idx) => box.appendChild(questionCard(q, idx, list.length)));
@@ -3218,6 +3218,12 @@ function renderQueue(focusId) {
     const target = box.querySelector(`.qwrap[data-id="${focusId}"]`);
     if (target) setTimeout(() => target.scrollIntoView({behavior: 'smooth', block: 'center'}), 120);
   }
+}
+
+function queueEmptyText() {
+  return kop(SUM.awareness?.unclear) > 0
+    ? `Вопросов сейчас нет.<br>Не разобрано ${m(SUM.awareness.unclear)}.`
+    : 'Спорных операций нет.<br>Все цифры за период разобраны.';
 }
 
 /* Одна карточка вопроса. Вынесена отдельно, потому что рисуется из двух
@@ -3245,8 +3251,8 @@ function questionCard(q, idx, total) {
              <span>${esc(free.label)}</span><span class="plus">&rsaquo;</span></button>`
         : '');
     const wrap = el(`
-      <div class="qwrap" data-id="${q.id}"><div class="qin"><div class="quiz pop" style="animation-delay:${idx * 70}ms">
-        <div class="qh"><span class="badge">${esc(KIND_BADGE[kind] || 'Вопрос')}</span>
+      <div class="qwrap" data-id="${q.id}" data-status="${esc(q.status || 'open')}"><div class="qin"><div class="quiz pop" style="animation-delay:${idx * 70}ms">
+        <div class="qh"><span class="badge">${q.status === 'skipped' ? 'Отложен' : esc(KIND_BADGE[kind] || 'Вопрос')}</span>
           <span class="cnt">${list.length} в очереди · 1 тап</span></div>
         <div class="who"><div class="av">${icon(KIND_ICON[kind] || 'inbox', KIND_SVG[kind] !== false)}</div>
           <div style="min-width:0"><div class="nm">${esc(KIND_BADGE[kind] || 'Операция')}</div>
@@ -3255,7 +3261,7 @@ function questionCard(q, idx, total) {
         <div class="q">${txt(q.question)}</div>
         ${q.explanation ? `<div class="qn">${txt(q.explanation)}</div>` : ''}
         ${opts}
-        <button class="qskip" type="button" data-skip="${q.id}">Отложить вопрос</button>
+        ${q.status === 'skipped' ? '' : `<button class="qskip" type="button" data-skip="${q.id}">Отложить вопрос</button>`}
         <div class="qhere"></div>
       </div></div></div>`);
     wrap.querySelectorAll('.ans:not(.own)').forEach((b) => {
@@ -3327,7 +3333,7 @@ function dropQueueCard() {
   const left = box.querySelectorAll('.qwrap').length;
   if (!left) {
     const done = el(`<div class="alldone pop"><div class="icbox">${icon('check', true)}</div>
-      Спорных операций нет.<br>Все цифры за период разобраны.</div>`);
+      ${queueEmptyText()}</div>`);
     box.appendChild(done);
     return;
   }
@@ -3340,9 +3346,11 @@ function dropQueueCard() {
 function queueMatches() {
   const box = $('queue');
   if (!box) return false;
-  const drawn = [...box.querySelectorAll('.qwrap')].map((n) => Number(n.dataset.id));
-  const wanted = (SUM.questions || []).map((q) => q.id);
-  return drawn.length === wanted.length && drawn.every((id, i) => id === wanted[i]);
+  const drawn = [...box.querySelectorAll('.qwrap')].map((n) =>
+    [Number(n.dataset.id), n.dataset.status]);
+  const wanted = SUM.questions || [];
+  return drawn.length === wanted.length && drawn.every(([id, status], i) =>
+    id === wanted[i].id && status === (wanted[i].status || 'open'));
 }
 
 /* Подтягивает очередь к тому, что пришло с сервера, не трогая то, что уже
@@ -3359,9 +3367,9 @@ function syncQueue() {
   const wanted = SUM.questions || [];
   if (!wanted.length || !box.querySelector('.qwrap')) { renderQueue(); return; }
 
-  const ids = new Set(wanted.map((q) => q.id));
+  const ids = new Map(wanted.map((q) => [q.id, q.status || 'open']));
   box.querySelectorAll('.qwrap').forEach((node) => {
-    if (!ids.has(Number(node.dataset.id))) node.remove();
+    if (ids.get(Number(node.dataset.id)) !== node.dataset.status) node.remove();
   });
 
   const drawn = new Set(
@@ -3450,7 +3458,8 @@ async function skipQuestion(q, wrap) {
     const out = await api(`/me/questions/${q.id}/skip`, {method: 'POST'});
     wrap.classList.add('gone');
     setTimeout(async () => {
-      SUM.questions = (SUM.questions || []).filter((x) => x.id !== q.id);
+      q.status = 'skipped';
+      SUM.questions = (SUM.questions || []).filter((x) => x.id !== q.id).concat(q);
       SUM.open_questions = out.open_questions;
       renderQueue();
       navBadge();
@@ -3947,7 +3956,8 @@ async function refresh(silent, quiet) {
          перерисовка переигрывает появление всех карточек и выглядит как
          мигание экрана сразу после ответа. */
       if (TAB === 'questions') {
-        if (!queueMatches()) syncQueue();
+        if (!(SUM.questions || []).length) renderQueue();
+        else if (!queueMatches()) syncQueue();
         setAwareness(SUM.awareness?.percent || 0);
       }
     } else {

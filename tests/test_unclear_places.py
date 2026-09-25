@@ -33,7 +33,8 @@ STATEMENT = """Дата операции;Номер счета;Сумма;Вал
 11.09.2026;40817810900000005531;-2400,00;RUB;Пятёрочка
 """
 
-# Мелочь: за месяц 50 ₽ в одном месте. Про такое спрашивать незачем.
+# Мелочь: за месяц 50 ₽ в одном месте. Пока они входят в «Не разобрано»,
+# человек должен иметь возможность объяснить и их.
 SMALL = """Дата операции;Номер счета;Сумма;Валюта;Назначение платежа
 07.09.2026;40817810900000005531;-50,00;RUB;Kiosk Uglovoj
 """
@@ -85,11 +86,13 @@ def summary(client: TestClient, tg_id: int = UNCLEAR_TG_ID) -> dict:
     return response.json()
 
 
-def answer(client: TestClient, question: dict, code: str, text: str = ""):
+def answer(
+    client: TestClient, question: dict, code: str, text: str = "", tg_id: int = UNCLEAR_TG_ID
+):
     return client.post(
         f"/api/v1/me/questions/{question['id']}/answer",
         json={"code": code, "text": text},
-        headers=auth(),
+        headers=auth(tg_id),
     )
 
 
@@ -119,9 +122,144 @@ def q_text(question: dict) -> str:
     return re.sub(r"\s", " ", question["question"])
 
 
-def test_мелочь_в_пятьдесят_рублей_не_спрашивают(client):
-    """Порог по месту целиком: вопрос стоит внимания дороже, чем эти деньги."""
-    assert questions(client, tg_id=SMALL_TG_ID) == []
+def test_мелочь_можно_объяснить_даже_после_откладывания(client):
+    """Если процент ниже 100, вопрос нельзя потерять из очереди."""
+    before = summary(client, SMALL_TG_ID)["awareness"]
+    assert before["unclear"]["kopecks"] == 5_000
+    assert before["percent"] < 100
+
+    item = questions(client, tg_id=SMALL_TG_ID)[0]
+    response = client.post(f"/api/v1/me/questions/{item['id']}/skip", headers=auth(SMALL_TG_ID))
+    assert response.status_code == 200, response.text
+    assert response.json()["open_questions"] == 1
+    assert [q["id"] for q in questions(client, SMALL_TG_ID)] == [item["id"]]
+
+    # Даже кнопка «Прочее» является ответом человека, а не слепой догадкой.
+    assert answer(client, item, "free", "покупка в киоске", SMALL_TG_ID).status_code == 200
+    assert questions(client, SMALL_TG_ID) == []
+    after = summary(client, SMALL_TG_ID)["awareness"]
+    assert after["unclear"]["kopecks"] == 0
+    assert after["percent"] == 100
+
+
+def test_списанные_наличные_остаются_вопросом_до_ответа(client):
+    """Истечение срока меняет учёт, но не лишает человека способа объяснить сумму."""
+    from tests.conftest import seed_user
+
+    tg_id = 555_303
+    seed_user(tg_id)  # фиксированное «сейчас»: 10 октября, срок уже вышел
+    before = summary(client, tg_id)["awareness"]
+    assert before["unallocated_cash"]["kopecks"] == 300_000
+    cash = next(q for q in questions(client, tg_id) if q["kind"] == "cash_spent_on")
+    assert answer(client, cash, "other", tg_id=tg_id).status_code == 200
+    after = summary(client, tg_id)["awareness"]
+    assert after["unallocated_cash"]["kopecks"] == 0
+    assert after["unclear"]["kopecks"] == before["unclear"]["kopecks"] - 300_000
+
+
+def test_остаток_сверх_возвращённого_долга_можно_объяснить(session):
+    """Излишек возврата нельзя оставлять в UNKNOWN без вопроса."""
+    from datetime import datetime
+
+    from app.analytics.periods import month
+    from app.analytics.reports import awareness
+    from app.classify.pipeline import reclassify
+    from app.db import init_db
+    from app.ingest.base import ParsedRow
+    from app.ingest.service import import_rows
+    from app.models import OperationSource, User
+    from app.service import answer_question, open_questions
+
+    init_db()
+    user = User(tg_id=555_304, display_name="Тест")
+    session.add(user)
+    session.flush()
+    rows = [
+        ParsedRow(
+            booked_at=datetime(2026, 9, 1, 12), amount=-100_000,
+            description="Дал в долг Ивану П.", counterparty_raw="Иван П.",
+            bank="Т-Банк", last4="4127",
+        ),
+        ParsedRow(
+            booked_at=datetime(2026, 9, 10, 12), amount=150_000,
+            description="Возврат долга от Ивана П.", counterparty_raw="Иван П.",
+            bank="Т-Банк", last4="4127",
+        ),
+    ]
+    import_rows(session, user.id, rows, source="Т-Банк", origin=OperationSource.IMPORT)
+    reclassify(session, user.id, now=datetime(2026, 10, 10))
+    before = awareness(session, user.id, month(2026, 9))
+    assert before.unknown_volume == 50_000
+    residual = next(q for q in open_questions(session, user.id) if q.kind == "incoming_unknown")
+
+    assert answer_question(session, user, residual.id, "income") is not None
+    assert awareness(session, user.id, month(2026, 9)).unknown_volume == 0
+
+
+def test_отрицание_перевода_себе_не_прячет_новые_вопросы(session):
+    """Ответ «это разные операции» не объясняет, кому ушли деньги."""
+    from datetime import datetime
+
+    from app.classify.pipeline import reclassify
+    from app.db import init_db
+    from app.ingest.base import ParsedRow
+    from app.ingest.service import import_rows
+    from app.models import OperationSource, User
+    from app.service import answer_question, open_questions
+
+    init_db()
+    user = User(tg_id=555_305, display_name="Тест")
+    session.add(user)
+    session.flush()
+    rows = [
+        ParsedRow(
+            booked_at=datetime(2026, 9, 1, 12), amount=-50_000,
+            description="Списание", counterparty_raw="Shop X",
+            bank="Т-Банк", last4="4127",
+        ),
+        ParsedRow(
+            booked_at=datetime(2026, 9, 1, 12, 30), amount=50_000,
+            description="Перевод", counterparty_raw="Банк Z",
+            bank="Альфа", last4="5555",
+        ),
+    ]
+    import_rows(session, user.id, rows, source="банки", origin=OperationSource.IMPORT)
+    reclassify(session, user.id, now=datetime(2026, 9, 25))
+    transfer = next(q for q in open_questions(session, user.id) if q.kind == "is_self_transfer")
+
+    assert answer_question(session, user, transfer.id, "no") is not None
+    kinds = {q.kind for q in open_questions(session, user.id)}
+    assert "is_self_transfer" not in kinds
+    assert "unknown_place" in kinds  # ушедшие деньги теперь нуждаются в объяснении
+
+
+def test_трата_без_названия_тоже_получает_вопрос(session):
+    from datetime import datetime
+
+    from app.analytics.periods import month
+    from app.analytics.reports import awareness
+    from app.classify.pipeline import reclassify
+    from app.db import init_db
+    from app.ingest.base import ParsedRow
+    from app.ingest.service import import_rows
+    from app.models import OperationSource, User
+    from app.service import answer_question, open_questions
+
+    init_db()
+    user = User(tg_id=555_306, display_name="Тест")
+    session.add(user)
+    session.flush()
+    import_rows(
+        session, user.id,
+        [ParsedRow(booked_at=datetime(2026, 9, 5), amount=-5_000, bank="Т-Банк")],
+        source="Т-Банк", origin=OperationSource.IMPORT,
+    )
+    reclassify(session, user.id, now=datetime(2026, 9, 25))
+    assert awareness(session, user.id, month(2026, 9)).percent < 100
+    item = next(q for q in open_questions(session, user.id) if q.kind == "category_unclear")
+    assert answer_question(session, user, item.id, "other") is not None
+    assert open_questions(session, user.id) == []
+    assert awareness(session, user.id, month(2026, 9)).percent == 100
 
 
 def test_один_ответ_закрывает_все_траты_в_этом_месте(client):
