@@ -26,7 +26,13 @@ polling), и HTTP API на `API_PORT`.
 
 ## Путь 1: docker
 
-С локальной машины, одной командой (`home` — алиас из `~/.ssh/config`):
+Для существующего боевого стенда `grosh.cu3rd.ru` на Windows используйте
+`deploy/deploy.ps1` из корня проекта. Он выкладывает один Git-коммит,
+проверяет тесты и здоровье контейнера; локальный `.env` и Docker не нужны.
+Подробности — в [HOSTING.md](HOSTING.md).
+
+Для нового сервера остаётся общий Bash-скрипт (`home` — алиас из
+`~/.ssh/config`):
 
 ```bash
 ./deploy/deploy.sh home

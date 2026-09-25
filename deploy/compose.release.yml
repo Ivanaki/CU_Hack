@@ -1,0 +1,5 @@
+# Образ конкретного коммита собирает deploy/remote_release.sh.
+# --no-build при запуске не даёт Compose пересобрать старый код из ~/honest-month.
+services:
+  app:
+    image: honest-month:${DEPLOY_SHA:?DEPLOY_SHA must be set}
