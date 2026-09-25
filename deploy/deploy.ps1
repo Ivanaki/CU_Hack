@@ -64,12 +64,17 @@ try {
     $archive = Join-Path $tempDir 'release.tar'
     try {
         Write-Host "Упаковываю коммит $sha (рабочие файлы в архив не попадут)"
-        Invoke-Native 'git' @('archive', '--format=tar', "--output=$archive", $sha)
+        # Git for Windows иначе применяет core.autocrlf=true при экспорте:
+        # Bash-скрипт в архиве получает CRLF и падает на set -euo pipefail.
+        Invoke-Native 'git' @('-c', 'core.autocrlf=false', 'archive', '--format=tar', "--output=$archive", $sha)
         Invoke-Native 'tar.exe' @('-xf', $archive, '-C', $sourceDir)
         foreach ($required in @('deploy\remote_release.sh', 'deploy\compose.release.yml', 'tests\miniapp_viewport.test.cjs', 'miniapp\dist\index.html')) {
             if (-not (Test-Path -LiteralPath (Join-Path $sourceDir $required))) {
                 throw "В выбранном коммите нет $required; сначала закоммитьте сценарий выкладки."
             }
+        }
+        if ((Get-Content -LiteralPath (Join-Path $sourceDir 'deploy\remote_release.sh') -Raw).Contains("`r")) {
+            throw 'В архиве deploy/remote_release.sh содержит CRLF; выкладка остановлена до отправки на сервер.'
         }
         $indexHash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $sourceDir 'miniapp\dist\index.html')).Hash.ToLowerInvariant()
 
