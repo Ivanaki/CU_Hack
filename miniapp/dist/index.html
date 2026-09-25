@@ -1096,13 +1096,16 @@ try { tg?.setBackgroundColor?.('#F3E4C6'); } catch (e) {}
    -------------------------------------------------------------------------- */
 function fitViewport() {
   const root = document.documentElement.style;
-  let stable = 0, inner = 0;
+  let stable = 0, current = 0, inner = 0;
   try { stable = Math.round(tg?.viewportStableHeight || 0); } catch (e) {}
+  try { current = Math.round(tg?.viewportHeight || 0); } catch (e) {}
   try { inner = Math.round(window.innerHeight || 0); } catch (e) {}
-  /* Разница между разметочной и видимой высотой — те самые недостижимые
-     60–90px. Зажимаем в 0…220: кривое значение не должно подвесить панель
-     посреди экрана. */
-  const eaten = (stable > 0 && inner > stable) ? Math.min(220, inner - stable) : 0;
+  /* После возврата из свёрнутого Mini App stable может ещё хранить высоту
+     свёрнутого окна. Текущая высота уже выросла, поэтому не поднимаем панель
+     на разницу с устаревшим stable. При сворачивании stable, наоборот,
+     удерживает панель от прыжков вслед за анимацией. */
+  const visible = Math.max(stable, current);
+  const eaten = (visible > 0 && inner > visible) ? Math.min(220, inner - visible) : 0;
   let safe = 0;
   try {
     safe = Math.max(
@@ -1112,7 +1115,7 @@ function fitViewport() {
   } catch (e) {}
   const nav = document.getElementById('nav');
   const navh = nav ? Math.round(nav.getBoundingClientRect().height) : 0;
-  const vh = stable || inner;
+  const vh = visible || inner;
   if (vh > 0) root.setProperty('--vh', vh + 'px');
   root.setProperty('--eaten', eaten + 'px');
   /* Ноль от клиента не значит «отступа нет» — значит «не сказал».
@@ -1126,6 +1129,12 @@ window.addEventListener('orientationchange', () => setTimeout(fitViewport, 260))
 ['viewportChanged', 'safeAreaChanged', 'contentSafeAreaChanged'].forEach((evt) => {
   try { tg?.onEvent?.(evt, fitViewport); } catch (e) {}
 });
+/* При возврате из свёрнутого состояния Telegram может обновить высоту после
+   события activated, не посылая обычный resize веб-странице. */
+try { tg?.onEvent?.('activated', () => {
+  fitViewport();
+  [120, 400].forEach((ms) => setTimeout(fitViewport, ms));
+}); } catch (e) {}
 /* Панель меняет высоту от длины подписей и системного шрифта — без
    наблюдателя отступ под ней снова стал бы константой на глаз. */
 try { new ResizeObserver(fitViewport).observe(document.getElementById('nav')); } catch (e) {}
