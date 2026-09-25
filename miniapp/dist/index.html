@@ -2072,7 +2072,7 @@ function deriveAchievements(d) {
     hint: earned ? null : hint,
   });
   add('first_statement', 'Первая выписка', 'Загрузили выписку и увидели настоящие цифры',
-    ops > 0, ops > 0 ? 1 : 0, 'Загрузите CSV из интернет-банка на вкладке «Месяц»');
+    ops > 0, ops > 0 ? 1 : 0, 'Загрузите CSV или PDF из интернет-банка на вкладке «Месяц»');
   add('streak_7', 'Неделя честности', 'Семь дней подряд без пропусков',
     (streak.best || 0) >= 7, (streak.days || 0) / 7, 'Отвечайте на вопросы 7 дней подряд');
   add('streak_30', 'Месяц честности', 'Тридцать дней подряд без пропусков',
@@ -2187,9 +2187,9 @@ function intakeCard() {
     <div class="h"><h2>Добавить операции</h2><span class="sp"></span><span class="tag">четыре способа</span></div>
     <div class="ways">
       <label class="way" data-way="csv">
-        <input type="file" accept=".csv,text/csv" id="csvFile" hidden>
+        <input type="file" accept=".csv,text/csv,.pdf,application/pdf" id="csvFile" hidden>
         <span class="icbox">${icon('sheet', true)}</span>
-        <span class="tx"><b>Загрузить выписку</b><i>CSV из интернет-банка — разберу все операции сразу</i></span>
+        <span class="tx"><b>Загрузить выписку</b><i>CSV или PDF из интернет-банка</i></span>
         <span class="go">&rsaquo;</span>
       </label>
       <label class="way" data-way="shot">
@@ -2220,6 +2220,7 @@ function intakeCard() {
         <span class="go">&rsaquo;</span>
       </button>
     </div>
+    <div class="note" style="margin-top:11px"><b>Проверенные PDF:</b> приложенные шаблоны «Выписка по счету» Альфа-Банка и «Справка о движении средств» Т-Банка. Ожидающие операции Альфы сразу учитываются и заменяются проведёнными автоматически.<br><b>Другие PDF и сканы:</b> при доступной модели страницы передаются ей для распознавания. Результат может быть неточным — проверьте даты, суммы и полноту операций.</div>
     <div id="istatus"></div>
   </div>`;
 }
@@ -2667,7 +2668,7 @@ function opRow(o) {
     <div class="icbox">${o.category ? catIcon(o.category) : icon(sp === 0 ? 'scales' : 'coins', true)}</div>
     <div style="flex:1;min-width:0">
       <div class="t">${esc(o.title || 'Без названия')}</div>
-      <div class="dt">${esc(shortDate(o.occurred_at))} · ${esc(KIND_RU[o.kind] || o.kind || '')}</div>
+      <div class="dt">${esc(shortDate(o.occurred_at))} · ${esc(KIND_RU[o.kind] || o.kind || '')}${o.is_pending ? ' · <b>ожидает проведения</b>' : ''}</div>
       ${o.explanation ? `<div class="ex">${txt(o.explanation)}</div>` : ''}
       ${src ? `<div class="src"><span class="icbox">${icon('sheet', true)}</span>
         <span>${esc(src.source || 'загрузка')}${src.filename ? ' · ' + esc(src.filename) : ''}</span></div>` : ''}
@@ -3659,8 +3660,10 @@ function iprog(frac) {
 function humanIngest(raw) {
   const s = String(raw || '');
   let lead = 'Не получилось разобрать файл.';
-  if (/формат|колонк|заголов/i.test(s)) {
-    lead = 'Не узнал формат выписки. Нужен CSV ровно такой, каким его отдаёт интернет-банк, без правок в редакторе.';
+  if (/формат|колонк|заголов|не входит в проверенные/i.test(s)) {
+    lead = 'Не узнал формат выписки. Загрузите CSV банка или один из проверенных PDF-шаблонов выше.';
+  } else if (/не сошл|итог|подтверждённ/i.test(s)) {
+    lead = 'Суммы PDF не сошлись с итогами банка. Операции не добавлены.';
   } else if (/пуст/i.test(s)) {
     lead = 'В файле не нашлось ни одной операции.';
   } else if (/сумм|дат/i.test(s)) {
@@ -3678,8 +3681,13 @@ function ingestText(res, what) {
   if (res.duplicates) bits.push(res.duplicates + ' ' + plural(res.duplicates, 'повтор', 'повтора', 'повторов') + ' пропустил');
   if (res.questions) bits.push('вопросов в очереди: <b>' + res.questions + '</b>');
   if (res.unresolved && kop(res.unresolved) > 0) bits.push('не разобрано ' + m(res.unresolved));
+  if (res.pending_count) bits.push(res.pending_count + ' ожидающих операций учтено — проведённые заменят их автоматически');
   if (!bits.length) bits.push('новых операций не нашлось');
-  return (res.source ? esc(res.source) : what) + ': ' + bits.join(', ') + '.';
+  const warning = res.extraction_method === 'ai'
+    ? ' <b>Автоматическое распознавание:</b> проверьте даты, суммы и полноту операций в «Отчётах».'
+    : res.extraction_method === 'template'
+      ? ' Суммы сверены с итогами PDF.' : '';
+  return (res.source ? esc(res.source) : what) + ': ' + bits.join(', ') + '.' + warning;
 }
 
 function bindIntake() {
@@ -3694,9 +3702,9 @@ function bindIntake() {
     const f = csv.files && csv.files[0];
     csv.value = '';
     if (!f || busyUpload) return;
-    if (!/\.csv$/i.test(f.name)) {
+    if (!/\.(csv|pdf)$/i.test(f.name)) {
       haptic('heavy'); mascotFor('sad', 2400);
-      istatus('err', 'Это не похоже на выписку — нужен файл <b>.csv</b> из интернет-банка. ' +
+      istatus('err', 'Нужен файл <b>.csv</b> или <b>.pdf</b> из интернет-банка. ' +
         '<button class="retry" type="button">Выбрать другой</button>');
       return;
     }
@@ -3789,7 +3797,9 @@ async function runUpload(path, form, waitLabel, what) {
     /* Реакция по делу: новые вопросы — Грош озадачен, вопросов нет — радуется. */
     mascotFor(res && res.questions ? 'curious' : 'party', 2400);
     await refresh(true);
-    say(null, res && res.questions
+    say(null, res && res.extraction_method === 'ai'
+      ? 'PDF распознан автоматически. Проверьте операции, возможны ошибки.'
+      : res && res.questions
       ? 'Нашёл <b>' + res.questions + ' ' + plural(res.questions, 'новый вопрос', 'новых вопроса', 'новых вопросов') + '</b>. Глянем?'
       : 'Всё разобрал, новых вопросов нет.');
   } catch (e) {

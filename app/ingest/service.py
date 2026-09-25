@@ -33,6 +33,7 @@ from app.models import (
 )
 
 SOFT_WINDOW = timedelta(hours=36)
+PENDING_WINDOW = timedelta(days=14)
 
 
 @dataclass(slots=True)
@@ -41,6 +42,8 @@ class ImportResult:
     new_rows: list[RawTransaction]
     duplicates: int
     superseded: int = 0
+    extraction_method: str = "csv"
+    pending_count: int = 0
 
     @property
     def summary(self) -> str:
@@ -126,6 +129,58 @@ def _find_soft_duplicate(
     return None
 
 
+def _find_pending_pair(
+    session: Session,
+    user_id: int,
+    row: ParsedRow,
+    account_id: int,
+    *,
+    current_batch_id: int,
+    consumed: set[int],
+) -> RawTransaction | None:
+    """Связывает временную блокировку с проведённой строкой того же платежа.
+
+    Банк часто меняет код и дату проводки, иногда окончательную сумму.
+    Поэтому код операции не сравниваем; нужны один счёт, близкие день и
+    сумма, совпадение продавца. Одну строку можно использовать только раз.
+    """
+    incoming_pending = bool(row.raw.get("pending"))
+    if row.amount >= 0:
+        return None
+    tolerance = max(5_000, abs(row.amount) // 10)  # 50 ₽ или 10 %
+    candidates = session.scalars(
+        select(RawTransaction).where(
+            RawTransaction.user_id == user_id,
+            RawTransaction.account_id == account_id,
+            RawTransaction.source == OperationSource.IMPORT,
+            RawTransaction.batch_id != current_batch_id,
+            RawTransaction.is_pending == (not incoming_pending),
+            RawTransaction.amount < 0,
+            RawTransaction.amount >= row.amount - tolerance,
+            RawTransaction.amount <= row.amount + tolerance,
+            RawTransaction.booked_at >= row.booked_at - PENDING_WINDOW,
+            RawTransaction.booked_at <= row.booked_at + PENDING_WINDOW,
+        )
+    ).all()
+    matches = [
+        candidate for candidate in candidates
+        if candidate.id not in consumed
+        and _similar_merchant(
+            candidate.counterparty_raw or candidate.description,
+            row.counterparty_raw or row.description,
+        )
+    ]
+    if not matches:
+        return None
+    return min(
+        matches,
+        key=lambda candidate: (
+            abs((candidate.booked_at - row.booked_at).total_seconds()),
+            abs(candidate.amount - row.amount),
+        ),
+    )
+
+
 def _move_user_answers(session: Session, user_id: int, old_hash: str, new_hash: str) -> None:
     """Переносит решения пользователя на уцелевшую запись."""
     for decision in session.scalars(
@@ -206,6 +261,22 @@ def import_rows(
             continue
 
         account = resolve_account(reg, row)
+        pending_pair = _find_pending_pair(
+            session, user_id, row, account.id,
+            current_batch_id=batch.id, consumed=consumed,
+        ) if origin.is_statement else None
+        if pending_pair is not None:
+            consumed.add(pending_pair.id)
+            if row.raw.get("pending"):
+                duplicates += 1
+                known_again.append(pending_pair.dedup_hash)
+                continue
+            _move_user_answers(session, user_id, pending_pair.dedup_hash, digest)
+            existing_hashes.discard(pending_pair.dedup_hash)
+            session.delete(pending_pair)
+            session.flush()
+            superseded += 1
+
         twin = _find_soft_duplicate(
             session, user_id, row, account.id, origin, consumed=consumed
         )
@@ -237,6 +308,7 @@ def import_rows(
             counterparty_raw=row.counterparty_raw or row.description,
             external_id=row.external_id,
             dedup_hash=digest,
+            is_pending=bool(row.raw.get("pending")),
             source=origin,
         )
         session.add(raw)
@@ -261,13 +333,26 @@ def import_file(
     stored_as: str = "",
     content_type: str = "",
 ) -> ImportResult:
-    bank, rows = parse_statement(data, filename=filename)
-    return import_rows(
+    method = "csv"
+    if data.startswith(b"%PDF-") or filename.lower().endswith(".pdf"):
+        from app.ingest.pdf import parse_pdf_statement  # noqa: PLC0415
+
+        pdf = parse_pdf_statement(data)
+        bank, rows = pdf.bank, pdf.rows
+        method = pdf.method
+    else:
+        bank, rows = parse_statement(data, filename=filename)
+    if not rows:
+        raise ValueError("в файле не найдено операций")
+    result = import_rows(
         session, user_id, rows, source=bank, filename=filename,
         origin=OperationSource.IMPORT,
         channel=channel, stored_as=stored_as, content_type=content_type,
         size_bytes=len(data),
     )
+    result.extraction_method = method
+    result.pending_count = sum(row.is_pending for row in result.new_rows)
+    return result
 
 
 def import_images(

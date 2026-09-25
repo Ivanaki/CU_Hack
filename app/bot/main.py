@@ -327,9 +327,9 @@ async def on_document(message: Message) -> None:
         await message.answer("Файл великоват. Пришлите выписку до 12 МБ.")
         return
     name = (document.file_name or "").lower()
-    if not name.endswith((".csv", ".txt", ".tsv")):
+    if not name.endswith((".csv", ".txt", ".tsv", ".pdf")):
         await message.answer(
-            "Жду CSV-выписку из банка. Если под рукой только приложение — "
+            "Жду CSV или PDF-выписку из банка. Если под рукой только приложение — "
             "пришлите скриншот списка операций, я прочитаю его."
         )
         return
@@ -361,9 +361,21 @@ async def on_document(message: Message) -> None:
     if not outcome.ok:
         await note.edit_text(
             f"Не смог разобрать файл: {outcome.error}\n\n"
-            "Поддерживаю выписки Т-Банка, Сбербанка и Альфы в CSV."
+            "Проверены приложенные PDF-шаблоны Альфа-Банка и Т-Банка. "
+            "PDF других банков обрабатываются моделью при наличии доступа; "
+            "результат может быть неточным."
         )
         return
+    if outcome.imported.extraction_method == "ai":
+        text += "\n\nPDF распознан моделью. Проверьте даты, суммы и полноту операций."
+    if outcome.imported.pending_count:
+        text += (
+            f"\n\nОжидающих операций учтено: "
+            f"{outcome.imported.pending_count}. Когда банк проведёт их, "
+            "записи обновятся автоматически."
+        )
+        if outcome.imported.extraction_method == "template":
+            text += " Итоги PDF сверены."
     await note.edit_text(text)
     await _send_report(message, "month")
 
@@ -407,7 +419,7 @@ async def on_photo(message: Message) -> None:
         await note.edit_text(
             "Не разглядел операции на картинке. Подойдёт скриншот списка "
             "операций из приложения банка или фотография чека — или пришлите "
-            "CSV-выписку файлом."
+            "CSV или PDF-выписку файлом."
         )
         return
     await note.edit_text(text)

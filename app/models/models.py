@@ -199,6 +199,9 @@ class RawTransaction(Base, TimestampMixin):
     counterparty_raw: Mapped[str] = mapped_column(String(255), default="")
     external_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     dedup_hash: Mapped[str] = mapped_column(String(64), index=True)
+    # Временная блокировка карты: учитывается сразу и заменяется проведённой
+    # строкой, когда она появляется в следующей выписке.
+    is_pending: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
     # Откуда факт: выписка, быстрый ввод или голосовое. Ручной ввод наличных
     # хранится здесь же, чтобы у пересчёта был ровно один вид входных данных.
     source: Mapped[OperationSource] = mapped_column(

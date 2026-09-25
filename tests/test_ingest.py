@@ -13,7 +13,7 @@ import pytest
 
 from app.ingest.base import ParsedRow, parse_amount, parse_statement
 from app.ingest.service import import_rows
-from app.models import OperationSource, RawTransaction
+from app.models import Decision, Operation, OperationSource, RawTransaction
 
 
 def row(
@@ -166,6 +166,82 @@ def test_две_одинаковые_покупки_за_день_остаютс
     assert len(result.new_rows) == 2
     assert result.duplicates == 0
     assert count_raw(session, user.id) == 2
+
+
+def test_pending_is_counted_then_replaced_without_losing_answer(session, _isolated_db):
+    from sqlalchemy import select
+
+    from app.api.routes import _pending_operation_ids
+    from app.api.schemas import OperationOut
+    from app.classify.pipeline import DecisionKind, reclassify
+    from app.models import User
+
+    user = User(tg_id=5091, display_name="Тест")
+    session.add(user)
+    session.flush()
+
+    hold = row(
+        when=datetime(2026, 9, 24), amount=-10_000,
+        text="CAFE", bank="Альфа-Банк", last4="4321",
+    )
+    hold.raw["pending"] = True
+    first = import_rows(session, user.id, [hold], source="Альфа-Банк")
+    assert len(first.new_rows) == 1
+    reclassify(session, user.id)
+    pending_op = session.scalar(select(Operation).where(Operation.user_id == user.id))
+    assert pending_op.spend_amount == 10_000
+    assert OperationOut.of(
+        pending_op,
+        is_pending=pending_op.id in _pending_operation_ids(session, user.id, [pending_op.id]),
+    ).is_pending
+
+    session.add(Decision(
+        user_id=user.id, anchor_hash=hold.dedup_hash(),
+        kind=DecisionKind.SET_CATEGORY, payload={"category": "cafe"},
+    ))
+    session.flush()
+
+    posted = row(
+        when=datetime(2026, 9, 26), amount=-10_200,
+        text="CAFE MOSCOW", bank="Альфа-Банк", last4="4321",
+    )
+    posted.external_id = "CRD_123"
+    second = import_rows(session, user.id, [posted], source="Альфа-Банк")
+    assert second.superseded == 1
+    assert len(second.new_rows) == 1
+    reclassify(session, user.id)
+    raws = session.scalars(select(RawTransaction).where(RawTransaction.user_id == user.id)).all()
+    assert len(raws) == 1
+    assert raws[0].dedup_hash == posted.dedup_hash()
+    assert raws[0].is_pending is False
+    decision = session.scalar(select(Decision).where(Decision.user_id == user.id))
+    assert decision.anchor_hash == posted.dedup_hash()
+    final_op = session.scalar(select(Operation).where(Operation.user_id == user.id))
+    assert final_op.spend_amount == 10_200
+    assert final_op.category_code == "cafe"
+    assert _pending_operation_ids(session, user.id, [final_op.id]) == set()
+
+    # Старую выписку можно прислать снова: HOLD не возвращается в книгу.
+    repeat = import_rows(session, user.id, [hold, posted], source="Альфа-Банк")
+    assert repeat.duplicates == 2
+    assert not repeat.new_rows
+    assert len(session.scalars(
+        select(RawTransaction).where(RawTransaction.user_id == user.id)
+    ).all()) == 1
+
+
+def test_posted_and_pending_in_one_statement_are_both_imported(session, _isolated_db):
+    from app.models import User
+
+    user = User(tg_id=5092, display_name="Тест")
+    session.add(user)
+    session.flush()
+    posted = row(when=datetime(2026, 9, 23), amount=-9_500, text="CAFE")
+    hold = row(when=datetime(2026, 9, 24), amount=-9_500, text="CAFE")
+    hold.raw["pending"] = True
+    result = import_rows(session, user.id, [posted, hold], source="Т-Банк")
+    assert len(result.new_rows) == 2
+    assert result.duplicates == 0
 
 
 def test_кошелёк_маркетплейса_заводится_отдельным_счётом(session, _isolated_db):

@@ -37,7 +37,7 @@ from app.api.uploads import file_url, public_base, store_image
 from app.classify.places import PlaceRejected
 from app.config import Settings, get_settings
 from app.ledger.invariants import run_all
-from app.models import ImportBatch, Operation, OperationSource, User
+from app.models import ImportBatch, Operation, OperationSource, RawTransaction, User
 from app.service import (
     AnswerRejected,
     add_quick_expense,
@@ -82,6 +82,18 @@ MAX_UPLOAD = 12 * 1024 * 1024
 def _resolve_period(session: Session, user_id: int, spec: str | None) -> Period:
     """Период из строки. Разбор общий с /me/analytics — он там и живёт."""
     return resolve_period(session, user_id, spec)
+
+
+def _pending_operation_ids(session: Session, user_id: int, ids: list[int]) -> set[int]:
+    if not ids:
+        return set()
+    return set(session.scalars(
+        select(RawTransaction.operation_id).where(
+            RawTransaction.user_id == user_id,
+            RawTransaction.is_pending.is_(True),
+            RawTransaction.operation_id.in_(ids),
+        )
+    ).all())
 
 
 # --------------------------------------------------------------------------
@@ -233,15 +245,17 @@ def operations(
     if only_spending:
         query = query.where(Operation.spend_amount != 0)
     found = list(session.scalars(query).all())
+    pending_ids = _pending_operation_ids(session, user.id, [op.id for op in found])
     if not with_sources:
-        return [s.OperationOut.of(op) for op in found]
+        return [s.OperationOut.of(op, is_pending=op.id in pending_ids) for op in found]
 
     # Один запрос на весь список, а не по запросу на операцию: след не
     # должен стоить N+1 похода в базу.
     sources = batches_by_operation(session, user.id, [op.id for op in found])
     return [
         s.OperationOut.of(
-            op, sources=_source_refs(request, settings, sources.get(op.id, []))
+            op, sources=_source_refs(request, settings, sources.get(op.id, [])),
+            is_pending=op.id in pending_ids,
         )
         for op in found
     ]
@@ -331,7 +345,7 @@ def places_delete(
     summary="Загрузить свою выписку из Mini App",
 )
 async def upload_statement(
-    file: UploadFile = File(..., description="CSV-выписка банка"),
+    file: UploadFile = File(..., description="CSV или PDF-выписка банка"),
     user: User = Depends(current_user),
     session: Session = Depends(db_session),
 ) -> s.IngestResultOut:
@@ -531,6 +545,7 @@ def import_detail(
     if batch is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "загрузка не найдена")
     found = batch_operations(session, batch)
+    pending_ids = _pending_operation_ids(session, user.id, [op.id for op in found])
     # След заполняем и здесь, одним запросом на весь список: операция,
     # склеенная из двух присылок, обязана выглядеть одинаково и в карточке
     # загрузки, и в списке операций — иначе клиент рисует её по-разному в
@@ -540,7 +555,8 @@ def import_detail(
         batch=_import_out(request, settings, session, batch),
         operations=[
             s.OperationOut.of(
-                op, sources=_source_refs(request, settings, sources.get(op.id, []))
+                op, sources=_source_refs(request, settings, sources.get(op.id, [])),
+                is_pending=op.id in pending_ids,
             )
             for op in found
         ],
@@ -618,6 +634,8 @@ def _ingest_out(outcome) -> s.IngestResultOut:  # noqa: ANN001 — service.Inges
         questions=outcome.questions,
         unresolved=s.MoneyOut.of(outcome.unresolved),
         batch_id=batch.id,
+        extraction_method=outcome.imported.extraction_method,
+        pending_count=outcome.imported.pending_count,
     )
 
 
@@ -669,7 +687,7 @@ async def ingest_screenshot_endpoint(
 @ingest.post(
     "/statement",
     response_model=s.IngestResultOut,
-    summary="Залить CSV-выписку за пользователя",
+    summary="Залить CSV или PDF-выписку за пользователя",
 )
 async def ingest_statement_endpoint(
     tg_id: int = Form(...),

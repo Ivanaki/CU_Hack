@@ -224,6 +224,7 @@ class OperationOut(BaseModel):
     spend: MoneyOut
     category: str | None
     counts_as_spending: bool
+    is_pending: bool = False
     explanation: str
     rule: str | None
     confidence: float
@@ -236,7 +237,10 @@ class OperationOut(BaseModel):
     place: str | None = None
 
     @classmethod
-    def of(cls, op: Operation, *, sources: list[SourceRefOut] | None = None) -> OperationOut:
+    def of(
+        cls, op: Operation, *, sources: list[SourceRefOut] | None = None,
+        is_pending: bool = False,
+    ) -> OperationOut:
         return cls(
             place=(op.extra or {}).get("place"),
             id=op.id,
@@ -247,6 +251,7 @@ class OperationOut(BaseModel):
             spend=MoneyOut.of(op.spend_amount),
             category=op.category_code,
             counts_as_spending=op.spend_amount != 0,
+            is_pending=is_pending,
             explanation=op.explanation,
             rule=op.rule,
             confidence=op.confidence,
@@ -382,6 +387,8 @@ class IngestResultOut(BaseModel):
     questions: int = 0
     unresolved: MoneyOut | None = None
     error: str = ""
+    extraction_method: str = ""  # csv | template | ai
+    pending_count: int = 0
     # Номер загрузки: по нему клиент поднимает весь след файла через
     # GET /api/v1/me/imports/{id}, не гадая, какая запись только что создана.
     batch_id: int | None = None
