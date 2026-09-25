@@ -22,7 +22,7 @@ _DATE = r"\d{2}\.\d{2}\.\d{4}"
 _MONEY_RU = r"[+-]?\d[\d ]*,\d{2}"
 _MONEY_DOT = r"[+-]?\d[\d ]*\.\d{2}"
 _ALFA_ROW = re.compile(
-    rf"^({_DATE})\s+([A-Z0-9_]+)\s+(.+?)\s+({_MONEY_RU})\s+RUR$"
+    rf"^({_DATE})\s+([A-Z0-9_#]+)\s+(.+?)\s+({_MONEY_RU})\s+RUR$"
 )
 _TBANK_ROW = re.compile(
     rf"^({_DATE})\s+({_DATE})\s+({_MONEY_DOT})\s+₽\s+"
@@ -82,9 +82,10 @@ def _fill_missing_card(rows: list[ParsedRow]) -> None:
 def _alfa(pages: list[str]) -> PdfStatement:
     all_text = "\n".join(pages)
     rows: list[ParsedRow] = []
-    hold_lines: list[str] = []
+    hold_blocks: list[tuple[str, list[str]]] = []
     for text in pages:
         current: tuple[re.Match[str], list[str]] | None = None
+        current_hold: tuple[str, list[str]] | None = None
 
         def finish(record: tuple[re.Match[str], list[str]] | None) -> None:
             if record is None:
@@ -123,12 +124,20 @@ def _alfa(pages: list[str]) -> PdfStatement:
             if line.startswith("HOLD "):
                 finish(current)
                 current = None
-                hold_lines.append(line)
+                if current_hold is not None:
+                    hold_blocks.append(current_hold)
+                current_hold = (line, [])
                 continue
             if line.startswith("АО «АЛЬФА-БАНК»"):
                 finish(current)
                 current = None
+                if current_hold is not None:
+                    hold_blocks.append(current_hold)
+                    current_hold = None
                 break
+            if current_hold is not None:
+                current_hold[1].append(line)
+                continue
             match = _ALFA_ROW.match(line)
             if match:
                 finish(current)
@@ -136,6 +145,8 @@ def _alfa(pages: list[str]) -> PdfStatement:
             elif current is not None and not line.startswith("в валюте счета"):
                 current[1].append(line)
         finish(current)
+        if current_hold is not None:
+            hold_blocks.append(current_hold)
 
     income = _total(all_text, "Поступления")
     expense = _total(all_text, "Расходы")
@@ -147,7 +158,7 @@ def _alfa(pages: list[str]) -> PdfStatement:
         if statement_end else max((row.booked_at for row in rows), default=None)
     )
     pending: list[ParsedRow] = []
-    for line in hold_lines:
+    for line, details in hold_blocks:
         match = re.fullmatch(
             r"HOLD\s+Неподтвержденная операция:\s*(.+?)\s+(-\d[\d ]*,\d{2})\s+RUR",
             line,
@@ -157,13 +168,36 @@ def _alfa(pages: list[str]) -> PdfStatement:
         amount = _money(match.group(2))
         detail = match.group(1)
         date = re.search(r"\b(\d{2}\.\d{2}\.\d{2,4})\b$", detail)
+        companion_date = None
+        if date is None:
+            detail_text = " ".join(details)
+            operation_dates = {
+                value
+                for value in re.findall(
+                    r"дата\s+(?:совершения\s+)?операции\s*:\s*"
+                    r"(\d{2}\.\d{2}\.\d{2,4})",
+                    detail_text,
+                    flags=re.IGNORECASE,
+                )
+            }
+            detail_amounts = {
+                _money(value)
+                for value in re.findall(
+                    rf"(?<![\d.])({_MONEY_DOT})\s+RUR\b", detail_text
+                )
+            }
+            if len(operation_dates) == 1 and -amount in detail_amounts:
+                companion_date = next(iter(operation_dates))
         when = (
             datetime.strptime(
-                date.group(1), "%d.%m.%y" if len(date.group(1)) == 8 else "%d.%m.%Y"
-            ) if date else fallback_date
+                date_text, "%d.%m.%y" if len(date_text) == 8 else "%d.%m.%Y"
+            )
+            if (date_text := (date.group(1) if date else companion_date))
+            else fallback_date
         )
         if when is None:
             raise UnknownStatementFormat("в PDF не найдена дата ожидающей операции")
+        date_inferred = date is None and companion_date is None
         if date:
             detail = detail[:date.start()].strip()
         # После кода HOLD стоит номер терминала; он не часть названия продавца.
@@ -175,9 +209,17 @@ def _alfa(pages: list[str]) -> PdfStatement:
         pending.append(ParsedRow(
             booked_at=when, amount=amount, description=description[:500],
             counterparty_raw=description[:500], bank="Альфа-Банк",
-            raw={"pdf": True, "pending": True, "date_inferred": date is None},
+            raw={"pdf": True, "pending": True, "date_inferred": date_inferred},
         ))
-    pending_total = _total(all_text, "Неподтвержденные операции")
+    has_pending_section = "Неподтвержденные операции" in all_text
+    if hold_blocks and not has_pending_section:
+        raise UnknownStatementFormat(
+            "в PDF есть ожидающие операции, но не найден итог «Неподтвержденные операции»"
+        )
+    pending_total = (
+        _total(all_text, "Неподтвержденные операции")
+        if has_pending_section else 0
+    )
     if -sum(row.amount for row in pending) != pending_total:
         raise UnknownStatementFormat("не сошлась сумма неподтверждённых операций PDF")
     rows.extend(pending)
@@ -249,6 +291,15 @@ _AI_PROMPT = """Прочитай ОДНУ страницу выписки и в�
 "card_last4":"4 цифры или null", "pending":true или false}}]}}.
 Включи все проведённые и ожидающие/HOLD операции страницы ровно один раз.
 Для ожидающих/HOLD укажи pending=true. Для проведённых pending=false.
+Если у строки несколько дат, в поле date укажи дату совершения операции
+(когда покупка/перевод фактически произошли), а не дату проводки/отражения
+в выписке. Например, в выписке Альфа-Банка используй дату после слов
+«дата совершения операции», если она отличается от даты в начале строки.
+Копируй дату и год дословно из самой строки операции в PDF. Не выводи год
+из текущей даты, периода выписки или других операций и не исправляй его по контексту.
+В JSON всегда возвращай дату строго как YYYY-MM-DD; например, 25.09.2026
+преобразуй в 2026-09-25. Если дату операции нельзя однозначно прочитать в PDF,
+верни error вместо operations.
 Если дата или сумма строки не читается, не угадывай: верни error вместо operations.
 Страница:
 {text}"""
@@ -267,7 +318,10 @@ def _ai_page(data: dict, page_number: int) -> tuple[str, list[ParsedRow]]:
         try:
             if not isinstance(item, dict):
                 raise ValueError
-            day = datetime.strptime(str(item["date"]), "%Y-%m-%d")
+            date_text = str(item["date"])
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_text):
+                raise ValueError
+            day = datetime.strptime(date_text, "%Y-%m-%d")
             clock = str(item.get("time") or "12:00")
             when = datetime.strptime(f"{day:%Y-%m-%d} {clock}", "%Y-%m-%d %H:%M")
             amount = _money(str(item["amount"]))
@@ -292,6 +346,41 @@ def _ai_page(data: dict, page_number: int) -> tuple[str, list[ParsedRow]]:
     return bank, rows
 
 
+def _check_ai_dates_against_page(data: dict, text: str, page_number: int) -> None:
+    """Reject model dates whose year/day are not evidenced by extracted PDF text."""
+    source_dates = set()
+    for match in re.finditer(r"(?<!\d)(\d{2})\.(\d{2})\.(\d{2}|\d{4})(?!\d)", text):
+        try:
+            year_format = "%y" if len(match.group(3)) == 2 else "%Y"
+            source_dates.add(
+                datetime.strptime(
+                    f"{match.group(1)}.{match.group(2)}.{match.group(3)}",
+                    f"%d.%m.{year_format}",
+                ).date()
+            )
+        except ValueError:
+            continue
+    if not source_dates or not isinstance(data, dict):
+        return
+    operations = data.get("operations")
+    if not isinstance(operations, list):
+        return
+    for item in operations:
+        if not isinstance(item, dict):
+            continue
+        date_text = item.get("date")
+        if not isinstance(date_text, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_text):
+            continue  # _ai_page reports the more general malformed-date error.
+        try:
+            parsed = datetime.strptime(date_text, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if parsed not in source_dates:
+            raise UnknownStatementFormat(
+                f"страница {page_number}: дата распознанной операции не подтверждается текстом PDF"
+            )
+
+
 def parse_pdf_statement(data: bytes, *, llm: LLM | None = None) -> PdfStatement:
     if not data.startswith(b"%PDF-"):
         raise UnknownStatementFormat("это не PDF-файл")
@@ -311,7 +400,6 @@ def parse_pdf_statement(data: bytes, *, llm: LLM | None = None) -> PdfStatement:
             "Выписка по счету" in head
             and "АЛЬФА-БАНК" in pages[0]
             and "Дата проводки Код операции Описание" in head
-            and "Неподтвержденные операции" in head
         ):
             return _alfa(pages)
         if (
@@ -351,6 +439,7 @@ def parse_pdf_statement(data: bytes, *, llm: LLM | None = None) -> PdfStatement:
                     [picture.getvalue()], system=_AI_SYSTEM, mime="image/png",
                     max_tokens=12000,
                 )
+            _check_ai_dates_against_page(result, text, number)
             page_bank, rows = _ai_page(result, number)
             if rows and page_bank != "Банк":
                 bank = page_bank

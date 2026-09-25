@@ -64,6 +64,55 @@ def test_alfa_rejects_a_missing_pending_row():
         _alfa([ALFA.replace("HOLD Неподтвержденная операция: 888 SHOP -100,00 RUR", "")])
 
 
+def test_alfa_rejects_hold_when_pending_total_is_missing():
+    text = ALFA.replace("Неподтвержденные операции 100,00 RUR\n", "")
+    with pytest.raises(UnknownStatementFormat, match="не найден итог"):
+        _alfa([text])
+
+
+def test_alfa_without_pending_section_uses_template_parser(monkeypatch):
+    text = (
+        "Выписка по счету\nАЛЬФА-БАНК\n"
+        + ALFA.replace("Неподтвержденные операции 100,00 RUR\n", "")
+        .replace("Расходы 300,00 RUR\n", "Расходы 200,00 RUR\n")
+        .replace("HOLD Неподтвержденная операция: 888 SHOP -100,00 RUR\nА.А. Панченко\n", "")
+    )
+    monkeypatch.setattr(
+        "app.ingest.pdf.pdfplumber.open",
+        lambda _source: FakeDocument([FakePage(text)]),
+    )
+
+    result = parse_pdf_statement(b"%PDF-fake", llm=FakeLLM())
+
+    assert result.method == "template"
+    assert len(result.rows) == 2
+    assert result.pending_count == 0
+
+
+def test_alfa_parses_tirr_rows_with_hash_in_operation_code():
+    text = """Выписка по счету
+Поступления 524,89 RUR
+Расходы 25,05 RUR
+Дата проводки Код операции Описание Сумма
+в валюте счета
+01.09.2026 C123 Пополнение 500,00 RUR
+02.09.2026 TIRR#26080702265 Корректировка 24,89 RUR
+03.09.2026 TIRR#26080702265 Погашение -24,89 RUR
+04.09.2026 TIRR#26080702265 Проценты -0,16 RUR
+АО «АЛЬФА-БАНК»
+"""
+
+    result = _alfa([text])
+
+    assert len(result.rows) == 4
+    assert [row.amount for row in result.rows[1:]] == [2489, -2489, -16]
+    assert [row.external_id for row in result.rows[1:]] == [
+        "TIRR#26080702265",
+        "TIRR#26080702265",
+        "TIRR#26080702265",
+    ]
+
+
 def test_alfa_hold_without_date_uses_statement_end():
     text = ALFA.replace(
         "Выписка по счету", "Выписка по счету\nс 01.09.2026 по 25.09.2026"
@@ -71,6 +120,22 @@ def test_alfa_hold_without_date_uses_statement_end():
     result = _alfa([text])
     assert result.rows[-1].booked_at.isoformat() == "2026-09-25T00:00:00"
     assert result.rows[-1].raw["date_inferred"] is True
+
+
+def test_alfa_hold_uses_matching_companion_operation_date():
+    text = ALFA.replace(
+        "HOLD Неподтвержденная операция: 888 SHOP -100,00 RUR\nА.А. Панченко",
+        "HOLD Неподтвержденная операция: 888 SHOP -100,00 RUR\n"
+        "SHOP>CAFE 31.08.26 31.08.26 100.00 RUR 220015++++++4321 (ALFA PAY-1234),\n"
+        "дата операции: 31.08.2026, дата предполагаемого снятия блокировки:\n"
+        "10.09.2026 Сумма, зарезервированная для погашения: 0.00\n"
+        "А.А. Панченко",
+    )
+
+    result = _alfa([text])
+
+    assert result.rows[-1].booked_at.isoformat() == "2026-08-31T00:00:00"
+    assert result.rows[-1].raw["date_inferred"] is False
 
 
 def test_tbank_uses_operation_time_and_card_currency():
