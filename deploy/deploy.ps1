@@ -2,10 +2,12 @@
 # .\deploy\deploy.ps1               # HEAD, только при чистой рабочей копии
 # .\deploy\deploy.ps1 -Ref <SHA>   # конкретный коммит с этим сценарием
 # .\deploy\deploy.ps1 -Ref HEAD -DryRun
+# .\deploy\deploy.ps1 -Ref HEAD -MaxAttempts 5
 [CmdletBinding()]
 param(
     [string]$Ref = '',
     [string]$Target = 'egor@87.120.84.226',
+    [ValidateRange(1, 10)][int]$MaxAttempts = 3,
     [switch]$DryRun
 )
 
@@ -20,6 +22,20 @@ function Invoke-Native([string]$Executable, [string[]]$Arguments) {
     & $Executable @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "$Executable завершился с кодом $LASTEXITCODE"
+    }
+}
+
+function Invoke-SshWithRetry([string]$Stage, [string]$Executable, [string[]]$Arguments, [bool]$RetryAnyFailure = $false) {
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        Write-Host "$Stage (попытка $attempt/$MaxAttempts)"
+        & $Executable @Arguments
+        $exitCode = $LASTEXITCODE
+        if ($exitCode -eq 0) { return }
+        if ((-not $RetryAnyFailure -and $exitCode -ne 255) -or $attempt -eq $MaxAttempts) {
+            throw "${Stage}: код $exitCode после попытки $attempt/$MaxAttempts"
+        }
+        Write-Warning "${Stage}: сбой соединения или передачи; повтор через 5 секунд"
+        Start-Sleep -Seconds 5
     }
 }
 
@@ -71,18 +87,32 @@ try {
         }
 
         $remoteArchive = "honest-month-release-$sha.tar"
-        Write-Host "Передаю архив на $Target"
-        Invoke-Native $scp @('-o', 'ConnectTimeout=15', $archive, "${Target}:$remoteArchive")
-        $remoteCommand = "umask 077 && mkdir -p honest-month-releases/$sha && tar -xf $remoteArchive -C honest-month-releases/$sha && rm -f $remoteArchive && bash honest-month-releases/$sha/deploy/remote_release.sh $sha $indexHash"
-        Invoke-Native $ssh @('-o', 'ConnectTimeout=15', $Target, $remoteCommand)
+        $connectionOptions = @('-o', 'ConnectTimeout=15', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=2')
+        Invoke-SshWithRetry 'Передача архива' $scp ($connectionOptions + @($archive, "${Target}:$remoteArchive")) $true
+        # Блокировка охватывает распаковку и запуск: повтор после обрыва
+        # соединения не меняет файлы, пока прежний запуск ещё работает.
+        $remoteSteps = "umask 077 && mkdir -p honest-month-releases/$sha && if [ -f $remoteArchive ]; then tar -xf $remoteArchive -C honest-month-releases/$sha && rm -f $remoteArchive; fi && bash honest-month-releases/$sha/deploy/remote_release.sh $sha $indexHash"
+        $remoteCommand = "flock -w 600 honest-month/.deploy.lock bash -c '$remoteSteps'"
+        Invoke-SshWithRetry 'Запуск релиза' $ssh ($connectionOptions + @($Target, $remoteCommand))
 
         # Проверка внешнего маршрута показывает, дошёл ли релиз до домена.
         # При её сбое сервер уже может работать на новом образе: не выдаём успех.
         $publicIndex = Join-Path $tempDir 'public-index.html'
-        Invoke-Native $curl @('-fLsS', '--max-time', '15', '-H', 'Cache-Control: no-cache', '--output', $publicIndex, 'https://grosh.cu3rd.ru/')
-        $publicHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $publicIndex).Hash.ToLowerInvariant()
-        if ($publicHash -ne $indexHash) {
-            throw "На публичном адресе другой index.html (SHA256 $publicHash); ожидается $indexHash. Состояние сервера проверьте через SSH."
+        for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+            & $curl @('-fLsS', '--max-time', '15', '-H', 'Cache-Control: no-cache', '--output', $publicIndex, 'https://grosh.cu3rd.ru/')
+            $curlExit = $LASTEXITCODE
+            if ($curlExit -eq 0) {
+                $publicHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $publicIndex).Hash.ToLowerInvariant()
+                if ($publicHash -eq $indexHash) { break }
+                $failure = "На публичном адресе другой index.html (SHA256 $publicHash); ожидается $indexHash"
+            } else {
+                $failure = "Публичный адрес недоступен (curl: код $curlExit)"
+            }
+            if ($attempt -eq $MaxAttempts) {
+                throw "$failure. Состояние сервера проверьте через SSH."
+            }
+            Write-Warning "$failure; повтор через 5 секунд ($attempt/$MaxAttempts)"
+            Start-Sleep -Seconds 5
         }
         Write-Host "Публичный Mini App совпадает с коммитом $sha"
     } finally {

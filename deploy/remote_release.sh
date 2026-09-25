@@ -45,6 +45,22 @@ else
 fi
 
 docker compose version >/dev/null
+
+# SSH может оборваться после успешного запуска. Повтор того же релиза
+# подтверждает уже работающий образ, не перезапуская контейнер.
+if existing_image="$(docker image inspect "honest-month:$sha" --format '{{.Id}}' 2>/dev/null)"; then
+  running_image="$(docker inspect honest-month --format '{{.Image}}' 2>/dev/null || true)"
+  health="$(docker inspect honest-month --format '{{.State.Health.Status}}' 2>/dev/null || true)"
+  if [[ "$running_image" == "$existing_image" && "$health" == healthy ]] && \
+     curl -fsS --max-time 3 http://127.0.0.1:8091/healthz >/dev/null && \
+     served_hash="$(curl -fsS --max-time 3 http://127.0.0.1:8091/ | sha256sum | cut -d' ' -f1)" && \
+     [[ "$served_hash" == "$index_hash" ]]; then
+    printf '%s\n' "$sha" > "$prod_dir/.deployed-sha"
+    echo "Релиз $sha уже работает на порту 8091"
+    exit 0
+  fi
+fi
+
 previous_image="$(docker inspect honest-month --format '{{.Image}}')"
 rollback_tag="rollback-$(date +%Y%m%d%H%M%S)"
 docker tag "$previous_image" "honest-month:$rollback_tag"
