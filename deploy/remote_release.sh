@@ -28,6 +28,8 @@ actual_hash="$(sha256sum "$release_dir/miniapp/dist/index.html" | cut -d' ' -f1)
 # Порт закреплён за этим сервисом на общей машине. Не позволяем новому
 # релизу случайно занять другой порт или запустить контейнер с чужой базой.
 port="$(sed -n 's/^API_PORT=//p' "$prod_dir/.env" | head -n 1)"
+# .env мог быть создан на Windows: убираем CR в конце строки CRLF.
+port="${port%$'\r'}"
 [[ "$port" == 8091 ]] || { echo "Ожидался API_PORT=8091, найден: $port" >&2; exit 2; }
 project="$(docker inspect honest-month --format '{{ index .Config.Labels "com.docker.compose.project" }}' 2>/dev/null || true)"
 [[ "$project" == 'honest-month' ]] || {
