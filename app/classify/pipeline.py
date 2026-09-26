@@ -26,7 +26,12 @@ from sqlalchemy.orm import Session
 
 from app.classify import categories as cats
 from app.classify import places
-from app.classify.enrich import clean_merchant, enrich
+from app.classify.enrich import (
+    clean_merchant,
+    enrich,
+    own_number_transfer,
+    tbank_contract_transfer,
+)
 from app.config import Settings, get_settings
 from app.ledger import build
 from app.ledger.accounts import AccountRegistry, norm_key
@@ -241,11 +246,19 @@ def rule_self_transfers(ctx: Ctx) -> None:
             continue
         if ctx.decision(out.dedup_hash, DecisionKind.NOT_TRANSFER) is not None:
             continue
+        choice = ctx.decision(out.dedup_hash, DecisionKind.SET_KIND)
+        if choice is not None and choice.get("kind") != "self":
+            continue
         sent = -out.amount
         best: tuple[float, RawTransaction] | None = None
 
         for inc in incoming:
             if inc.id in ctx.used or inc.account_id == out.account_id:
+                continue
+            incoming_choice = ctx.decision(inc.dedup_hash, DecisionKind.SET_KIND)
+            if incoming_choice is not None and incoming_choice.get("kind") != "self":
+                continue
+            if inc.currency != out.currency:
                 continue
             gap = inc.booked_at - out.booked_at
             if not (-window <= gap <= window):
@@ -260,7 +273,11 @@ def rule_self_transfers(ctx: Ctx) -> None:
             score = _transfer_confidence(ctx, out, inc, own_name, exact=fee == 0, gap=gap)
             if score <= 0:
                 continue
-            if best is None or score > best[0]:
+            if best is None or (score, -abs(gap.total_seconds()), -fee) > (
+                best[0],
+                -abs((best[1].booked_at - out.booked_at).total_seconds()),
+                -(sent - best[1].amount),
+            ):
                 best = (score, inc)
 
         if best is None:
@@ -448,7 +465,14 @@ def rule_own_accounts_by_text(ctx: Ctx) -> None:
     """
     for row in ctx.free():
         text = f"{row.counterparty_raw} {row.description}"
-        if not _OWN_ACCOUNTS_RE.search(text):
+        if not (
+            _OWN_ACCOUNTS_RE.search(text)
+            or own_number_transfer(text)
+            or tbank_contract_transfer(text, _account(ctx, row).bank or "")
+        ):
+            continue
+        choice = ctx.decision(row.dedup_hash, DecisionKind.SET_KIND)
+        if choice is not None and choice.get("kind") != "self":
             continue
         other = ctx.reg.get_or_create(
             kind=AccountKind.DEPOSIT, key="own:other", name="Другие мои счета"

@@ -42,6 +42,19 @@ PURPOSE_PATTERNS: tuple[tuple[str, str], ...] = (
 
 _COMPILED = tuple((re.compile(p, re.IGNORECASE), tag) for p, tag in PURPOSE_PATTERNS)
 
+# Некоторые банки подставляют в поле отправителя/получателя «Мой номер»
+# вместо ФИО. Это явная пометка собственного телефона только в контексте
+# перевода, а не произвольное упоминание номера в покупке или оплате связи.
+_OWN_NUMBER = re.compile(
+    r"\b(?:с|со|от|на|по)\s+(?:номер(?:а|у)?\s*)?[«\"'„]?\s*мой\s+номер\b",
+    re.IGNORECASE,
+)
+_MONEY_MOVEMENT = re.compile(r"перевод\w*|сбп|зачислени\w*|пополнени\w*", re.IGNORECASE)
+_TBANK_CONTRACT_TRANSFER = re.compile(
+    r"\b(?:внутренний\s+перевод\s+на\s+договор|перевод\s+с\s+договора)\b",
+    re.IGNORECASE,
+)
+
 # ФИО ищется внутри описания, а не сверяется с ним целиком: в выписке
 # Т-Банка отдельной колонки контрагента нет, и имя тонет в тексте вида
 # "Перевод от Иван П. возврат части долга". Без этого каждая строка
@@ -65,10 +78,25 @@ _PURPOSE_NOISE = re.compile(
 )
 
 
-def purpose_tags(text: str) -> list[str]:
+def purpose_tags(text: str, *, bank: str = "") -> list[str]:
     found = [tag for rx, tag in _COMPILED if rx.search(text or "")]
+    if own_number_transfer(text) or tbank_contract_transfer(text, bank):
+        found.append("self")
     # dict.fromkeys сохраняет порядок и убирает повторы
     return list(dict.fromkeys(found))
+
+
+def own_number_transfer(text: str) -> bool:
+    """Банк прямо обозначил свой номер как реквизит перевода."""
+    return bool(_OWN_NUMBER.search(text or "") and _MONEY_MOVEMENT.search(text or ""))
+
+
+def tbank_contract_transfer(text: str, bank: str) -> bool:
+    """Перевод между картой и своим договором в формулировке Т-Банка."""
+    bank_key = norm_key(bank).replace(" ", "")
+    return bank_key in {"тбанк", "тинькофф", "tbank", "tinkoff"} and bool(
+        _TBANK_CONTRACT_TRANSFER.search(text or "")
+    )
 
 
 def extract_person_name(text: str) -> str | None:
@@ -175,7 +203,7 @@ def _enrich_basic(
 ) -> None:
     for row in rows:
         text = f"{row.description} {row.counterparty_raw}".strip()
-        row.purpose_tags = purpose_tags(text)
+        row.purpose_tags = purpose_tags(text, bank=row.account.bank or "")
 
         name = extract_person_name(row.counterparty_raw or row.description)
         kind = guess_counterparty_kind(text, name)
