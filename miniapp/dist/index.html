@@ -462,7 +462,7 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .ans.picked{background:var(--green-soft);animation:ans-pick .4s cubic-bezier(.3,1.5,.4,1)}
 @keyframes ans-pick{0%{transform:scale(1)}40%{transform:scale(1.035)}100%{transform:scale(1)}}
 .ans .plus{margin-left:auto;font-size:15px;font-weight:900;color:var(--hint);line-height:1}
-.numrow{display:flex;gap:7px;flex-wrap:wrap}
+.numrow{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px}
 /* width:auto обязателен: у .ans задана ширина 100%, и с flex-basis:auto
    каждая кнопка занимала бы отдельную строку. */
 .numrow .ans{width:auto;flex:1 1 0;min-width:54px;justify-content:center;white-space:nowrap;
