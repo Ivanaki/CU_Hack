@@ -423,32 +423,101 @@ def places_delete(
     summary="Загрузить свою выписку из Mini App",
 )
 async def upload_statement(
-    file: UploadFile = File(..., description="CSV или PDF-выписка банка"),
+    files: list[UploadFile] | None = File(
+        default=None, description="Одна или несколько CSV/PDF-выписок банка (до 10 файлов)"
+    ),
+    file: UploadFile | None = File(
+        default=None, description="Одна CSV/PDF-выписка банка (совместимость со старым клиентом)"
+    ),
     user: User = Depends(current_user),
     session: Session = Depends(db_session),
 ) -> s.IngestResultOut:
-    """То же, что прислать файл боту, но не выходя из приложения.
+    """То же, что прислать файл(ы) боту, но не выходя из приложения.
 
     Без этого Mini App умел бы только показывать, а класть данные пришлось бы
     возвращаться в чат — лишний шаг там, где мы обещаем минимум действий.
     """
-    data = await file.read()
-    if len(data) > MAX_UPLOAD:
-        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "файл больше 12 МБ")
-    if not data:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "пустой файл")
-    name = file.filename or "statement.csv"
+    uploads = files or ([file] if file is not None else [])
+    if not uploads:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "пустая загрузка")
+    if len(uploads) > 10:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "за раз можно загрузить не больше 10 выписок",
+        )
+
+    payloads: list[tuple[bytes, str]] = []
+    for item in uploads:
+        data = await item.read()
+        if len(data) > MAX_UPLOAD:
+            raise HTTPException(
+                status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                f"{item.filename or 'Файл'} больше 12 МБ",
+            )
+        if not data and len(uploads) == 1:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "пустой файл")
+        payloads.append((data, item.filename or "statement.csv"))
+
     user_id = user.id
 
     def work():
         owner = session.get(User, user_id)
-        return ingest_statement(session, owner, data, name, channel="miniapp")
+        if len(payloads) == 1:
+            data, name = payloads[0]
+            return _ingest_out(
+                ingest_statement(session, owner, data, name, channel="miniapp")
+            )
+
+        per_file: list[s.StatementFileOut] = []
+        successes: list[s.IngestResultOut] = []
+        for data, name in payloads:
+            outcome = ingest_statement(session, owner, data, name, channel="miniapp")
+            if not outcome.ok:
+                per_file.append(
+                    s.StatementFileOut(filename=name, ok=False, error=outcome.error)
+                )
+                continue
+            result = _ingest_out(outcome)
+            successes.append(result)
+            per_file.append(
+                s.StatementFileOut(
+                    filename=name,
+                    ok=True,
+                    source=result.source,
+                    added=result.added,
+                    duplicates=result.duplicates,
+                    superseded=result.superseded,
+                    extraction_method=result.extraction_method,
+                    pending_count=result.pending_count,
+                )
+            )
+
+        if not successes:
+            details = "; ".join(f"{item.filename}: {item.error}" for item in per_file)
+            return s.IngestResultOut(ok=False, error=details, files=per_file)
+
+        latest = successes[-1]
+        methods = {item.extraction_method for item in successes}
+        method = next(iter(methods)) if len(methods) == 1 else "mixed"
+        return s.IngestResultOut(
+            ok=True,
+            source="Выписки",
+            added=sum(item.added for item in successes),
+            duplicates=sum(item.duplicates for item in successes),
+            superseded=sum(item.superseded for item in successes),
+            operations=latest.operations,
+            questions=latest.questions,
+            unresolved=latest.unresolved,
+            extraction_method=method,
+            pending_count=sum(item.pending_count for item in successes),
+            batch_id=latest.batch_id,
+            files=per_file,
+        )
 
     # Разбор выписки — это ещё и полный пересчёт книги, секунды процессора.
     # В корутине он встал бы поперёк и API, и бота, который живёт в том же
     # процессе: на демонстрации это выглядит как «залил файл — всё упало».
-    outcome = await asyncio.to_thread(work)
-    return _ingest_out(outcome)
+    return await asyncio.to_thread(work)
 
 
 @me.post(

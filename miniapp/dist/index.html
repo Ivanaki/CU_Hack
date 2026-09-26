@@ -2196,9 +2196,9 @@ function intakeCard() {
     <div class="h"><h2>Добавить операции</h2><span class="sp"></span><span class="tag">четыре способа</span></div>
     <div class="ways">
       <label class="way" data-way="csv">
-        <input type="file" accept=".csv,text/csv,.pdf,application/pdf" id="csvFile" hidden>
+        <input type="file" accept=".csv,text/csv,.pdf,application/pdf" multiple id="csvFile" hidden>
         <span class="icbox">${icon('sheet', true)}</span>
-        <span class="tx"><b>Загрузить выписку</b><i>CSV или PDF из интернет-банка</i></span>
+        <span class="tx"><b>Загрузить выписки</b><i>CSV или PDF из интернет-банка · до 10 файлов</i></span>
         <span class="go">&rsaquo;</span>
       </label>
       <label class="way" data-way="shot">
@@ -3691,7 +3691,22 @@ function humanIngest(raw) {
 
 /* Ответ бэкенда (IngestResultOut) пересказываем словами, а не полями. */
 function ingestText(res, what) {
-  if (!res || res.ok === false) return null;
+  if (!res) return null;
+  if (Array.isArray(res.files) && res.files.length > 1) {
+    return res.files.map((file) => {
+      const name = '<b>' + esc(file.filename || 'Выписка') + '</b>: ';
+      if (!file.ok) return name + humanIngest(file.error);
+      const details = [];
+      if (file.added) details.push(file.added + ' ' + plural(file.added, 'операция', 'операции', 'операций'));
+      if (file.duplicates) details.push(file.duplicates + ' ' + plural(file.duplicates, 'повтор', 'повтора', 'повторов'));
+      if (file.pending_count) details.push(file.pending_count + ' ожидающих');
+      if (!details.length) details.push('новых операций нет');
+      if (file.extraction_method === 'ai') details.push('проверьте распознавание');
+      if (file.extraction_method === 'template') details.push('итоги PDF сверены');
+      return name + details.join(', ');
+    }).join('<br>');
+  }
+  if (res.ok === false) return null;
   const bits = [];
   if (res.added) bits.push('<b>' + res.added + ' ' + plural(res.added, 'операция', 'операции', 'операций') + '</b>');
   if (res.duplicates) bits.push(res.duplicates + ' ' + plural(res.duplicates, 'повтор', 'повтора', 'повторов') + ' пропустил');
@@ -3715,18 +3730,28 @@ function bindIntake() {
   $('howtoWay')?.addEventListener('click', openHowto);
 
   if (csv) csv.onchange = async () => {
-    const f = csv.files && csv.files[0];
+    const files = csv.files ? [...csv.files] : [];
     csv.value = '';
-    if (!f || busyUpload) return;
-    if (!/\.(csv|pdf)$/i.test(f.name)) {
+    if (!files.length || busyUpload) return;
+    if (files.length > 10) {
+      haptic('heavy');
+      istatus('err', 'За раз можно выбрать не больше <b>10 выписок</b>.');
+      return;
+    }
+    const invalid = files.find((f) => !/\.(csv|pdf)$/i.test(f.name));
+    if (invalid) {
       haptic('heavy'); mascotFor('sad', 2400);
       istatus('err', 'Нужен файл <b>.csv</b> или <b>.pdf</b> из интернет-банка. ' +
         '<button class="retry" type="button">Выбрать другой</button>');
       return;
     }
     const form = new FormData();
-    form.append('file', f, f.name);
-    await runUpload('/me/statements', form, 'Читаю «' + esc(f.name) + '»…', 'Выписка');
+    files.forEach((f) => form.append('files', f, f.name));
+    await runUpload('/me/statements', form,
+      files.length > 1
+        ? 'Читаю ' + files.length + ' ' + plural(files.length, 'выписку', 'выписки', 'выписок') + '…'
+        : 'Читаю «' + esc(files[0].name) + '»…',
+      'Выписка');
   };
 
   if (shot) shot.onchange = async () => {
@@ -3849,17 +3874,20 @@ async function runUpload(path, form, waitLabel, what) {
     busyUpload = false;
     if (res && res.ok === false) {
       haptic('heavy'); mascotFor('sad', 2400);
-      istatus('err', humanIngest(res.error) +
+      istatus('err', (res.files && res.files.length > 1 ? ingestText(res, what) : humanIngest(res.error)) +
         ' <button class="retry" type="button">Попробовать другой</button>');
       return;
     }
     haptic('medium');
     const text = ingestText(res, what);
-    istatus('ok', text || 'Готово.');
+    const partialFailure = !!(res && res.files && res.files.some((file) => !file.ok));
+    istatus(partialFailure ? 'err' : 'ok', text || 'Готово.');
     /* Реакция по делу: новые вопросы — Грош озадачен, вопросов нет — радуется. */
-    mascotFor(res && res.questions ? 'curious' : 'party', 2400);
+    mascotFor(partialFailure ? 'think' : (res && res.questions ? 'curious' : 'party'), 2400);
     await refresh(true);
-    say(null, res && res.extraction_method === 'ai'
+    say(null, partialFailure
+      ? 'Часть файлов не удалось разобрать. Проверьте список загрузки.'
+      : res && res.extraction_method === 'ai'
       ? 'PDF распознан автоматически. Проверьте операции, возможны ошибки.'
       : res && res.questions
       ? 'Нашёл <b>' + res.questions + ' ' + plural(res.questions, 'новый вопрос', 'новых вопроса', 'новых вопросов') + '</b>. Глянем?'

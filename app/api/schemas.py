@@ -377,6 +377,19 @@ class PlaceIn(BaseModel):
     category: str | None = Field(default=None, examples=["cafe"])
 
 
+class StatementFileOut(BaseModel):
+    """Результат обработки одного файла в пакетной загрузке выписок."""
+
+    filename: str
+    ok: bool
+    source: str = ""
+    added: int = 0
+    duplicates: int = 0
+    superseded: int = 0
+    error: str = ""
+    extraction_method: str = ""
+    pending_count: int = 0
+
 class IngestResultOut(BaseModel):
     ok: bool
     source: str = ""
@@ -392,6 +405,9 @@ class IngestResultOut(BaseModel):
     # Номер загрузки: по нему клиент поднимает весь след файла через
     # GET /api/v1/me/imports/{id}, не гадая, какая запись только что создана.
     batch_id: int | None = None
+    # Для общей загрузки выписок сохраняем отдельный итог каждого файла,
+    # чтобы один неудачный PDF не скрывал результаты остальных.
+    files: list[StatementFileOut] = []
 
 
 def category_out(line) -> CategoryOut:  # noqa: ANN001 — reports.CategoryLine
