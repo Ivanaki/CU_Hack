@@ -19,6 +19,7 @@ from threading import Timer
 
 ROOT = Path(__file__).resolve().parent.parent
 PAGE = ROOT / "dashboard"
+SECRET_FILE = ROOT / "data" / "runtime" / "dashboard-secret.txt"
 HOST = "127.0.0.1"
 PORT = 8092
 BASE_URL = f"http://{HOST}:{PORT}"
@@ -125,7 +126,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             return
 
         try:
-            if self.path == "/api/run" and target in ACTIONS:
+            if self.path == "/api/secret" and target == "copy":
+                try:
+                    secret = SECRET_FILE.read_text(encoding="utf-8-sig").rstrip("\r\n")
+                except FileNotFoundError:
+                    self._json(404, {"error": "Секретная строка не найдена"})
+                    return
+                self._json(200, {"secret": secret})
+                return
+            elif self.path == "/api/run" and target in ACTIONS:
                 subprocess.Popen(
                     ACTIONS[target], cwd=ROOT, creationflags=subprocess.CREATE_NEW_CONSOLE
                 )

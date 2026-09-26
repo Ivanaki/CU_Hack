@@ -46,3 +46,42 @@ def test_dashboard_rejects_other_origins_and_unknown_commands(monkeypatch):
         finally:
             server.shutdown()
             thread.join(timeout=3)
+
+
+def test_secret_is_copied_only_from_allowed_local_page(monkeypatch, tmp_path):
+    secret_file = tmp_path / "secret.txt"
+    secret_file.write_text("tB=test-value\n", encoding="utf-8")
+    monkeypatch.setattr(dashboard, "SECRET_FILE", secret_file)
+
+    with ThreadingHTTPServer(("127.0.0.1", 0), dashboard.DashboardHandler) as server:
+        port = server.server_port
+        monkeypatch.setattr(dashboard, "PORT", port)
+        monkeypatch.setattr(dashboard, "BASE_URL", f"http://127.0.0.1:{port}")
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            def send(origin: str):
+                request = Request(
+                    f"http://127.0.0.1:{port}/api/secret",
+                    data=b'{"id":"copy"}',
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Grosh-Panel": "1",
+                        "Origin": origin,
+                    },
+                    method="POST",
+                )
+                try:
+                    return urlopen(request, timeout=3)
+                except HTTPError as error:
+                    return error
+
+            with send("https://another-site.example") as response:
+                assert response.status == 403
+            with send(dashboard.BASE_URL) as response:
+                assert response.status == 200
+                assert response.headers["Cache-Control"] == "no-store"
+                assert json.load(response) == {"secret": "tB=test-value"}
+        finally:
+            server.shutdown()
+            thread.join(timeout=3)

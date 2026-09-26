@@ -124,6 +124,14 @@ async function refreshStatus() {
 }
 
 document.getElementById('refresh').addEventListener('click', refreshStatus);
+document.getElementById('copySecret').addEventListener('click', async () => {
+  if (isFile) { toast('Откройте страницу через Пульт Грош.cmd'); return; }
+  try {
+    const { secret } = await post('/api/secret', 'copy');
+    await copyText(secret);
+    toast('Секретная строка скопирована');
+  } catch (error) { toast(error.message || 'Не удалось скопировать секрет'); }
+});
 document.querySelectorAll('[data-open]').forEach((button) => button.addEventListener('click', async () => {
   if (isFile) { toast('Откройте страницу через Пульт Грош.cmd'); return; }
   try { await post('/api/open', button.dataset.open); }

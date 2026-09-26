@@ -32,7 +32,12 @@
     <section class="section" id="local"><div class="section-head"><div><h2>Локально</h2><p>Личная база и загрузки на этом компьютере.</p></div></div><div class="cards" id="localActions"></div></section>
     <section class="section" id="checks"><div class="section-head"><div><h2>Проверки</h2><p>Проверка изменений и подготовка релиза.</p></div></div><div class="cards" id="checkActions"></div></section>
     <section class="section" id="server"><div class="section-head"><div><h2>Сервер</h2><p>Действия с боевым стендом. Перед выкладкой проверьте изменения.</p></div></div><div class="cards" id="serverActions"></div></section>
-    <section class="section" id="files"><div class="section-head"><div><h2>Папки и данные</h2><p>Открываются в Проводнике Windows.</p></div></div><div class="folder-list"><button type="button" data-open="root"><strong>Папка проекта</strong><span>C:\Github\CU_Hack</span></button><button type="button" data-open="database"><strong>Локальная база</strong><span>data/runtime/local-review.db</span></button><button type="button" data-open="uploads"><strong>Загруженные файлы</strong><span>data/uploads-local</span></button></div><p class="footnote">Локальные данные и ключи из .env не включаются в релизный архив.</p></section>
+    <section class="section" id="files">
+      <div class="section-head"><div><h2>Папки и данные</h2><p>Открываются в Проводнике Windows.</p></div></div>
+      <div class="folder-list"><button type="button" data-open="root"><strong>Папка проекта</strong><span>C:\Github\CU_Hack</span></button><button type="button" data-open="database"><strong>Локальная база</strong><span>data/runtime/local-review.db</span></button><button type="button" data-open="uploads"><strong>Загруженные файлы</strong><span>data/uploads-local</span></button></div>
+      <div class="secret-card"><div><strong>Секретная строка</strong><span>Хранится только на этом компьютере. Нажмите кнопку, чтобы скопировать.</span></div><button type="button" class="copy-button" id="copySecret">Копировать секрет</button></div>
+      <p class="footnote">Локальные данные и ключи из .env не включаются в релизный архив.</p>
+    </section>
   </main>
 
   <div class="modal-backdrop" id="confirmModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><h2 id="modalTitle">Подтвердить действие</h2><p id="modalText"></p><div class="modal-actions"><button type="button" class="secondary" id="cancelModal">Отмена</button><button type="button" class="danger" id="acceptModal">Продолжить</button></div></div></div>
