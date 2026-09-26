@@ -411,13 +411,21 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .quiz .who .dt{font-size:10.5px;font-weight:700;color:var(--hint)}
 .quiz .who .am{margin-left:auto;font-size:15px;font-weight:900;white-space:nowrap}
 .quiz .who .am.in{color:var(--green-d)}
-.quiz .q{font-size:15.5px;font-weight:900;line-height:1.3;margin-bottom:4px}
-.quiz .qn{font-size:11.5px;font-weight:700;color:var(--hint);margin-bottom:11px;line-height:1.4}
-.quiz .qcontext{background:var(--gold-soft);border:2px solid var(--stroke);border-radius:13px;
-  padding:9px 10px;margin:8px 0 10px;font-size:11.5px;font-weight:700;line-height:1.4;overflow-wrap:anywhere}
-.quiz .qcontext .qc-row+.qc-row{margin-top:5px}
-.quiz .qcontext .qc-label{color:var(--hint);font-weight:900}
-.quiz .qcontext .qc-phone{font-size:13px;font-weight:900;color:var(--ink)}
+.quiz .qprompt{display:flex;align-items:flex-start;gap:10px;margin:2px 0 11px}
+.quiz .q{flex:1;min-width:0;font-size:15.5px;font-weight:900;line-height:1.3}
+.quiz .qhelp{flex:0 0 34px;width:34px;height:34px;display:grid;place-items:center;
+  border:2.5px solid var(--stroke);border-radius:50%;background:var(--gold-soft);
+  color:var(--ink);font:inherit;font-size:18px;font-weight:900;cursor:pointer}
+.quiz .qhelp:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+.quiz .qdetails[hidden]{display:none}
+.quiz .qdetails{background:var(--gold-soft);border:2px solid var(--stroke);border-radius:13px;
+  padding:10px;margin:0 0 12px;font-size:11.5px;font-weight:700;line-height:1.45;overflow-wrap:anywhere}
+.quiz .qdetails-title{font-size:13px;font-weight:900;margin-bottom:7px}
+.quiz .qd-context{display:grid;gap:5px;margin-top:7px}
+.quiz .qdetails .qc-row+.qc-row{margin-top:5px}
+.quiz .qdetails .qc-label{color:var(--hint);font-weight:900}
+.quiz .qdetails .qc-phone{font-size:13px;font-weight:900;color:var(--ink)}
+.quiz .qdetails .qd-reason{margin-top:8px}
 .ans{width:100%;display:flex;align-items:center;gap:10px;background:var(--card);border:2.5px solid var(--stroke);
   border-radius:14px;padding:11px 12px;margin-bottom:9px;font:inherit;font-size:13.5px;font-weight:800;
   color:var(--ink);cursor:pointer;text-align:left;box-shadow:0 3px 0 var(--stroke);
@@ -719,6 +727,14 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
   transition:background .16s, transform .08s, box-shadow .08s}
 .way:not(.cash):hover{background:var(--gold-soft)}
 .way:not(.cash):active{transform:translateY(3px);box-shadow:none}
+.way-entry{border:2.5px solid var(--stroke);border-radius:15px;box-shadow:0 3px 0 var(--stroke);
+  background:var(--card-2);overflow:hidden}
+.way-entry .way{border:0;border-radius:0;box-shadow:none;background:transparent}
+.way-entry .way:not(.cash):active{transform:none}
+.way-entry .way-status:not(:empty){padding:0 10px 10px}
+.way-entry .istatus{margin-top:0}
+.way-entry .istatus > span:last-child{min-width:0;overflow-wrap:anywhere}
+.way-entry .istatus b{white-space:normal}
 .way .icbox{width:40px;height:40px;flex:0 0 40px;background:#fff;padding:5px;
   border:2.5px solid var(--stroke);border-radius:12px}
 .way .tx{flex:1;min-width:0}
@@ -1218,7 +1234,7 @@ function humanError(e) {
 /* Запасные данные: страница обязана что-то показывать, даже если API не
    ответил. Это демонстрационный набор, тот же, что в тестах. Ключ game
    пересобирает настоящий движок геймификации. */
-const FALLBACK = {"offline":true,"period":{"label":"Сентябрь 2026","days":30},"prev_period":{"label":"Август 2026","days":31},"spend":{"kopecks":12561820,"text":"125 618,20 ₽"},"income":{"kopecks":30124000,"text":"301 240 ₽"},"avg_per_day":{"kopecks":418727,"text":"4 187,27 ₽"},"prev_spend":{"kopecks":11360500,"text":"113 605 ₽"},"spend_delta":{"kopecks":1201320,"text":"+12 013,20 ₽"},"spend_delta_pct":10.6,"awareness":{"percent":99,"score":0.996,"unclear":{"kopecks":50000,"text":"500 ₽"},"unknown":{"kopecks":50000,"text":"500 ₽"},"uncategorized":{"kopecks":0,"text":"0 ₽"},"unallocated_cash":{"kopecks":0,"text":"0 ₽"}},"categories":[{"code":"housing","title":"Жильё и ЖКХ","emoji":"🏠","essential":true,"amount":{"kopecks":7680000,"text":"76 800 ₽"},"share":0.6114,"prev_amount":{"kopecks":7680000,"text":"76 800 ₽"},"delta":{"kopecks":0,"text":"+0 ₽"},"delta_pct":0.0},{"code":"groceries","title":"Продукты","emoji":"🛒","essential":true,"amount":{"kopecks":2392490,"text":"23 924,90 ₽"},"share":0.1905,"prev_amount":{"kopecks":1875900,"text":"18 759 ₽"},"delta":{"kopecks":516590,"text":"+5 165,90 ₽"},"delta_pct":27.5},{"code":"taxi","title":"Такси","emoji":"🚕","essential":false,"amount":{"kopecks":696710,"text":"6 967,10 ₽"},"share":0.0555,"prev_amount":{"kopecks":641000,"text":"6 410 ₽"},"delta":{"kopecks":55710,"text":"+557,10 ₽"},"delta_pct":8.7},{"code":"cafe","title":"Кафе и рестораны","emoji":"🍽","essential":false,"amount":{"kopecks":675140,"text":"6 751,40 ₽"},"share":0.0537,"prev_amount":{"kopecks":399500,"text":"3 995 ₽"},"delta":{"kopecks":275640,"text":"+2 756,40 ₽"},"delta_pct":69.0},{"code":"delivery","title":"Доставка еды","emoji":"🛵","essential":false,"amount":{"kopecks":528680,"text":"5 286,80 ₽"},"share":0.0421,"prev_amount":{"kopecks":485300,"text":"4 853 ₽"},"delta":{"kopecks":43380,"text":"+433,80 ₽"},"delta_pct":8.9},{"code":"home","title":"Товары для дома","emoji":"🪑","essential":false,"amount":{"kopecks":310000,"text":"3 100 ₽"},"share":0.0247,"prev_amount":{"kopecks":0,"text":"0 ₽"},"delta":{"kopecks":310000,"text":"+3 100 ₽"},"delta_pct":null},{"code":"subscriptions","title":"Подписки","emoji":"🔁","essential":false,"amount":{"kopecks":188800,"text":"1 888 ₽"},"share":0.015,"prev_amount":{"kopecks":188800,"text":"1 888 ₽"},"delta":{"kopecks":0,"text":"+0 ₽"},"delta_pct":0.0},{"code":"connection","title":"Связь и интернет","emoji":"📶","essential":true,"amount":{"kopecks":90000,"text":"900 ₽"},"share":0.0072,"prev_amount":{"kopecks":90000,"text":"900 ₽"},"delta":{"kopecks":0,"text":"+0 ₽"},"delta_pct":0.0}],"essential":{"kopecks":10162490,"text":"101 624,90 ₽"},"optional":{"kopecks":2399330,"text":"23 993,30 ₽"},"weeks":[{"label":"1–6 сентября","amount":{"kopecks":8264470,"text":"82 644,70 ₽"}},{"label":"7–13 сентября","amount":{"kopecks":2563110,"text":"25 631,10 ₽"}},{"label":"14–20 сентября","amount":{"kopecks":322160,"text":"3 221,60 ₽"}},{"label":"21–27 сентября","amount":{"kopecks":1412080,"text":"14 120,80 ₽"}},{"label":"28–30 сентября","amount":{"kopecks":0,"text":"0 ₽"}}],"granularity":"week","granularity_title":"По неделям","slices":[{"label":"1–6 сентября","start":"2026-09-01T00:00:00","end":"2026-09-07T00:00:00","amount":{"kopecks":8264470,"text":"82 644,70 ₽"}},{"label":"7–13 сентября","start":"2026-09-07T00:00:00","end":"2026-09-14T00:00:00","amount":{"kopecks":2563110,"text":"25 631,10 ₽"}},{"label":"14–20 сентября","start":"2026-09-14T00:00:00","end":"2026-09-21T00:00:00","amount":{"kopecks":322160,"text":"3 221,60 ₽"}},{"label":"21–27 сентября","start":"2026-09-21T00:00:00","end":"2026-09-28T00:00:00","amount":{"kopecks":1412080,"text":"14 120,80 ₽"}},{"label":"28–30 сентября","start":"2026-09-28T00:00:00","end":"2026-10-01T00:00:00","amount":{"kopecks":0,"text":"0 ₽"}}],"questions":[{"id":2,"kind":"incoming_unknown","question":"Пришло 500 ₽ от Катя Н., назначение «за обед» — что это?","options":[{"code":"share","label":"Вернули долю"},{"code":"debt_back","label":"Вернули долг"},{"code":"gift","label":"Подарок"},{"code":"income","label":"Это доход"}],"explanation":"Поступление от физлица без зафиксированного долга. В назначении есть пометка про совместную трату, но подходящего счёта не нашлось. Пока не отнесено ни к доходу, ни к возврату — иначе цифры бы соврали.","amount":{"kopecks":50000,"text":"500 ₽"},"occurred_at":"2026-09-22T13:37:00"},{"id":3,"kind":"cash_spent_on","question":"Из снятых 5 000 ₽ от 09.09 не объяснено 3 000 ₽. На что ушли?","options":[{"code":"groceries","label":"Продукты"},{"code":"cafe","label":"Кафе и рестораны"},{"code":"taxi","label":"Такси"},{"code":"clothes","label":"Одежда и обувь"},{"code":"electronics","label":"Техника и гаджеты"},{"code":"health","label":"Здоровье"},{"code":"home","label":"Товары для дома"},{"code":"other","label":"Прочее"}],"explanation":"Снятие в банкомате — перемещение денег между моими активами, а не трата. Тратой они станут, когда будет известно, на что ушли.","amount":{"kopecks":500000,"text":"5 000 ₽"},"occurred_at":"2026-09-09T08:50:00"},{"id":1,"kind":"shared_bill_heads","question":"«WHITE RABBIT RESTORAN» на 8 000 ₽ — на скольких человек делили? Пока считаю, что на 5.","options":[{"code":"2","label":"2 чел."},{"code":"3","label":"3 чел."},{"code":"4","label":"4 чел."},{"code":"5","label":"5 чел."},{"code":"more","label":"Больше"}],"explanation":"Счёт 8000 ₽ разделён на 5 чел.: моя доля 1600 ₽, остальные 6400 ₽ — долг компании. В расходы попадает только моя доля.","amount":{"kopecks":800000,"text":"8 000 ₽"},"occurred_at":"2026-09-14T21:30:00"}],"open_questions":3,"insights":[{"title":"Проездной выгоднее такси","detail":"8 поездок на 6 967,10 ₽, из них 5 — короткие, на 3 602,90 ₽. Месячный проездной стоит 3 070 ₽: при такой частоте он окупается.","saving":{"kopecks":53290,"text":"532,90 ₽"}},{"title":"Продукты: рост на 28%","detail":"Было 18 759 ₽, стало 23 924,90 ₽ — плюс 5 165,90 ₽ к прошлому периоду.","saving":null},{"title":"Подписок: 4","detail":"APPLE ICLOUD STORAGE, МТС услуги связи, ЯНДЕКС ПЛЮС, VK MUSIC PODPISKA — 2 788 ₽ в месяц, 33 456 ₽ в год. Списываются сами, поэтому и не замечаются.","saving":null},{"title":"Доставка догоняет продукты","detail":"Доставка 5 286,80 ₽ при тратах на продукты 23 924,90 ₽ — это 22% сверху. Наценка доставки обычно съедает разницу в цене продуктов.","saving":{"kopecks":158604,"text":"1 586,04 ₽"}},{"title":"YANDEX GO: 8 раз за период","detail":"Средний чек 870,88 ₽, в сумме 6 967,10 ₽. По одной покупке это незаметно, за период — ощутимо.","saving":null},{"title":"Наличными на руках 3 000 ₽","detail":"Пока не сказано, на что они ушли, эти деньги не попадают в статистику. Одно голосовое — и они разложатся по категориям.","saving":null},{"title":"Осознанность 99%","detail":"Непонятно, куда относится неразобранных поступлений на 500 ₽. Это единственное, что мешает цифрам быть точными.","saving":null}],"streak":{"days":12,"best":18,"actions_per_day":1.67},"operations_count":48,"debts_owed_to_me":{"kopecks":0,"text":"0 ₽"},"debts_i_owe":{"kopecks":0,"text":"0 ₽"},"game":{"level":{"number":4,"title":"Знаток своих денег","xp":1434,"xp_total_next":1500,"progress":0.868},"quests":[{"code":"resolve_unknown","kind":"system","title":"Разобрать поступления","detail":"1 операция на 500 ₽","progress":0.0,"xp":10,"done":false,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"answer_three","kind":"system","title":"Три ответа за месяц","detail":"0 из 3 спорных операций закрыто","progress":0.0,"xp":30,"done":false,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"import_month","kind":"system","title":"Закрыть месяц выпиской","detail":"Выписка за этот месяц загружена","progress":1.0,"xp":25,"done":true,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"awareness_95","kind":"system","title":"Осознанность 95 %","detail":"Сейчас 99 % оборота с понятным смыслом","progress":1.0,"xp":40,"done":true,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"streak_week","kind":"system","title":"Неделя без пропусков","detail":"Серия 12 дней подряд","progress":1.0,"xp":35,"done":true,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"surf_coffee_2000","kind":"sponsor","title":"Кофе на 2 000 ₽","detail":"Потратьте 2 000 ₽ в Surf Coffee за месяц. Сейчас 1 820,50 ₽ из 2 000 ₽","progress":0.9103,"xp":60,"done":false,"sponsor":"Surf Coffee","reward":"Капучино в подарок","deadline":"2026-09-24"},{"code":"yandex_go_5","kind":"sponsor","title":"Пять поездок","detail":"Совершите 5 поездок за месяц. Сейчас 6 из 5","progress":1.0,"xp":50,"done":true,"sponsor":"Яндекс Go","reward":"Промокод −30 % на следующую поездку","deadline":"2026-09-20"},{"code":"lenta_10000","kind":"sponsor","title":"Продукты на 10 000 ₽","detail":"Купите продуктов на 10 000 ₽. Сейчас 6 036,20 ₽ из 10 000 ₽","progress":0.6036,"xp":80,"done":false,"sponsor":"Лента","reward":"500 бонусных баллов","deadline":"2026-09-27"},{"code":"dodo_700","kind":"sponsor","title":"Первый заказ","detail":"Закажите на 700 ₽. Сейчас 0 ₽ из 700 ₽","progress":0.0,"xp":40,"done":false,"sponsor":"Додо Пицца","reward":"Додстер в подарок","deadline":"2026-09-30"}],"achievements":[{"code":"first_import","title":"Первый шаг","detail":"Загрузили выписку и увидели настоящие цифры","earned":true,"earned_at":"2026-09-20","progress":1.0,"hint":null},{"code":"three_banks","title":"Все карты на стол","detail":"Счета 3 банков в одной книге","earned":true,"earned_at":null,"progress":1.0,"hint":null},{"code":"streak","title":"Серия: две недели","detail":"Четырнадцать дней подряд. Следующая ступень — 30","earned":true,"earned_at":"2026-09-20","progress":1.0,"hint":null},{"code":"awareness","title":"Честные 99 %","detail":"Неясного почти не осталось","earned":true,"earned_at":null,"progress":1.0,"hint":null},{"code":"clean_board","title":"Чистая доска","detail":"Осталось ответить на 3 — и доска чистая","earned":false,"earned_at":null,"progress":0.25,"hint":"Осталось ответить на 3 — и доска чистая"},{"code":"voice","title":"Голос за кадром","detail":"Первая трата наличными, записанная голосом. Следующая ступень — 5","earned":true,"earned_at":"2026-09-09","progress":1.0,"hint":null},{"code":"three_months","title":"Три месяца в книге","detail":"История за 3 месяца — есть с чем сравнивать","earned":true,"earned_at":null,"progress":1.0,"hint":null},{"code":"debts_settled","title":"Долги сведены","detail":"Ни одного открытого долга и ни одной невозвращённой доли","earned":true,"earned_at":"2026-09-26","progress":1.0,"hint":null},{"code":"refund_found","title":"Вернул своё","detail":"Возврат записан минусом к трате, а не доходом","earned":true,"earned_at":"2026-09-17","progress":1.0,"hint":null},{"code":"thrifty_month","title":"Экономный месяц","detail":"Считается по итогам завершённого месяца — аванса тут не бывает","earned":false,"earned_at":null,"progress":0.0,"hint":"Считается по итогам завершённого месяца — аванса тут не бывает"}],"map":[{"code":"w1","kind":"week","state":"done","title":"Неделя 1","detail":"1–6 сентября","amount":{"kopecks":8264470,"text":"82 644,70 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"chest-first_import","kind":"chest","state":"done","title":"Первый шаг","detail":"Загрузили выписку и увидели настоящие цифры","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"w2","kind":"week","state":"done","title":"Неделя 2","detail":"7–13 сентября","amount":{"kopecks":2563110,"text":"25 631,10 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"q3","kind":"question","state":"current","title":"Спорная операция","detail":"Из снятых 5 000 ₽ от 09.09 не объяснено 3 000 ₽. На что ушли?","amount":{"kopecks":500000,"text":"5 000 ₽"},"action":{"type":"question","id":3}},{"code":"w3","kind":"week","state":"current","title":"Неделя 3","detail":"14–20 сентября","amount":{"kopecks":322160,"text":"3 221,60 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"q1","kind":"question","state":"current","title":"Спорная операция","detail":"«WHITE RABBIT RESTORAN» на 8 000 ₽ — на скольких человек делили? Пока считаю, что на 5.","amount":{"kopecks":800000,"text":"8 000 ₽"},"action":{"type":"question","id":1}},{"code":"quest-yandex_go_5","kind":"quest","state":"done","title":"Яндекс Go: Пять поездок","detail":"Совершите 5 поездок за месяц. Сейчас 6 из 5","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"chest-clean_board","kind":"chest","state":"locked","title":"Чистая доска","detail":"Осталось ответить на 3 — и доска чистая","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"w4","kind":"week","state":"locked","title":"Неделя 4","detail":"21–27 сентября","amount":{"kopecks":1412080,"text":"14 120,80 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"q2","kind":"question","state":"current","title":"Спорная операция","detail":"Пришло 500 ₽ от Катя Н., назначение «за обед» — что это?","amount":{"kopecks":50000,"text":"500 ₽"},"action":{"type":"question","id":2}},{"code":"quest-surf_coffee_2000","kind":"quest","state":"current","title":"Surf Coffee: Кофе на 2 000 ₽","detail":"Потратьте 2 000 ₽ в Surf Coffee за месяц. Сейчас 1 820,50 ₽ из 2 000 ₽","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"quest-lenta_10000","kind":"quest","state":"current","title":"Лента: Продукты на 10 000 ₽","detail":"Купите продуктов на 10 000 ₽. Сейчас 6 036,20 ₽ из 10 000 ₽","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"w5","kind":"week","state":"locked","title":"Неделя 5","detail":"28–30 сентября","amount":{"kopecks":0,"text":"0 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"quest-dodo_700","kind":"quest","state":"current","title":"Додо Пицца: Первый заказ","detail":"Закажите на 700 ₽. Сейчас 0 ₽ из 700 ₽","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"chest-thrifty_month","kind":"chest","state":"locked","title":"Экономный месяц","detail":"Считается по итогам завершённого месяца — аванса тут не бывает","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"finish","kind":"finish","state":"locked","title":"Финиш месяца","detail":"По текущему темпу выйдет 149 083,30 ₽","amount":{"kopecks":14908330,"text":"149 083,30 ₽"},"action":{"type":"tab","tab":"reports"}}]}};
+const FALLBACK = {"offline":true,"period":{"label":"Сентябрь 2026","days":30},"prev_period":{"label":"Август 2026","days":31},"spend":{"kopecks":12861820,"text":"128 618,20 ₽"},"income":{"kopecks":30124000,"text":"301 240 ₽"},"avg_per_day":{"kopecks":428727,"text":"4 287,27 ₽"},"prev_spend":{"kopecks":11360500,"text":"113 605 ₽"},"spend_delta":{"kopecks":1501320,"text":"+15 013,20 ₽"},"spend_delta_pct":13.2,"awareness":{"percent":96,"score":0.9636,"unclear":{"kopecks":470000,"text":"4 700 ₽"},"unknown":{"kopecks":50000,"text":"500 ₽"},"uncategorized":{"kopecks":120000,"text":"1 200 ₽"},"unallocated_cash":{"kopecks":300000,"text":"3 000 ₽"}},"categories":[{"code":"housing","title":"Жильё и ЖКХ","emoji":"🏠","essential":true,"amount":{"kopecks":7680000,"text":"76 800 ₽"},"share":0.5971,"prev_amount":{"kopecks":7680000,"text":"76 800 ₽"},"delta":{"kopecks":0,"text":"+0 ₽"},"delta_pct":0.0},{"code":"groceries","title":"Продукты","emoji":"🛒","essential":true,"amount":{"kopecks":2272490,"text":"22 724,90 ₽"},"share":0.1767,"prev_amount":{"kopecks":1875900,"text":"18 759 ₽"},"delta":{"kopecks":396590,"text":"+3 965,90 ₽"},"delta_pct":21.1},{"code":"taxi","title":"Такси","emoji":"🚕","essential":false,"amount":{"kopecks":696710,"text":"6 967,10 ₽"},"share":0.0542,"prev_amount":{"kopecks":641000,"text":"6 410 ₽"},"delta":{"kopecks":55710,"text":"+557,10 ₽"},"delta_pct":8.7},{"code":"cafe","title":"Кафе и рестораны","emoji":"🍽","essential":false,"amount":{"kopecks":675140,"text":"6 751,40 ₽"},"share":0.0525,"prev_amount":{"kopecks":399500,"text":"3 995 ₽"},"delta":{"kopecks":275640,"text":"+2 756,40 ₽"},"delta_pct":69.0},{"code":"delivery","title":"Доставка еды","emoji":"🛵","essential":false,"amount":{"kopecks":528680,"text":"5 286,80 ₽"},"share":0.0411,"prev_amount":{"kopecks":485300,"text":"4 853 ₽"},"delta":{"kopecks":43380,"text":"+433,80 ₽"},"delta_pct":8.9},{"code":"home","title":"Товары для дома","emoji":"🪑","essential":false,"amount":{"kopecks":310000,"text":"3 100 ₽"},"share":0.0241,"prev_amount":{"kopecks":0,"text":"0 ₽"},"delta":{"kopecks":310000,"text":"+3 100 ₽"},"delta_pct":null},{"code":"cash_unallocated","title":"Наличные (не распределены)","emoji":"💵","essential":false,"amount":{"kopecks":300000,"text":"3 000 ₽"},"share":0.0233,"prev_amount":{"kopecks":0,"text":"0 ₽"},"delta":{"kopecks":300000,"text":"+3 000 ₽"},"delta_pct":null},{"code":"subscriptions","title":"Подписки","emoji":"🔁","essential":false,"amount":{"kopecks":188800,"text":"1 888 ₽"},"share":0.0147,"prev_amount":{"kopecks":188800,"text":"1 888 ₽"},"delta":{"kopecks":0,"text":"+0 ₽"},"delta_pct":0.0},{"code":"other","title":"Прочее","emoji":"❔","essential":false,"amount":{"kopecks":120000,"text":"1 200 ₽"},"share":0.0093,"prev_amount":{"kopecks":0,"text":"0 ₽"},"delta":{"kopecks":120000,"text":"+1 200 ₽"},"delta_pct":null},{"code":"connection","title":"Связь и интернет","emoji":"📶","essential":true,"amount":{"kopecks":90000,"text":"900 ₽"},"share":0.007,"prev_amount":{"kopecks":90000,"text":"900 ₽"},"delta":{"kopecks":0,"text":"+0 ₽"},"delta_pct":0.0}],"essential":{"kopecks":10042490,"text":"100 424,90 ₽"},"optional":{"kopecks":2819330,"text":"28 193,30 ₽"},"weeks":[{"label":"1–6 сентября","amount":{"kopecks":8264470,"text":"82 644,70 ₽"}},{"label":"7–13 сентября","amount":{"kopecks":2563110,"text":"25 631,10 ₽"}},{"label":"14–20 сентября","amount":{"kopecks":322160,"text":"3 221,60 ₽"}},{"label":"21–27 сентября","amount":{"kopecks":1712080,"text":"17 120,80 ₽"}},{"label":"28–30 сентября","amount":{"kopecks":0,"text":"0 ₽"}}],"granularity":"week","granularity_title":"По неделям","slices":[{"label":"1–6 сентября","start":"2026-09-01T00:00:00","end":"2026-09-07T00:00:00","amount":{"kopecks":8264470,"text":"82 644,70 ₽"}},{"label":"7–13 сентября","start":"2026-09-07T00:00:00","end":"2026-09-14T00:00:00","amount":{"kopecks":2563110,"text":"25 631,10 ₽"}},{"label":"14–20 сентября","start":"2026-09-14T00:00:00","end":"2026-09-21T00:00:00","amount":{"kopecks":322160,"text":"3 221,60 ₽"}},{"label":"21–27 сентября","start":"2026-09-21T00:00:00","end":"2026-09-28T00:00:00","amount":{"kopecks":1712080,"text":"17 120,80 ₽"}},{"label":"28–30 сентября","start":"2026-09-28T00:00:00","end":"2026-10-01T00:00:00","amount":{"kopecks":0,"text":"0 ₽"}}],"questions":[{"id":2,"kind":"incoming_unknown","status":"open","question":"Пришло 500 ₽ от Катя Н., назначение «за обед» — что это?","options":[{"code":"share","label":"Вернули долю"},{"code":"debt_back","label":"Вернули долг"},{"code":"gift","label":"Подарок"},{"code":"income","label":"Это доход"},{"code":"free","label":"Своими словами"}],"explanation":"Поступление от физлица без зафиксированного долга. В назначении есть пометка про совместную трату, но подходящего счёта не нашлось. Пока не отнесено ни к доходу, ни к возврату — иначе цифры бы соврали.","amount":{"kopecks":50000,"text":"500 ₽"},"occurred_at":"2026-09-22T13:37:00","occurred_label":"вторник, 22 сентября","counterparty":"Катя Н.","person_label":"Катя Н.","transaction_sources":[{"description":"Перевод от Катя Н. за обед","phone":null,"bank":"Т-Банк","filename":"tbank_2026-07_09.csv"}]},{"id":3,"kind":"cash_spent_on","status":"open","question":"Из снятых 5 000 ₽ от 09.09 не объяснено 3 000 ₽. На что ушли?","options":[{"code":"groceries","label":"Продукты"},{"code":"cafe","label":"Кафе и рестораны"},{"code":"taxi","label":"Такси"},{"code":"clothes","label":"Одежда и обувь"},{"code":"electronics","label":"Техника и гаджеты"},{"code":"health","label":"Здоровье"},{"code":"home","label":"Товары для дома"},{"code":"other","label":"Прочее"},{"code":"free","label":"Своими словами"}],"explanation":"Снятие в банкомате — перемещение денег между моими активами, а не трата. Тратой они станут, когда будет известно, на что ушли.","amount":{"kopecks":500000,"text":"5 000 ₽"},"occurred_at":"2026-09-09T08:50:00","occurred_label":"среда, 9 сентября","counterparty":null,"person_label":null,"transaction_sources":[{"description":"Снятие наличных ATM Т-Банк","phone":null,"bank":"Т-Банк","filename":"tbank_2026-07_09.csv"}]},{"id":1,"kind":"shared_bill_heads","status":"open","question":"«WHITE RABBIT RESTORAN» на 8 000 ₽ — на скольких человек делили? Пока считаю, что на 5.","options":[{"code":"2","label":"2 чел."},{"code":"3","label":"3 чел."},{"code":"4","label":"4 чел."},{"code":"5","label":"5 чел."},{"code":"more","label":"Больше"},{"code":"free","label":"Своими словами"}],"explanation":"Счёт 8000 ₽ разделён на 5 чел.: моя доля 1600 ₽, остальные 6400 ₽ — долг компании. В расходы попадает только моя доля.","amount":{"kopecks":800000,"text":"8 000 ₽"},"occurred_at":"2026-09-14T21:30:00","occurred_label":"понедельник, 14 сентября","counterparty":"WHITE RABBIT RESTORAN","person_label":null,"transaction_sources":[{"description":"WHITE RABBIT RESTORAN","phone":null,"bank":"Т-Банк","filename":"tbank_2026-07_09.csv"}]}],"open_questions":4,"insights":[{"title":"Проездной выгоднее такси","detail":"8 поездок на 6 967,10 ₽, из них 5 — короткие, на 3 602,90 ₽. Месячный проездной стоит 3 070 ₽: при такой частоте он окупается.","saving":{"kopecks":53290,"text":"532,90 ₽"}},{"title":"Продукты: рост на 21%","detail":"Было 18 759 ₽, стало 22 724,90 ₽ — плюс 3 965,90 ₽ к прошлому периоду.","saving":null},{"title":"Подписок: 4","detail":"APPLE ICLOUD STORAGE, МТС услуги связи, ЯНДЕКС ПЛЮС, VK MUSIC PODPISKA — 2 788 ₽ в месяц, 33 456 ₽ в год. Списываются сами, поэтому и не замечаются.","saving":null},{"title":"Доставка догоняет продукты","detail":"Доставка 5 286,80 ₽ при тратах на продукты 22 724,90 ₽ — это 23% сверху. Наценка доставки обычно съедает разницу в цене продуктов.","saving":{"kopecks":158604,"text":"1 586,04 ₽"}},{"title":"YANDEX GO: 8 раз за период","detail":"Средний чек 870,88 ₽, в сумме 6 967,10 ₽. По одной покупке это незаметно, за период — ощутимо.","saving":null},{"title":"Необязательные траты — 22%","detail":"28 193,30 ₽ из 128 618,20 ₽. Это та часть, которой можно управлять: остальное — аренда, связь, продукты и здоровье.","saving":null},{"title":"Осознанность 96%","detail":"Непонятно, куда относится неразобранных поступлений на 500 ₽, трат без категории на 1 200 ₽, наличных без назначения на 3 000 ₽. Это единственное, что мешает цифрам быть точными.","saving":null}],"streak":{"days":12,"best":18,"actions_per_day":1.54},"operations_count":49,"debts_owed_to_me":{"kopecks":0,"text":"0 ₽"},"debts_i_owe":{"kopecks":0,"text":"0 ₽"},"game":{"level":{"number":4,"title":"Знаток своих денег","xp":1324,"xp_total_next":1500,"progress":0.648},"quests":[{"code":"resolve_unknown","kind":"system","title":"Разобрать поступления","detail":"1 операция на 500 ₽","progress":0.0,"xp":10,"done":false,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"answer_three","kind":"system","title":"Три ответа за месяц","detail":"0 из 3 спорных операций закрыто","progress":0.0,"xp":30,"done":false,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"import_month","kind":"system","title":"Закрыть месяц выпиской","detail":"Выписка за этот месяц загружена","progress":1.0,"xp":25,"done":true,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"awareness_95","kind":"system","title":"Осознанность 95 %","detail":"Сейчас 96 % оборота с понятным смыслом","progress":1.0,"xp":40,"done":true,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"streak_week","kind":"system","title":"Неделя без пропусков","detail":"Серия 12 дней подряд","progress":1.0,"xp":35,"done":true,"sponsor":null,"reward":null,"deadline":"2026-09-30"},{"code":"surf_coffee_2000","kind":"sponsor","title":"Кофе на 2 000 ₽","detail":"Потратьте 2 000 ₽ в Surf Coffee за месяц. Сейчас 1 820,50 ₽ из 2 000 ₽","progress":0.9103,"xp":60,"done":false,"sponsor":"Surf Coffee","reward":"Капучино в подарок","deadline":"2026-09-24"},{"code":"yandex_go_5","kind":"sponsor","title":"Пять поездок","detail":"Совершите 5 поездок за месяц. Сейчас 6 из 5","progress":1.0,"xp":50,"done":true,"sponsor":"Яндекс Go","reward":"Промокод −30 % на следующую поездку","deadline":"2026-09-20"},{"code":"lenta_10000","kind":"sponsor","title":"Продукты на 10 000 ₽","detail":"Купите продуктов на 10 000 ₽. Сейчас 6 036,20 ₽ из 10 000 ₽","progress":0.6036,"xp":80,"done":false,"sponsor":"Лента","reward":"500 бонусных баллов","deadline":"2026-09-27"},{"code":"dodo_700","kind":"sponsor","title":"Первый заказ","detail":"Закажите на 700 ₽. Сейчас 0 ₽ из 700 ₽","progress":0.0,"xp":40,"done":false,"sponsor":"Додо Пицца","reward":"Додстер в подарок","deadline":"2026-09-30"}],"achievements":[{"code":"first_import","title":"Первый шаг","detail":"Загрузили выписку и увидели настоящие цифры","earned":true,"earned_at":"2026-09-25","progress":1.0,"hint":null},{"code":"three_banks","title":"Все карты на стол","detail":"Счета 3 банков в одной книге","earned":true,"earned_at":null,"progress":1.0,"hint":null},{"code":"streak","title":"Серия: две недели","detail":"Четырнадцать дней подряд. Следующая ступень — 30","earned":true,"earned_at":"2026-09-25","progress":1.0,"hint":null},{"code":"awareness","title":"Почти всё ясно","detail":"90 % оборота разобрано. Следующая ступень — 99","earned":true,"earned_at":null,"progress":1.0,"hint":null},{"code":"clean_board","title":"Чистая доска","detail":"Осталось ответить на 4 — и доска чистая","earned":false,"earned_at":null,"progress":0.2,"hint":"Осталось ответить на 4 — и доска чистая"},{"code":"voice","title":"Голос за кадром","detail":"Первая трата наличными, записанная голосом. Следующая ступень — 5","earned":true,"earned_at":"2026-09-09","progress":1.0,"hint":null},{"code":"three_months","title":"Три месяца в книге","detail":"История за 3 месяца — есть с чем сравнивать","earned":true,"earned_at":null,"progress":1.0,"hint":null},{"code":"debts_settled","title":"Долги сведены","detail":"Ни одного открытого долга и ни одной невозвращённой доли","earned":true,"earned_at":"2026-09-26","progress":1.0,"hint":null},{"code":"refund_found","title":"Вернул своё","detail":"Возврат записан минусом к трате, а не доходом","earned":true,"earned_at":"2026-09-17","progress":1.0,"hint":null},{"code":"thrifty_month","title":"Экономный месяц","detail":"Считается по итогам завершённого месяца — аванса тут не бывает","earned":false,"earned_at":null,"progress":0.0,"hint":"Считается по итогам завершённого месяца — аванса тут не бывает"}],"map":[{"code":"w1","kind":"week","state":"done","title":"Неделя 1","detail":"1–6 сентября","amount":{"kopecks":8264470,"text":"82 644,70 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"chest-first_import","kind":"chest","state":"done","title":"Первый шаг","detail":"Загрузили выписку и увидели настоящие цифры","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"w2","kind":"week","state":"done","title":"Неделя 2","detail":"7–13 сентября","amount":{"kopecks":2563110,"text":"25 631,10 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"q3","kind":"question","state":"current","title":"Спорная операция","detail":"Из снятых 5 000 ₽ от 09.09 не объяснено 3 000 ₽. На что ушли?","amount":{"kopecks":500000,"text":"5 000 ₽"},"action":{"type":"question","id":3}},{"code":"q4","kind":"question","state":"current","title":"Спорная операция","detail":"Рынок — 1 200 ₽ за 1 операцию. Что это за место?","amount":{"kopecks":120000,"text":"1 200 ₽"},"action":{"type":"question","id":4}},{"code":"w3","kind":"week","state":"done","title":"Неделя 3","detail":"14–20 сентября","amount":{"kopecks":322160,"text":"3 221,60 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"q1","kind":"question","state":"current","title":"Спорная операция","detail":"«WHITE RABBIT RESTORAN» на 8 000 ₽ — на скольких человек делили? Пока считаю, что на 5.","amount":{"kopecks":800000,"text":"8 000 ₽"},"action":{"type":"question","id":1}},{"code":"quest-yandex_go_5","kind":"quest","state":"done","title":"Яндекс Go: Пять поездок","detail":"Совершите 5 поездок за месяц. Сейчас 6 из 5","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"chest-three_banks","kind":"chest","state":"done","title":"Все карты на стол","detail":"Счета 3 банков в одной книге","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"w4","kind":"week","state":"current","title":"Неделя 4","detail":"21–27 сентября","amount":{"kopecks":1712080,"text":"17 120,80 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"q2","kind":"question","state":"current","title":"Спорная операция","detail":"Пришло 500 ₽ от Катя Н., назначение «за обед» — что это?","amount":{"kopecks":50000,"text":"500 ₽"},"action":{"type":"question","id":2}},{"code":"quest-surf_coffee_2000","kind":"quest","state":"locked","title":"Surf Coffee: Кофе на 2 000 ₽","detail":"Потратьте 2 000 ₽ в Surf Coffee за месяц. Сейчас 1 820,50 ₽ из 2 000 ₽","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"quest-lenta_10000","kind":"quest","state":"current","title":"Лента: Продукты на 10 000 ₽","detail":"Купите продуктов на 10 000 ₽. Сейчас 6 036,20 ₽ из 10 000 ₽","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"w5","kind":"week","state":"locked","title":"Неделя 5","detail":"28–30 сентября","amount":{"kopecks":0,"text":"0 ₽"},"action":{"type":"tab","tab":"reports"}},{"code":"quest-dodo_700","kind":"quest","state":"current","title":"Додо Пицца: Первый заказ","detail":"Закажите на 700 ₽. Сейчас 0 ₽ из 700 ₽","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"chest-clean_board","kind":"chest","state":"locked","title":"Чистая доска","detail":"Осталось ответить на 4 — и доска чистая","amount":null,"action":{"type":"tab","tab":"rewards"}},{"code":"finish","kind":"finish","state":"locked","title":"Финиш месяца","detail":"По текущему темпу выйдет 136 299,76 ₽","amount":{"kopecks":13629976,"text":"136 299,76 ₽"},"action":{"type":"tab","tab":"reports"}}]}};
 
 /* ==========================================================================
    2. МЕЛОЧЬ
@@ -2210,29 +2226,38 @@ function intakeCard() {
   return `<div class="card intake" id="intake">
     <div class="h"><h2>Добавить операции</h2><span class="sp"></span><span class="tag">четыре способа</span></div>
     <div class="ways">
-      <label class="way" data-way="csv">
-        <input type="file" accept=".csv,text/csv,.pdf,application/pdf" multiple id="csvFile" hidden>
-        <span class="icbox">${icon('sheet', true)}</span>
-        <span class="tx"><b>Загрузить выписки</b><i>CSV или PDF из интернет-банка · до 10 файлов</i></span>
-        <span class="go">&rsaquo;</span>
-      </label>
-      <label class="way" data-way="shot">
-        <input type="file" accept="image/*" multiple id="shotFile" hidden>
-        <span class="icbox">${icon('cam', true)}</span>
-        <span class="tx"><b>Прислать скриншот или чек</b><i>Сфотографируйте чек или пришлите скрин из банка</i></span>
-        <span class="go">&rsaquo;</span>
-      </label>
-      <div class="way cash">
-        <span class="icbox">${icon('coins', true)}</span>
-        <span class="tx"><b>Записать наличные</b>
-          <span class="cashrow">
-            <input type="text" id="cashText" inputmode="text" autocomplete="off"
-                   placeholder="кофе 300" aria-label="Что и на сколько потратили">
-            <button type="button" id="cashBtn">Записать</button>
+      <div class="way-entry">
+        <label class="way" data-way="csv">
+          <input type="file" accept=".csv,text/csv,.pdf,application/pdf" multiple id="csvFile" hidden>
+          <span class="icbox">${icon('sheet', true)}</span>
+          <span class="tx"><b>Загрузить выписки</b><i>CSV или PDF из интернет-банка · до 10 файлов</i></span>
+          <span class="go">&rsaquo;</span>
+        </label>
+        <div class="way-status" id="istatus-csv" role="status" aria-live="polite"></div>
+      </div>
+      <div class="way-entry">
+        <label class="way" data-way="shot">
+          <input type="file" accept="image/*" multiple id="shotFile" hidden>
+          <span class="icbox">${icon('cam', true)}</span>
+          <span class="tx"><b>Прислать скриншот или чек</b><i>Сфотографируйте чек или пришлите скрин из банка</i></span>
+          <span class="go">&rsaquo;</span>
+        </label>
+        <div class="way-status" id="istatus-shot" role="status" aria-live="polite"></div>
+      </div>
+      <div class="way-entry">
+        <div class="way cash">
+          <span class="icbox">${icon('coins', true)}</span>
+          <span class="tx"><b>Записать наличные</b>
+            <span class="cashrow">
+              <input type="text" id="cashText" inputmode="text" autocomplete="off"
+                     placeholder="кофе 300" aria-label="Что и на сколько потратили">
+              <button type="button" id="cashBtn">Записать</button>
+            </span>
+            <span class="cashhint"><span class="icbox">${icon('mic', true)}</span>
+              То же самое можно надиктовать голосом в чат бота</span>
           </span>
-          <span class="cashhint"><span class="icbox">${icon('mic', true)}</span>
-            То же самое можно надиктовать голосом в чат бота</span>
-        </span>
+        </div>
+        <div class="way-status" id="istatus-cash" role="status" aria-live="polite"></div>
       </div>
       <!-- Четвёртый способ живёт здесь, а не только отдельной карточкой внизу
            экрана: человек ищет «как добавить операции» именно в этом блоке, а
@@ -2245,7 +2270,6 @@ function intakeCard() {
       </button>
     </div>
     <div class="note" style="margin-top:11px"><b>Проверенные PDF:</b> приложенные шаблоны «Выписка по счету» Альфа-Банка и «Справка о движении средств» Т-Банка. Ожидающие операции Альфы сразу учитываются и заменяются проведёнными автоматически.<br><b>Другие PDF и сканы:</b> при доступной модели страницы передаются ей для распознавания. Результат может быть неточным — проверьте даты, суммы и полноту операций.</div>
-    <div id="istatus"></div>
   </div>`;
 }
 
@@ -3275,8 +3299,14 @@ function questionCard(q, idx, total) {
     const sourceRows = (q.transaction_sources || []).filter((source) =>
       source.description || source.phone || source.bank || source.filename);
     const personQuestion = kind === 'incoming_unknown' || kind === 'outgoing_to_person';
-    const context = (q.counterparty || sourceRows.length) ? `<div class="qcontext">
-      ${q.counterparty ? `<div class="qc-row"><span class="qc-label">${personQuestion ? 'ФИО:' : 'Контрагент:'}</span> ${txt(q.counterparty)}</div>` : ''}
+    const person = String(q.person_label || '').trim();
+    const question = kind === 'incoming_unknown'
+      ? (person ? `Что это за перевод от «${person}»?` : 'Что это за перевод?')
+      : kind === 'outgoing_to_person'
+        ? (person ? `Как учесть перевод получателю «${person}»?` : 'Как учесть этот перевод?')
+        : q.question;
+    const context = (q.counterparty || sourceRows.length) ? `<div class="qd-context">
+      ${q.counterparty ? `<div class="qc-row"><span class="qc-label">Контрагент в выписке:</span> ${txt(q.counterparty)}</div>` : ''}
       ${sourceRows.filter((source) => source.phone).map((source) => `<div class="qc-phone"><span class="qc-label">Телефон:</span> ${txt(source.phone)}</div>`).join('')}
       ${sourceRows.filter((source) => source.bank).map((source) => `<div class="qc-row"><span class="qc-label">Банк:</span> ${txt(source.bank)}</div>`).join('')}
       ${sourceRows.map((source) => `<div class="qc-row">
@@ -3284,6 +3314,12 @@ function questionCard(q, idx, total) {
         ${source.filename ? `<div><span class="qc-label">Файл:</span> ${txt(source.filename)}</div>` : ''}
       </div>`).join('')}
     </div>` : '';
+    const details = `<div class="qdetails" id="qdetails-${q.id}" hidden>
+      <div class="qdetails-title">Подробности операции</div>
+      ${personQuestion && q.question ? `<div class="qc-row"><span class="qc-label">Исходный вопрос:</span> ${txt(q.question)}</div>` : ''}
+      ${context}
+      ${q.explanation ? `<div class="qd-reason"><span class="qc-label">Почему спрашиваем:</span> ${txt(q.explanation)}</div>` : ''}
+    </div>`;
     const narrow = base.length > 0 && base.every((o) => String(o.label).length <= 8);
     const opts = (narrow
       ? '<div class="numrow">' + base.map((o) =>
@@ -3302,9 +3338,10 @@ function questionCard(q, idx, total) {
           <div style="min-width:0"><div class="nm">${esc(KIND_BADGE[kind] || 'Операция')}</div>
             <div class="dt">${esc(q.occurred_label || questionDate(q.occurred_at))}</div></div>
           ${q.amount ? `<div class="am ${isIn ? 'in' : ''}">${isIn ? '+' : '−'}${m(q.amount)}</div>` : ''}</div>
-        ${context}
-        <div class="q">${txt(q.question)}</div>
-        ${q.explanation ? `<div class="qn">${txt(q.explanation)}</div>` : ''}
+        <div class="qprompt"><div class="q">${txt(question)}</div>
+          <button class="qhelp" type="button" aria-label="Подробности операции"
+            aria-controls="qdetails-${q.id}" aria-expanded="false">?</button></div>
+        ${details}
         ${opts}
         ${q.status === 'skipped' ? '' : `<button class="qskip" type="button" data-skip="${q.id}">Отложить вопрос</button>`}
         <div class="qhere"></div>
@@ -3316,6 +3353,13 @@ function questionCard(q, idx, total) {
     if (own) own.onclick = () => openOwnAnswer(q, wrap, own);
     const sk = wrap.querySelector('[data-skip]');
     if (sk) sk.onclick = () => skipQuestion(q, wrap);
+    const help = wrap.querySelector('.qhelp');
+    const detailBox = wrap.querySelector('.qdetails');
+    help.onclick = () => {
+      detailBox.hidden = !detailBox.hidden;
+      help.setAttribute('aria-expanded', String(!detailBox.hidden));
+      haptic('light');
+    };
     return wrap;
   }
 }
@@ -3679,22 +3723,24 @@ function celebrateNew(achs) {
 /* Итог загрузки обязан пережить перерисовку экрана: сразу после успеха мы
    перечитываем цифры, и без этого человек не успевал бы прочитать, что
    именно разобралось. */
-let lastStatus = null;
-function istatus(kind, html) {
-  lastStatus = kind ? {kind, html} : null;
-  const box = $('istatus');
+const lastStatus = {csv: null, shot: null, cash: null};
+function istatus(way, kind, html, progress = 0) {
+  lastStatus[way] = kind ? {kind, html, progress} : null;
+  const box = $('istatus-' + way);
   if (!box) return;
   if (!kind) { box.innerHTML = ''; return; }
   const ic = kind === 'wait' ? '<span class="spin"></span>'
     : kind === 'ok' ? '<span class="icbox">' + icon('check', true) + '</span>'
       : '<span class="icbox">' + icon('warn', true) + '</span>';
   box.innerHTML = '<div class="istatus ' + kind + '">' + ic + '<span>' + html + '</span></div>'
-    + (kind === 'wait' ? '<div class="iprog"><i id="iprog"></i></div>' : '');
+    + (kind === 'wait' ? '<div class="iprog"><i></i></div>' : '');
+  if (kind === 'wait') iprog(way, progress);
   const r = box.querySelector('.retry');
-  if (r) r.onclick = () => { istatus(null); $('csvFile')?.click(); };
+  if (r) r.onclick = () => { istatus(way, null); $(way === 'csv' ? 'csvFile' : 'shotFile')?.click(); };
 }
-function iprog(frac) {
-  const bar = $('iprog');
+function iprog(way, frac) {
+  if (lastStatus[way]?.kind === 'wait') lastStatus[way].progress = frac;
+  const bar = $('istatus-' + way)?.querySelector('.iprog i');
   if (bar) bar.style.width = Math.round(Math.max(3, Math.min(100, frac * 100))) + '%';
 }
 
@@ -3763,19 +3809,19 @@ function bindIntake() {
     if (!files.length || busyUpload) return;
     if (files.length > 10) {
       haptic('heavy');
-      istatus('err', 'За раз можно выбрать не больше <b>10 выписок</b>.');
+      istatus('csv', 'err', 'За раз можно выбрать не больше <b>10 выписок</b>.');
       return;
     }
     const invalid = files.find((f) => !/\.(csv|pdf)$/i.test(f.name));
     if (invalid) {
       haptic('heavy'); mascotFor('sad', 2400);
-      istatus('err', 'Нужен файл <b>.csv</b> или <b>.pdf</b> из интернет-банка. ' +
+      istatus('csv', 'err', 'Нужен файл <b>.csv</b> или <b>.pdf</b> из интернет-банка. ' +
         '<button class="retry" type="button">Выбрать другой</button>');
       return;
     }
     const form = new FormData();
     files.forEach((f) => form.append('files', f, f.name));
-    await runUpload('/me/statements', form,
+    await runUpload('csv', '/me/statements', form,
       files.length > 1
         ? 'Читаю ' + files.length + ' ' + plural(files.length, 'выписку', 'выписки', 'выписок') + '…'
         : 'Читаю «' + esc(files[0].name) + '»…',
@@ -3788,7 +3834,7 @@ function bindIntake() {
     if (!files.length || busyUpload) return;
     const form = new FormData();
     files.slice(0, 10).forEach((f) => form.append('files', f, f.name));
-    await runUpload('/me/images', form,
+    await runUpload('shot', '/me/images', form,
       files.length > 1 ? 'Распознаю ' + files.length + ' картинки…' : 'Распознаю картинку…', 'Картинка');
   };
 
@@ -3797,12 +3843,12 @@ function bindIntake() {
     const v = (cashText.value || '').trim();
     if (!v) {
       haptic('heavy');
-      istatus('err', 'Напишите, что и на сколько. Например: <b>кофе 300</b>.');
+      istatus('cash', 'err', 'Напишите, что и на сколько. Например: <b>кофе 300</b>.');
       cashText.focus(); return;
     }
     if (!/\d/.test(v)) {
       haptic('heavy'); mascotFor('think', 2000);
-      istatus('err', 'Не вижу суммы. Напишите так: <b>кофе 300</b>.');
+      istatus('cash', 'err', 'Не вижу суммы. Напишите так: <b>кофе 300</b>.');
       return;
     }
     sendCash(v);
@@ -3813,31 +3859,31 @@ function bindIntake() {
 
 async function sendCash(text) {
   if (SUM.offline) {
-    istatus('err', 'Демонстрационный режим: записывать некуда, пока нет связи с сервером.');
+    istatus('cash', 'err', 'Демонстрационный режим: записывать некуда, пока нет связи с сервером.');
     return;
   }
   busyUpload = true;
   setMood('think', 0);
-  istatus('wait', 'Записываю «' + esc(text) + '»…');
-  iprog(0.4);
+  istatus('cash', 'wait', 'Записываю «' + esc(text) + '»…');
+  iprog('cash', 0.4);
   try {
     const res = await api('/me/expenses', {method: 'POST', body: JSON.stringify({text})});
-    iprog(1);
+    iprog('cash', 1);
     busyUpload = false;
     if (res.ok === false) {
       haptic('heavy'); mascotFor('think', 2200);
-      istatus('err', esc(res.error || 'Не понял запись. Напишите так: кофе 300.'));
+      istatus('cash', 'err', esc(res.error || 'Не понял запись. Напишите так: кофе 300.'));
       return;
     }
     haptic('medium'); mascotFor('party', 2200);
-    istatus('ok', ingestText(res, 'Записал') || 'Записал.');
+    istatus('cash', 'ok', ingestText(res, 'Записал') || 'Записал.');
     const field = $('cashText'); if (field) field.value = '';
     await refresh(true);
     say(null, 'Записал «' + esc(text) + '».');
   } catch (e) {
     busyUpload = false;
     haptic('heavy'); mascotFor('sad', 2400);
-    istatus('err', humanError(e));
+    istatus('cash', 'err', humanError(e));
   }
 }
 
@@ -3887,29 +3933,29 @@ async function deleteMyData(button) {
   }
 }
 
-async function runUpload(path, form, waitLabel, what) {
+async function runUpload(way, path, form, waitLabel, what) {
   if (SUM.offline) {
-    istatus('err', 'Демонстрационный режим: загружать некуда, пока нет связи с сервером.');
+    istatus(way, 'err', 'Демонстрационный режим: загружать некуда, пока нет связи с сервером.');
     return;
   }
   busyUpload = true;
   setMood('think', 0);
-  istatus('wait', waitLabel);
-  iprog(0.03);
+  istatus(way, 'wait', waitLabel);
+  iprog(way, 0.03);
   try {
-    const res = await upload(path, form, (frac) => iprog(frac * 0.9));
-    iprog(1);
+    const res = await upload(path, form, (frac) => iprog(way, frac * 0.9));
+    iprog(way, 1);
     busyUpload = false;
     if (res && res.ok === false) {
       haptic('heavy'); mascotFor('sad', 2400);
-      istatus('err', (res.files && res.files.length > 1 ? ingestText(res, what) : humanIngest(res.error)) +
+      istatus(way, 'err', (res.files && res.files.length > 1 ? ingestText(res, what) : humanIngest(res.error)) +
         ' <button class="retry" type="button">Попробовать другой</button>');
       return;
     }
     haptic('medium');
     const text = ingestText(res, what);
     const partialFailure = !!(res && res.files && res.files.some((file) => !file.ok));
-    istatus(partialFailure ? 'err' : 'ok', text || 'Готово.');
+    istatus(way, partialFailure ? 'err' : 'ok', text || 'Готово.');
     /* Реакция по делу: новые вопросы — Грош озадачен, вопросов нет — радуется. */
     mascotFor(partialFailure ? 'think' : (res && res.questions ? 'curious' : 'party'), 2400);
     await refresh(true);
@@ -3923,7 +3969,7 @@ async function runUpload(path, form, waitLabel, what) {
   } catch (e) {
     busyUpload = false;
     haptic('heavy'); mascotFor('sad', 2400);
-    istatus('err', humanError(e) + ' <button class="retry" type="button">Попробовать ещё раз</button>');
+    istatus(way, 'err', humanError(e) + ' <button class="retry" type="button">Попробовать ещё раз</button>');
   }
 }
 
@@ -3958,7 +4004,9 @@ function render(focusId) {
 
   if (TAB === 'month') {
     bindIntake();
-    if (lastStatus) istatus(lastStatus.kind, lastStatus.html);
+    for (const [way, status] of Object.entries(lastStatus)) {
+      if (status) istatus(way, status.kind, status.html, status.progress);
+    }
   }
   if (TAB === 'questions') renderQueue(focusId);
   if (TAB === 'awards') {

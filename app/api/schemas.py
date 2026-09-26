@@ -11,7 +11,11 @@ from pydantic import BaseModel, Field
 from app.analytics import insights as insights_mod
 from app.analytics.reports import PeriodReport
 from app.models import ImportBatch, Money, Operation, ReviewItem, fmt_money
-from app.question_context import operation_question_context, question_date_label
+from app.question_context import (
+    operation_question_context,
+    person_question_label,
+    question_date_label,
+)
 
 
 class MoneyOut(BaseModel):
@@ -81,6 +85,7 @@ class QuestionOut(BaseModel):
     occurred_at: datetime | None = None
     occurred_label: str | None = None
     counterparty: str | None = None
+    person_label: str | None = None
     transaction_sources: list[QuestionSourceOut] = []
 
     @classmethod
@@ -101,6 +106,11 @@ class QuestionOut(BaseModel):
             occurred_at=(op.occurred_at if op else None),
             occurred_label=question_date_label(op.occurred_at if op else None),
             counterparty=context["counterparty"],
+            person_label=(
+                person_question_label(context)
+                if str(item.kind) in {"incoming_unknown", "outgoing_to_person"}
+                else None
+            ),
             transaction_sources=[QuestionSourceOut(**source) for source in context["sources"]],
         )
 

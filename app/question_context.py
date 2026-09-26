@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from datetime import datetime
 
+from app.classify.enrich import extract_person_name
 from app.models import Operation
 
 WEEKDAYS = (
@@ -56,6 +57,17 @@ def extract_phone(text: str) -> str | None:
         return match.group(0).strip(" .-()")
     match = LABELLED_PHONE_RE.search(text)
     return match.group(1).strip(" .-()") if match else None
+
+
+def person_question_label(context: dict) -> str | None:
+    """Показываем в коротком вопросе только настоящее имя или телефон."""
+    name = extract_person_name(context.get("counterparty") or "")
+    if name:
+        return name
+    for source in context.get("sources", []):
+        if source.get("phone"):
+            return source["phone"]
+    return None
 
 
 def operation_question_context(operation: Operation | None) -> dict:
