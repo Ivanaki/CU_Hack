@@ -66,7 +66,8 @@ try {
         Write-Host "Упаковываю коммит $sha (рабочие файлы в архив не попадут)"
         # Git for Windows иначе применяет core.autocrlf=true при экспорте:
         # Bash-скрипт в архиве получает CRLF и падает на set -euo pipefail.
-        Invoke-Native 'git' @('-c', 'core.autocrlf=false', 'archive', '--format=tar', "--output=$archive", $sha)
+        # Документация не нужна на сервере: исключаем docs из архива релиза.
+        Invoke-Native 'git' @('-c', 'core.autocrlf=false', 'archive', '--format=tar', "--output=$archive", $sha, '--', '.', ':(exclude)docs')
         Invoke-Native 'tar.exe' @('-xf', $archive, '-C', $sourceDir)
         foreach ($required in @('deploy\remote_release.sh', 'deploy\compose.release.yml', 'tests\miniapp_viewport.test.cjs', 'miniapp\dist\index.html')) {
             if (-not (Test-Path -LiteralPath (Join-Path $sourceDir $required))) {
