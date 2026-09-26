@@ -21,7 +21,7 @@ from app.analytics import reports
 from app.analytics.periods import Period, month, week
 from app.classify import categories as cats
 from app.classify import places
-from app.classify.enrich import category_from_text, purpose_tags
+from app.classify.enrich import category_from_answer, category_from_text, purpose_tags
 from app.classify.pipeline import DecisionKind, reclassify
 from app.ingest.base import ParsedRow
 from app.ingest.service import ImportResult, add_manual, import_file, import_images
@@ -748,7 +748,7 @@ def _remember_place(
     Кнопка даёт категорию, а названием остаётся то, как продавец подписан в
     выписке: человек не переименовывал место, он объяснил, что это. Ответ
     своими словами наоборот: его текст и есть название, а категорию из него
-    вычитает тот же определитель, что работает на выписках. Категории может
+    вычитывает определитель пользовательских ответов. Категории может
     и не найтись («бейсбольный клуб»), но деньги перестают быть непонятными —
     место названо, и pipeline.post_places помечает такие траты объяснёнными.
     """
@@ -763,7 +763,7 @@ def _remember_place(
     shown = known.display_name if known is not None else pattern
 
     if code == FREE_ANSWER:
-        title, category = text[0].upper() + text[1:], category_from_text(text)
+        title, category = text[0].upper() + text[1:], category_from_answer(text)
     elif code in cats.BY_CODE and not cats.is_income_code(code):
         title, category = shown, code
     else:
@@ -793,12 +793,12 @@ def _decision_for(question_kind: str, code: str) -> tuple[str, dict] | None:
 def _free_text_decisions(question_kind: str, text: str) -> list[tuple[str, dict]]:
     """Во что превращается ответ своими словами у каждого вида вопроса.
 
-    Смысл текста разбирает тот же определитель категории, что работает на
-    выписках: «такси до аэропорта» попадает в «Такси» ровно так же, как
+    Смысл текста разбирает определитель пользовательских ответов:
+    «такси до аэропорта» попадает в «Такси» ровно так же, как
     ответ кнопкой. Если категория из слов не вычиталась, трата идёт в
     «Прочее», но помечается объяснённой — см. pipeline.post_free_text.
     """
-    category = category_from_text(text)
+    category = category_from_answer(text)
     # Решение со словами пишется всегда и рядом с обычным: оно закрывает
     # вопрос навсегда (пересчёт не задаёт вопрос, по якорю которого есть
     # решение) и даёт операции название от человека.

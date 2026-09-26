@@ -166,6 +166,42 @@ def category_from_text(text: str) -> str | None:
     return None
 
 
+_ANSWER_CATEGORY_PATTERNS: tuple[tuple[str, str], ...] = (
+    (r"\b(?:доставк\w*\s+ед\w*|заказ\w*\s+ед\w*)\b", "delivery"),
+    (r"\b(?:продукт\w*|супермаркет\w*|магазин\w*\s+ед\w*)\b", "groceries"),
+    (r"\b(?:кафе|ресторан\w*|обед\w*|ужин\w*|кофейн\w*)\b", "cafe"),
+    (r"\b(?:такси|таксист\w*)\b", "taxi"),
+    (r"\b(?:общественн\w*\s+транспорт\w*|метро|автобус\w*|проезд\w*)\b", "transport"),
+    (r"\b(?:бензин\w*|заправк\w*|автомобил\w*|машин\w*|парковк\w*)\b", "car"),
+    (r"\b(?:квартир\w*|жиль\w*|аренд\w*|коммунал\w*|жкх)\b", "housing"),
+    (r"\b(?:связ\w*|интернет\w*|мобильн\w*\s+тариф\w*)\b", "connection"),
+    (r"\b(?:здоров\w*|аптек\w*|лекарств\w*|врач\w*|лечени\w*)\b", "health"),
+    (r"\b(?:красот\w*|косметик\w*|парикмахер\w*|маникюр\w*)\b", "beauty"),
+    (r"\b(?:одежд\w*|обув\w*|куртк\w*|кроссовк\w*)\b", "clothes"),
+    (r"\b(?:техник\w*|гаджет\w*|телефон\w*|ноутбук\w*)\b", "electronics"),
+    (r"\b(?:товар\w*\s+для\s+дом\w*|мебел\w*|посуда|ремонт\w*\s+(?:дом\w*|квартир\w*))\b", "home"),
+    (r"\b(?:развлечени\w*|кино\w*|театр\w*|концерт\w*)\b", "entertainment"),
+    (r"\b(?:подписк\w*|абонемент\w*\s+на\s+сервис\w*)\b", "subscriptions"),
+    (r"\b(?:образовани\w*|учеб\w*|курс\w*)\b", "education"),
+    (r"\b(?:путешестви\w*|отел\w*|гостиниц\w*|авиабилет\w*)\b", "travel"),
+    (r"\b(?:спорт\w*|фитнес\w*|тренировк\w*)\b", "sport"),
+    (r"\b(?:питом\w*|кошк\w*|собак\w*|ветеринар\w*)\b", "pets"),
+    (r"\b(?:подар\w*|цвет\w*|букет\w*)\b", "gifts"),
+    (r"\b(?:дет\w*|ребен\w*|игрушк\w*)\b", "kids"),
+    (r"\b(?:комисси\w*|процент\w*\s+банк\w*)\b", "fees"),
+    (r"\b(?:налог\w*|штраф\w*)\b", "taxes"),
+)
+
+
+def category_from_answer(text: str) -> str | None:
+    """Распознаёт названия категорий и обычные слова в ответе человека."""
+    normalized = norm_key(text)
+    for pattern, code in _ANSWER_CATEGORY_PATTERNS:
+        if re.search(pattern, normalized):
+            return code
+    return category_from_text(text)
+
+
 def enrich(session: Session, reg: AccountRegistry, rows: list[RawTransaction]) -> None:
     """Проставляет контрагента, теги назначения и подсказку категории."""
     _enrich_basic(session, reg, rows)

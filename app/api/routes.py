@@ -176,7 +176,7 @@ def summary(
         granularity=granularity,
         granularity_title=GRANULARITY_TITLE[granularity],
         slices=[s.slice_out(chunk, amount) for chunk, amount in parts],
-        questions=[s.QuestionOut.of(item) for item in questions],
+        questions=[s.QuestionOut.of(item, session) for item in questions],
         open_questions=count_open_questions(session, user.id),
         insights=[s.InsightOut.of(item) for item in items],
         streak=s.StreakOut(
@@ -307,7 +307,8 @@ def questions(
     user: User = Depends(current_user),
     session: Session = Depends(db_session),
 ) -> list[s.QuestionOut]:
-    return [s.QuestionOut.of(item) for item in open_questions(session, user.id, limit=limit)]
+    items = open_questions(session, user.id, limit=limit)
+    return [s.QuestionOut.of(item, session) for item in items]
 
 
 @me.post("/questions/{review_id}/answer", summary="Ответить одним тапом")
@@ -783,7 +784,7 @@ def import_detail(
             )
             for op in found
         ],
-        questions=[s.QuestionOut.of(item) for item in batch_questions(session, batch)],
+        questions=[s.QuestionOut.of(item, session) for item in batch_questions(session, batch)],
     )
 
 

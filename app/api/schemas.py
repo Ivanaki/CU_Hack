@@ -7,9 +7,11 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from app.analytics import insights as insights_mod
 from app.analytics.reports import PeriodReport
+from app.category_recommendations import category_options, recommended_codes
 from app.models import ImportBatch, Money, Operation, ReviewItem, fmt_money
 from app.question_context import (
     operation_question_context,
@@ -80,6 +82,7 @@ class QuestionOut(BaseModel):
     status: str
     question: str
     options: list[QuestionOptionOut]
+    recommended_codes: list[str] = []
     explanation: str = ""
     amount: MoneyOut | None = None
     occurred_at: datetime | None = None
@@ -89,18 +92,24 @@ class QuestionOut(BaseModel):
     transaction_sources: list[QuestionSourceOut] = []
 
     @classmethod
-    def of(cls, item: ReviewItem) -> QuestionOut:
+    def of(cls, item: ReviewItem, session: Session | None = None) -> QuestionOut:
         op = item.operation
         context = operation_question_context(op)
-        options = [QuestionOptionOut(**o) for o in (item.options or [])]
+        category_choices = category_options(str(item.kind))
+        options = [QuestionOptionOut(**o) for o in (category_choices or item.options or [])]
         if all(o.code != FREE_OPTION.code for o in options):
             options.append(FREE_OPTION)
+        recommended = (
+            recommended_codes(session, item, category_choices)
+            if session is not None and category_choices else []
+        )
         return cls(
             id=item.id,
             kind=str(item.kind),
             status=str(item.status),
             question=item.question,
             options=options,
+            recommended_codes=recommended,
             explanation=(op.explanation if op else ""),
             amount=MoneyOut.of(op.amount) if op else None,
             occurred_at=(op.occurred_at if op else None),

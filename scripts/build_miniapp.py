@@ -88,7 +88,7 @@ def build_payload(session, user: User) -> dict:
             for chunk, amount in parts
         ],
         "questions": [
-            json.loads(s.QuestionOut.of(item).model_dump_json()) for item in questions
+            json.loads(s.QuestionOut.of(item, session).model_dump_json()) for item in questions
         ],
         "open_questions": count_open_questions(session, user.id),
         "insights": [s.InsightOut.of(item).model_dump() for item in items],
