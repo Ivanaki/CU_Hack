@@ -88,7 +88,7 @@ ANSWER_FN = r"async function answer\(q, wrap, btn, ownText\) \{(.+?)\n\}"
 
 # Идентификаторы, за которые скрипт держится руками.
 WIRED_IDS = (
-    "howtoWay", "howtoDone", "howtoClose", "howtoInstall",
+    "howtoDone", "howtoClose", "howtoInstall",
     "howtoActivate", "howtoRetry",
 )
 
@@ -378,6 +378,18 @@ def test_обработчики_не_роняют_страницу():
         assert f"$('{wanted}')?.addEventListener" in HTML, (
             f"обработчик на #{wanted} навешивается без опциональной цепочки"
         )
+
+
+def test_инструкцию_можно_открыть_из_списка_способов():
+    """Кнопка живёт в шаблоне intakeCard, а не в статической HTML-разметке."""
+    intake = re.search(r"function intakeCard\(\) \{(.+?)\n\}", HTML, re.DOTALL)
+    assert intake and intake.group(1).count('id="howtoWay"') == 1, (
+        "в блоке добавления операций должна быть одна кнопка инструкции"
+    )
+    bind = re.search(r"function bindIntake\(\) \{(.+?)\n\}", HTML, re.DOTALL)
+    assert bind and "$('howtoWay')?.addEventListener('click', openHowto)" in bind.group(1), (
+        "кнопка инструкции должна открывать инструкцию после перерисовки блока"
+    )
 
 
 def test_идентификаторы_не_дублируются():
