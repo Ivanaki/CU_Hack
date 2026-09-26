@@ -34,6 +34,7 @@ from app.api.analytics import PERIOD_HELP, resolve_period
 from app.api.analytics import analytics as analytics_router
 from app.api.auth import current_user, db_session, require_service_key
 from app.api.uploads import _STORED_NAME, file_url, private_dir, public_base, store_image
+from app.classify import categories as cats
 from app.classify.phone_identities import PhoneRejected, delete_identity, save_identity
 from app.classify.pipeline import reclassify
 from app.classify.places import PlaceRejected
@@ -59,12 +60,14 @@ from app.models import (
 )
 from app.service import (
     AnswerRejected,
+    CategoryChangeRejected,
     add_quick_expense,
     answer_question,
     average_actions_per_day,
     batch_operations,
     batch_questions,
     batches_by_operation,
+    change_expense_category,
     count_open_questions,
     delete_place,
     get_or_create_user,
@@ -382,6 +385,34 @@ def operations(
         )
         for op in found
     ]
+
+
+@me.get("/categories", response_model=list[s.CategoryChoiceOut], summary="Категории трат")
+def expense_categories(
+    user: User = Depends(current_user),
+) -> list[s.CategoryChoiceOut]:
+    return [
+        s.CategoryChoiceOut(code=code, title=cats.title(code))
+        for code in cats.EXPENSE_CODES if code != cats.CASH_UNALLOCATED
+    ]
+
+
+@me.post("/operations/{operation_id}/category", summary="Изменить категорию траты")
+def operation_category(
+    operation_id: int,
+    payload: s.CategoryChangeIn,
+    user: User = Depends(current_user),
+    session: Session = Depends(db_session),
+) -> dict:
+    try:
+        applied = change_expense_category(
+            session, user, operation_id, payload.category, payload.scope
+        )
+    except CategoryChangeRejected as rejected:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(rejected)) from rejected
+    if applied is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "операция не найдена")
+    return {"ok": True, "applied": applied}
 
 
 @me.get("/insights", response_model=list[s.InsightOut], summary="Советы по итогам периода")

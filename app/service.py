@@ -13,7 +13,7 @@ import secrets
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -944,6 +944,80 @@ def save_place(
         category=(rule.category_code or None),
         operations_count=_place_counts(session, user.id).get(pattern, 0),
     )
+
+
+class CategoryChangeRejected(ValueError):
+    """Категорию этой операции нельзя изменить указанным способом."""
+
+
+def change_expense_category(
+    session: Session, user: User, operation_id: int, category: str, scope: str
+) -> int | None:
+    """Сохраняет выбор для одной сырой траты или как правило для места."""
+    from app.classify.enrich import clean_merchant  # noqa: PLC0415
+    from app.models import OperationKind  # noqa: PLC0415
+
+    if category not in cats.EXPENSE_CODES or category == cats.CASH_UNALLOCATED:
+        raise CategoryChangeRejected("выберите категорию траты")
+    if scope not in ("operation", "place"):
+        raise CategoryChangeRejected("выберите, к каким тратам применить категорию")
+    op = session.get(Operation, operation_id)
+    if op is None or op.user_id != user.id:
+        return None
+    if op.kind not in (OperationKind.EXPENSE, OperationKind.CASH_EXPENSE) or op.spend_amount <= 0:
+        raise CategoryChangeRejected("категорию можно изменить только у обычной траты")
+    rows = list(session.scalars(
+        select(RawTransaction).where(
+            RawTransaction.user_id == user.id,
+            RawTransaction.operation_id == op.id,
+        )
+    ).all())
+    if len(rows) != 1:
+        raise CategoryChangeRejected("не удалось однозначно найти исходную трату")
+    row = rows[0]
+    if scope == "operation":
+        _remember_decision(
+            session, user, row.dedup_hash, DecisionKind.SET_CATEGORY,
+            {"category": category},
+        )
+        applied = 1
+    else:
+        merchant = clean_merchant(row.counterparty_raw or row.description)
+        if not merchant:
+            raise CategoryChangeRejected("не удалось определить место этой траты")
+        existing = places.match(places.user_places(session, user.id), merchant)
+        pattern = existing.pattern if existing else merchant
+        title = existing.title if existing else op.title
+        rule = places.save(session, user.id, pattern, title, category)
+        session.flush()
+        # «Все траты» заменяет прежние исключения для отдельных покупок
+        # этого места. Иначе пользователь увидит часть строк в старой категории.
+        matching_hashes = [
+            candidate.dedup_hash
+            for candidate in session.scalars(
+                select(RawTransaction).where(
+                    RawTransaction.user_id == user.id,
+                    RawTransaction.amount < 0,
+                )
+            ).all()
+            if places.match([rule], clean_merchant(
+                candidate.counterparty_raw or candidate.description
+            ))
+        ]
+        if matching_hashes:
+            session.execute(delete(Decision).where(
+                Decision.user_id == user.id,
+                Decision.kind == DecisionKind.SET_CATEGORY,
+                Decision.anchor_hash.in_(matching_hashes),
+            ))
+        rule_pattern = rule.pattern
+        applied = 0
+    record_action(session, user, taps=1)
+    session.flush()
+    reclassify(session, user.id)
+    if scope == "place":
+        applied = _place_counts(session, user.id).get(rule_pattern, 0)
+    return applied
 
 
 def delete_place(session: Session, user: User, pattern: str) -> bool:

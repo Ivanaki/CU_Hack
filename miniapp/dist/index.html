@@ -400,6 +400,14 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
   margin-top:5px;padding:3px 8px;color:var(--hint);background:transparent;
   border:2px dashed var(--stroke);border-radius:999px;opacity:.75}
 .rename:active{opacity:1;transform:translateY(1px)}
+.opactions{display:flex;flex-direction:column;align-items:flex-end}
+.editbox{border:3px solid var(--stroke);border-radius:16px;background:var(--gold-soft);
+  padding:12px;margin:0 0 10px}
+.editbox .rn-h{font-size:14px;font-weight:900}
+.editbox select,.renamebox select{width:100%;margin:9px 0;padding:9px;border:2px solid var(--stroke);
+  border-radius:10px;background:#fff;color:var(--ink);font:inherit;font-size:13px}
+.editbox label.scope{display:block;margin:8px 0;font-size:12px;font-weight:800}
+.editbox label.scope input{margin-right:6px}
 .renamebox{border:3px solid var(--stroke);border-radius:16px;background:var(--gold-soft);
   padding:12px;margin:0 0 10px}
 .renamebox .rn-h{font-size:14px;font-weight:900}
@@ -2715,11 +2723,16 @@ function opRow(o) {
       ${src ? `<div class="src"><span class="icbox">${icon('sheet', true)}</span>
         <span>${esc(src.source || 'загрузка')}${src.filename ? ' · ' + esc(src.filename) : ''}</span></div>` : ''}
     </div>
-    <div class="r"><div class="a">${m(o.amount)}</div>
+    <div class="r opactions"><div class="a">${m(o.amount)}</div>
       <div class="s2 ${sp === 0 ? 'zero' : sp < 0 ? 'neg' : ''}">${esc(note)}</div>
+      ${sp > 0 && (o.kind === 'expense' || o.kind === 'cash_expense') ? `
+        <div class="s2">${esc(categoryTitle(o.category))}</div>
+        <button class="rename recat" type="button" data-op="${o.id}"
+          data-category="${esc(o.category || '')}">Изменить категорию</button>` : ''}
       ${PLACES ? `<button class="rename" type="button"
         data-merchant="${esc(o.merchant || o.title || '')}"
-        data-title="${esc(o.title || '')}">Назвать по-своему</button>` : ''}</div>
+        data-title="${esc(o.title || '')}"
+        data-place="${esc(o.place || '')}">Назвать по-своему</button>` : ''}</div>
   </div>`;
 }
 
@@ -2732,27 +2745,85 @@ function opRow(o) {
    человека к ошибке после набранного названия.
    -------------------------------------------------------------------------- */
 let PLACES = null;
+let CATEGORIES = null;
+
+async function loadCategories() {
+  try { CATEGORIES = await api('/me/categories'); } catch (e) { CATEGORIES = null; }
+}
+function categoryTitle(code) {
+  return (CATEGORIES || []).find((c) => c.code === code)?.title ||
+    (SUM?.categories || []).find((c) => c.code === code)?.title || 'Без категории';
+}
+function categoryOptions(selected, allowEmpty = false) {
+  return (allowEmpty ? '<option value="">Не менять категорию</option>' : '') +
+    (CATEGORIES || []).map((c) => `<option value="${esc(c.code)}"${c.code === selected ? ' selected' : ''}>${esc(c.title)}</option>`).join('');
+}
 
 async function loadPlaces() {
   try { PLACES = await api('/me/places'); } catch (e) { PLACES = null; }
 }
 
-function openRename(row, merchant, current) {
+async function openCategory(row, operationId, current) {
   const sheet = $('opsheet');
-  if (!sheet || sheet.querySelector('.renamebox')) return;
+  if (!sheet || sheet.querySelector('.editbox, .renamebox')) return;
+  if (!CATEGORIES) await loadCategories();
+  if (!sheet.isConnected) return;
+  if (!CATEGORIES?.length) {
+    say(null, 'Список категорий не загрузился. Попробуйте ещё раз.');
+    return;
+  }
+  const box = el(`<div class="editbox">
+    <div class="rn-h">Изменить категорию</div>
+    <select aria-label="Новая категория">${categoryOptions(current)}</select>
+    <label class="scope"><input type="radio" name="category-scope" value="operation" checked>Только эта трата</label>
+    <label class="scope"><input type="radio" name="category-scope" value="place">Все траты в этом месте, включая прошлые и будущие</label>
+    <button type="button" class="qfree-ok">Сохранить</button>
+    <div class="note rn-note">${esc(categoryTitle(current))} — текущая категория.</div>
+  </div>`);
+  row.after(box);
+  box.querySelector('button').onclick = async () => {
+    const button = box.querySelector('button');
+    const category = box.querySelector('select').value;
+    const scope = box.querySelector('input[name="category-scope"]:checked').value;
+    button.disabled = true;
+    box.querySelector('.rn-note').textContent = 'Сохраняю…';
+    try {
+      const out = await api('/me/operations/' + operationId + '/category', {
+        method: 'POST', body: JSON.stringify({category, scope}),
+      });
+      await refresh(true, false);
+      box.querySelector('.rn-note').textContent = scope === 'place'
+        ? 'Готово: категория обновлена у ' + out.applied + ' ' + plural(out.applied, 'траты', 'трат', 'трат') + '.'
+        : 'Готово: категория траты обновлена.';
+      haptic('medium');
+      setTimeout(closeOps, 900);
+    } catch (e) {
+      button.disabled = false;
+      box.querySelector('.rn-note').textContent = humanError(e);
+    }
+  };
+}
+
+async function openRename(row, merchant, current, place) {
+  const sheet = $('opsheet');
+  if (!sheet || sheet.querySelector('.editbox, .renamebox')) return;
+  if (!CATEGORIES) await loadCategories();
+  if (!sheet.isConnected) return;
+  const existing = (PLACES || []).find((p) => p.pattern === place);
   const box = el(`<div class="renamebox">
     <div class="rn-h">Как называть это место?</div>
-    <div class="rn-was">В выписке: <b>${esc(merchant)}</b></div>
+    <div class="rn-was">Место: <b>${esc(existing?.pattern || merchant)}</b></div>
     <div class="qfree">
       <input type="text" class="qfree-in rn-in" maxlength="60" autocomplete="off"
              placeholder="Например: Узбечка" aria-label="Своё название места">
       <button type="button" class="qfree-ok rn-ok">Сохранить</button>
     </div>
+    ${CATEGORIES?.length ? `<select aria-label="Категория места">${categoryOptions(existing?.category, true)}</select>` : ''}
     <div class="note rn-note">Название встанет на все траты в этом месте — и на прошлые тоже.</div>
   </div>`);
   row.after(box);
   const input = box.querySelector('.rn-in');
-  input.value = current && current !== merchant ? current : '';
+  input.value = existing?.title || (current && current !== merchant ? current : '');
   const save = async () => {
     const title = (input.value || '').trim();
     if (!title) {
@@ -2767,7 +2838,8 @@ function openRename(row, merchant, current) {
     try {
       const out = await api('/me/places', {
         method: 'POST',
-        body: JSON.stringify({merchant, title, category: null}),
+        body: JSON.stringify({merchant: existing?.pattern || merchant, title,
+          category: box.querySelector('select')?.value || existing?.category || null}),
       });
       haptic('medium');
       const n = out.applied || 0;
@@ -2775,7 +2847,7 @@ function openRename(row, merchant, current) {
         ? 'Готово: переименовано ' + n + ' ' + plural(n, 'операция', 'операции', 'операций') + '.'
         : 'Готово.';
       await loadPlaces();
-      await refresh(true, true);
+      await refresh(true, false);
       setTimeout(() => { closeOps(); }, 900);
     } catch (e) {
       box.querySelector('.rn-ok').disabled = false;
@@ -2827,8 +2899,13 @@ function openOps(title, subtitle, list) {
   document.body.appendChild(sheet);
   sheet.addEventListener('click', (e) => {
     if (e.target.closest('[data-opsclose]')) { closeOps(); return; }
+    const change = e.target.closest('.recat');
+    if (change) {
+      openCategory(change.closest('.oprow'), Number(change.dataset.op), change.dataset.category);
+      return;
+    }
     const rn = e.target.closest('.rename');
-    if (rn) openRename(rn.closest('.oprow'), rn.dataset.merchant, rn.dataset.title);
+    if (rn) openRename(rn.closest('.oprow'), rn.dataset.merchant, rn.dataset.title, rn.dataset.place);
   });
   sheet.scrollTop = 0;
   sheet.focus({preventScroll: true});
@@ -4221,6 +4298,7 @@ async function load() {
     /* Отдельно и молча: список мест не нужен для первого экрана, а его
        отсутствие не повод показывать человеку ошибку. */
     loadPlaces();
+    loadCategories();
     loadPhoneIdentities();
   } catch (e) {
     console.warn('API недоступен, показываю демонстрационные данные:', e.message);

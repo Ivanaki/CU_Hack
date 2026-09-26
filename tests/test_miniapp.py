@@ -485,7 +485,8 @@ def test_своё_название_места_применяется_ко_все
     assert row and "PLACES ?" in row.group(1), "кнопка рисуется только при поддержке"
 
     rename = re.search(
-        r"function openRename\(row, merchant, current\) \{(.+?)\n\}", HTML, re.DOTALL
+        r"async function openRename\(row, merchant, current, place\) \{(.+?)\n\}",
+        HTML, re.DOTALL,
     )
     assert rename, "переименование пропало"
     code = without_comments(rename.group(1))
@@ -493,6 +494,13 @@ def test_своё_название_места_применяется_ко_все
     assert "if (!title)" in code, "пустое название не сохраняется"
     # Человек должен заранее знать, что правило заденет и прошлые операции.
     assert "и на прошлые тоже" in HTML
+
+
+def test_категорию_можно_изменить_для_траты_или_места():
+    assert "Изменить категорию" in HTML
+    assert "Только эта трата" in HTML
+    assert "Все траты в этом месте" in HTML
+    assert "'/me/operations/' + operationId + '/category'" in HTML
 
 
 def test_страница_остаётся_самодостаточной():

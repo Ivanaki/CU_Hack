@@ -284,6 +284,16 @@ class OperationOut(BaseModel):
         )
 
 
+class CategoryChoiceOut(BaseModel):
+    code: str
+    title: str
+
+
+class CategoryChangeIn(BaseModel):
+    category: str
+    scope: str = Field(examples=["operation", "place"])
+
+
 class ImportOut(BaseModel):
     """Одна загрузка: что приехало и что из этого получилось."""
 

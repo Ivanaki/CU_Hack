@@ -1317,7 +1317,10 @@ def rule_fallback_expenses(ctx: Ctx) -> None:
             category=category or cats.OTHER,
             counterparty_id=row.counterparty_id,
             source=OperationSource(row.source),
-            explanation=_why_category(row, category),
+            explanation=(
+                f"Категория «{cats.title(category)}» выбрана вами для этой траты."
+                if override else _why_category(row, category)
+            ),
         )
         if override:
             op.status = OperationStatus.CONFIRMED
@@ -1872,6 +1875,10 @@ def reclassify(session: Session, user_id: int, *, now: datetime | None = None) -
         raise ValueError(f"нет пользователя {user_id}")
 
     _wipe_derived(session, user_id)
+    # _wipe_derived сбрасывает operation_id напрямую в SQL. Если строка уже
+    # загружена в эту Session, её старый id останется в памяти; при повторном
+    # использовании id ORM сочтёт присваивание неизменённым и не запишет связь.
+    session.expire_all()
 
     rows = list(
         session.scalars(
