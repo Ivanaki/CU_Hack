@@ -23,7 +23,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.analytics import insights as insights_mod
@@ -33,11 +33,27 @@ from app.api import schemas as s
 from app.api.analytics import PERIOD_HELP, resolve_period
 from app.api.analytics import analytics as analytics_router
 from app.api.auth import current_user, db_session, require_service_key
-from app.api.uploads import file_url, public_base, store_image
+from app.api.uploads import _STORED_NAME, file_url, private_dir, public_base, store_image
 from app.classify.places import PlaceRejected
 from app.config import Settings, get_settings
 from app.ledger.invariants import run_all
-from app.models import ImportBatch, Operation, OperationSource, RawTransaction, User
+from app.models import (
+    Account,
+    Claim,
+    ClaimSettlement,
+    Counterparty,
+    DailyActivity,
+    Decision,
+    ImportBatch,
+    MerchantRule,
+    Operation,
+    OperationSource,
+    Posting,
+    RawTransaction,
+    ReviewItem,
+    Subscription,
+    User,
+)
 from app.service import (
     AnswerRejected,
     add_quick_expense,
@@ -173,6 +189,68 @@ def summary(
         debts_i_owe=s.MoneyOut.of(report.debts_i_owe),
         operations_count=report.operations_count,
     )
+
+
+@me.delete("/data", summary="Удалить все мои данные")
+def delete_my_data(
+    user: User = Depends(current_user),
+    session: Session = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict:
+    """Удаляет личную книгу, профильные настройки и принадлежащие ей файлы."""
+    user_id = user.id
+    operation_ids = select(Operation.id).where(Operation.user_id == user_id)
+    claim_ids = select(Claim.id).where(Claim.user_id == user_id)
+    stored_names = set(session.scalars(
+        select(ImportBatch.stored_as).where(
+            ImportBatch.user_id == user_id, ImportBatch.stored_as != ""
+        )
+    ).all())
+
+    # Операции и обязательства ссылаются друг на друга. Сначала убираем
+    # зависимые строки, затем размыкаем цикл и удаляем сами записи.
+    session.execute(delete(ClaimSettlement).where(
+        ClaimSettlement.claim_id.in_(claim_ids)
+        | ClaimSettlement.operation_id.in_(operation_ids)
+    ))
+    session.execute(delete(Posting).where(Posting.user_id == user_id))
+    session.execute(delete(ReviewItem).where(ReviewItem.user_id == user_id))
+    session.execute(delete(Subscription).where(Subscription.user_id == user_id))
+    session.execute(delete(DailyActivity).where(DailyActivity.user_id == user_id))
+    session.execute(delete(Decision).where(Decision.user_id == user_id))
+    session.execute(delete(MerchantRule).where(MerchantRule.user_id == user_id))
+    session.execute(update(Operation).where(Operation.user_id == user_id).values(
+        claim_id=None, parent_id=None
+    ))
+    session.execute(update(Claim).where(Claim.user_id == user_id).values(
+        source_operation_id=None
+    ))
+    session.execute(delete(RawTransaction).where(RawTransaction.user_id == user_id))
+    session.execute(delete(Claim).where(Claim.user_id == user_id))
+    session.execute(delete(Operation).where(Operation.user_id == user_id))
+    session.execute(delete(ImportBatch).where(ImportBatch.user_id == user_id))
+    session.execute(update(Account).where(Account.user_id == user_id).values(
+        counterparty_id=None
+    ))
+    session.execute(delete(Counterparty).where(Counterparty.user_id == user_id))
+    session.execute(delete(Account).where(Account.user_id == user_id))
+    session.execute(delete(User).where(User.id == user_id))
+    session.flush()
+
+    # Имена создаются сервером и сверяются со строгим шаблоном, прежде чем
+    # строить путь: запись в базе не должна указывать за пределы каталога.
+    private_files = [
+        private_dir(settings) / name
+        for name in stored_names
+        if _STORED_NAME.fullmatch(name)
+    ]
+    for path in private_files:
+        path.unlink(missing_ok=True)
+
+    # Фиксируем полное удаление сейчас, до ответа клиенту. Авторизация при
+    # следующем запросе создаст пустой аккаунт из Telegram initData.
+    session.commit()
+    return {"ok": True}
 
 
 @me.get("/questions", response_model=list[s.QuestionOut], summary="Очередь спорных операций")

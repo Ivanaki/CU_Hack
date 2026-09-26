@@ -86,6 +86,15 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .h .tag.g{background:var(--green-soft)}
 .h .tag.c{background:var(--coral-soft)}
 .note{font-size:11.5px;font-weight:700;color:var(--hint);line-height:1.42}
+.danger-zone{margin:18px 0 8px;padding:14px;background:var(--card);border:2.5px solid #B42318;
+  border-radius:16px;box-shadow:0 3px 0 #B42318}
+.danger-btn{width:100%;min-height:48px;padding:11px 14px;font:inherit;font-size:14px;font-weight:900;
+  color:#fff;background:#C62828;border:2.5px solid #8F1717;border-radius:12px;cursor:pointer;
+  box-shadow:0 3px 0 #8F1717;transition:transform .08s,box-shadow .08s,opacity .15s}
+.danger-btn:active{transform:translateY(3px);box-shadow:none}
+.danger-btn:disabled{opacity:.55;cursor:default;transform:none;box-shadow:none}
+.danger-zone .note{margin-top:9px}
+.danger-status{margin-top:9px;font-size:12px;font-weight:900;color:#8F1717}
 
 /* ================= ГЕРОЙ ================= */
 .hero{position:relative;overflow:hidden;border-radius:26px;margin-bottom:14px;padding:13px 14px 12px;
@@ -2328,6 +2337,13 @@ function viewMonth() {
   }
 
   html += `<div class="foot">Переводы себе, долги и доли за компанию в расходы не попадают</div>`;
+  html += `<div class="danger-zone">
+    <button class="danger-btn" id="deleteMyData" type="button" data-delete-my-data
+      ${d.offline ? 'disabled' : ''}>Удалить все мои данные</button>
+    <div class="note">Удалятся выписки, операции, загруженные файлы, личные настройки и прогресс. Восстановить их нельзя.</div>
+    ${d.offline ? '<div class="danger-status">Подключитесь к интернету, чтобы удалить данные.</div>' : ''}
+    <div class="danger-status" id="deleteDataStatus" aria-live="polite"></div>
+  </div>`;
   return html;
 }
 
@@ -3772,6 +3788,52 @@ async function sendCash(text) {
   }
 }
 
+function confirmDataDeletion() {
+  const message = 'Удалить все ваши данные: выписки, операции, загруженные файлы, настройки и прогресс? Восстановить их нельзя.';
+  if (inTelegram && typeof tg?.showConfirm === 'function') {
+    return new Promise((resolve) => {
+      try { tg.showConfirm(message, (confirmed) => resolve(!!confirmed)); }
+      catch (e) { resolve(window.confirm(message)); }
+    });
+  }
+  return Promise.resolve(window.confirm(message));
+}
+
+async function deleteMyData(button) {
+  if (!button || button.disabled || SUM?.offline) return;
+  if (!await confirmDataDeletion()) return;
+
+  const label = button.textContent;
+  const status = $('deleteDataStatus');
+  button.disabled = true;
+  button.textContent = 'Удаляю данные…';
+  if (status) status.textContent = '';
+  try {
+    await api('/me/data', {method: 'DELETE'});
+    try { localStorage.removeItem('hm.achievements'); } catch (e) {}
+    try { sessionStorage.removeItem('hm.period'); } catch (e) {}
+    PERIOD = {gran: 'month', back: 0};
+    pendingSay = 'Все данные удалены. Можно начать заново.';
+    lastXp = 0;
+    GAME = null;
+    SUM = null;
+    AN = null;
+    OPS = {spec: null, list: null, truncated: false};
+    SCREEN.innerHTML = '<div class="empty"><div class="t">Все данные удалены. Открываю пустую книгу…</div></div>';
+    window.scrollTo(0, 0);
+    haptic('medium');
+    await refresh(true);
+    if (!SUM) {
+      SCREEN.innerHTML = '<div class="empty"><div class="t">Данные удалены. Обновите экран, чтобы открыть пустую книгу.</div></div>';
+    }
+  } catch (e) {
+    button.disabled = false;
+    button.textContent = label;
+    if (status) status.textContent = 'Не удалось удалить данные. Проверьте связь и попробуйте ещё раз.';
+    haptic('heavy');
+  }
+}
+
 async function runUpload(path, form, waitLabel, what) {
   if (SUM.offline) {
     istatus('err', 'Демонстрационный режим: загружать некуда, пока нет связи с сервером.');
@@ -3890,6 +3952,8 @@ document.querySelectorAll('.nav button').forEach((b) => {
 document.addEventListener('click', (e) => {
   const t = e.target;
   if (!t || typeof t.closest !== 'function') return;
+  const deleteButton = t.closest('[data-delete-my-data]');
+  if (deleteButton) { deleteMyData(deleteButton); return; }
   const gran = t.closest('[data-gran]');
   if (gran) { applyPeriod(gran.dataset.gran, 0); return; }
   const step = t.closest('[data-pstep]');
