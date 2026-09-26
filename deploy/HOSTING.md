@@ -87,7 +87,9 @@ tar czf - -C . --warning=no-file-changed \
   --exclude=.git --exclude=.venv --exclude=__pycache__ --exclude='*.pyc' \
   --exclude=.pytest_cache --exclude=.ruff_cache \
   --exclude=data/runtime --exclude=data/uploads --exclude=data/uploads-local \
-  --exclude='*.db' --exclude=.env --exclude=pitch --exclude=pitch2 . \
+  --exclude='*.db' --exclude=.env --exclude=desktop --exclude=dashboard \
+  --exclude=scripts/dashboard.py --exclude=tests/test_dashboard.py \
+  --exclude=pitch --exclude=pitch2 . \
   | ssh grosh 'tar xzf - -C honest-month'
 
 ssh grosh 'cd honest-month && docker compose up -d --build'

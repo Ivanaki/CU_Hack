@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'">
+  <title>Грош — управление проектом</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="catalog.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand"><span class="brand-icon">Г</span><div><strong>Грош</strong><small>Управление проектом</small></div></div>
+      <div class="header-controls"><span>Масштаб</span><button type="button" data-zoom="-1" aria-label="Уменьшить масштаб">−</button><output id="zoomValue">100%</output><button type="button" data-zoom="1" aria-label="Увеличить масштаб">+</button></div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="intro"><div><h1>Пульт проекта</h1><p>Запускайте команды в отдельной консоли PowerShell или копируйте их одним нажатием.</p></div><div class="intro-actions"><button type="button" class="secondary" data-open="app">Открыть приложение</button><button type="button" class="secondary" id="refresh">Обновить статус</button></div></div>
+    <div class="notice" id="fileNotice" hidden>Страница открыта как файл. Команды можно копировать. Чтобы запускать их кнопками, откройте <b>Пульт Грош.cmd</b> в папке проекта.</div>
+
+    <section class="status" aria-label="Состояние проекта">
+      <div><span>Локальное приложение</span><strong id="apiStatus">Проверяю…</strong></div>
+      <div><span>Ветка Git</span><strong id="branchStatus">Проверяю…</strong></div>
+      <div><span>Изменённые файлы</span><strong id="changesStatus">Проверяю…</strong></div>
+    </section>
+
+    <nav class="jump" aria-label="Разделы"><a href="#local">Локально</a><a href="#checks">Проверки</a><a href="#server">Сервер</a><a href="#files">Папки и данные</a></nav>
+
+    <section class="section" id="local"><div class="section-head"><div><h2>Локально</h2><p>Личная база и загрузки на этом компьютере.</p></div></div><div class="cards" id="localActions"></div></section>
+    <section class="section" id="checks"><div class="section-head"><div><h2>Проверки</h2><p>Проверка изменений и подготовка релиза.</p></div></div><div class="cards" id="checkActions"></div></section>
+    <section class="section" id="server"><div class="section-head"><div><h2>Сервер</h2><p>Действия с боевым стендом. Перед выкладкой проверьте изменения.</p></div></div><div class="cards" id="serverActions"></div></section>
+    <section class="section" id="files"><div class="section-head"><div><h2>Папки и данные</h2><p>Открываются в Проводнике Windows.</p></div></div><div class="folder-list"><button type="button" data-open="root"><strong>Папка проекта</strong><span>C:\Github\CU_Hack</span></button><button type="button" data-open="database"><strong>Локальная база</strong><span>data/runtime/local-review.db</span></button><button type="button" data-open="uploads"><strong>Загруженные файлы</strong><span>data/uploads-local</span></button></div><p class="footnote">Локальные данные и ключи из .env не включаются в релизный архив.</p></section>
+  </main>
+
+  <div class="modal-backdrop" id="confirmModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><h2 id="modalTitle">Подтвердить действие</h2><p id="modalText"></p><div class="modal-actions"><button type="button" class="secondary" id="cancelModal">Отмена</button><button type="button" class="danger" id="acceptModal">Продолжить</button></div></div></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

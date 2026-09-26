@@ -18,7 +18,7 @@ LOCAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # То, что на сервере жить не должно: мусор, локальная база и локальный .env.
 EXCLUDES=(
   .git .venv venv __pycache__ '*.pyc' .pytest_cache .ruff_cache
-  data/runtime data/uploads data/uploads-local '*.db' '*.sqlite3' .env .idea .vscode
+  data/runtime data/uploads data/uploads-local desktop dashboard scripts/dashboard.py tests/test_dashboard.py '*.db' '*.sqlite3' .env .idea .vscode
   # Презентация — десятки мегабайт картинок, которые сервер не отдаёт.
   # Заодно она собирается прямо во время деплоя, и tar падает на файле,
   # который изменился, пока он его читал.

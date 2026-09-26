@@ -10,3 +10,4 @@ data/uploads/
 data/uploads-local/
 .pytest_cache/
 .ruff_cache/
+desktop/

@@ -28,6 +28,8 @@ miniapp/concepts/
 
 # В рантайме не нужны
 deploy/
+desktop/
+dashboard/
 *.md
 .vscode/
 .idea/

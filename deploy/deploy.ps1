@@ -70,7 +70,9 @@ try {
         Invoke-Native 'git' @(
             '-c', 'core.autocrlf=false', 'archive', '--format=tar', "--output=$archive", $sha,
             '--', '.', ':(exclude)docs', ':(exclude).env', ':(exclude)data/runtime',
-            ':(exclude)data/uploads', ':(exclude)data/uploads-local'
+            ':(exclude)data/uploads', ':(exclude)data/uploads-local', ':(exclude)desktop',
+            ':(exclude)dashboard', ':(exclude)scripts/dashboard.py',
+            ':(exclude)tests/test_dashboard.py'
         )
         Invoke-Native 'tar.exe' @('-xf', $archive, '-C', $sourceDir)
         foreach ($required in @('deploy\remote_release.sh', 'deploy\compose.release.yml', 'tests\miniapp_viewport.test.cjs', 'miniapp\dist\index.html')) {
