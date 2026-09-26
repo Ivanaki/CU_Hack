@@ -6,7 +6,7 @@
 #   REMOTE_DIR=/srv/honest ./deploy/deploy.sh home
 #
 # Скрипт идемпотентен: гоняйте сколько угодно раз, .env и база на сервере
-# не пострадают.
+# не пострадают. Серверный .env нужно подготовить отдельно.
 
 set -euo pipefail
 
@@ -15,11 +15,10 @@ HOST="${1:-home}"
 REMOTE_DIR="${REMOTE_DIR:-honest-month}"
 LOCAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# То, что на сервере жить не должно: мусор, локальная база и .env
-# (его кладём отдельно и только если его там ещё нет).
+# То, что на сервере жить не должно: мусор, локальная база и локальный .env.
 EXCLUDES=(
   .git .venv venv __pycache__ '*.pyc' .pytest_cache .ruff_cache
-  data/runtime data/uploads '*.db' '*.sqlite3' .env .idea .vscode
+  data/runtime data/uploads data/uploads-local '*.db' '*.sqlite3' .env .idea .vscode
   # Презентация — десятки мегабайт картинок, которые сервер не отдаёт.
   # Заодно она собирается прямо во время деплоя, и tar падает на файле,
   # который изменился, пока он его читал.
@@ -29,8 +28,6 @@ EXCLUDES=(
 step() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 info() { printf '    %s\n' "$*"; }
 fail() { printf '\033[1;31mОШИБКА: %s\033[0m\n' "$*" >&2; exit 1; }
-
-[[ -f "$LOCAL_DIR/.env" ]] || fail "нет $LOCAL_DIR/.env — скопируйте .env.example и заполните ключи"
 
 step "Проверяю сервер $HOST"
 ssh "$HOST" 'echo "    подключился: $(hostname)"' || fail "не достучался до $HOST (проверьте ~/.ssh/config)"
@@ -70,13 +67,9 @@ else
 fi
 
 step "Проверяю .env на сервере"
-if ssh "$HOST" "test -f '$REMOTE_DIR/.env'"; then
-  info ".env уже есть — не трогаю (правьте на сервере)"
-else
-  scp "$LOCAL_DIR/.env" "$HOST:$REMOTE_DIR/.env"
-  ssh "$HOST" "chmod 600 '$REMOTE_DIR/.env'"
-  info ".env скопирован с локальной машины"
-fi
+ssh "$HOST" "test -f '$REMOTE_DIR/.env'" \
+  || fail "на сервере нет $REMOTE_DIR/.env — подготовьте его отдельно перед выкладкой"
+info "серверный .env уже есть — не трогаю"
 
 step "Собираю и запускаю контейнер"
 ssh "$HOST" "cd '$REMOTE_DIR' && $COMPOSE up -d --build"

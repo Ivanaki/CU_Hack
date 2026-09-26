@@ -7,5 +7,6 @@ venv/
 *.sqlite3
 data/runtime/
 data/uploads/
+data/uploads-local/
 .pytest_cache/
 .ruff_cache/

@@ -86,7 +86,7 @@ curl -s https://grosh.cu3rd.ru/healthz                      # проверка �
 tar czf - -C . --warning=no-file-changed \
   --exclude=.git --exclude=.venv --exclude=__pycache__ --exclude='*.pyc' \
   --exclude=.pytest_cache --exclude=.ruff_cache \
-  --exclude=data/runtime --exclude=data/uploads \
+  --exclude=data/runtime --exclude=data/uploads --exclude=data/uploads-local \
   --exclude='*.db' --exclude=.env --exclude=pitch --exclude=pitch2 . \
   | ssh grosh 'tar xzf - -C honest-month'
 

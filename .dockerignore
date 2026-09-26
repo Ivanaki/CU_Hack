@@ -16,6 +16,7 @@ data/runtime/
 
 # То же про файлы с шортката: они живут в томе на сервере.
 data/uploads/
+data/uploads-local/
 
 **/.pytest_cache/
 **/.ruff_cache/
