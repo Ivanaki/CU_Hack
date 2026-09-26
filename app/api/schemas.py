@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from app.analytics import insights as insights_mod
 from app.analytics.reports import PeriodReport
 from app.models import ImportBatch, Money, Operation, ReviewItem, fmt_money
+from app.question_context import operation_question_context, question_date_label
 
 
 class MoneyOut(BaseModel):
@@ -55,6 +56,13 @@ class QuestionOptionOut(BaseModel):
     label: str
 
 
+class QuestionSourceOut(BaseModel):
+    description: str = ""
+    phone: str | None = None
+    bank: str = ""
+    filename: str = ""
+
+
 # Последняя кнопка любого вопроса. Придуманные заранее варианты покрывают не
 # всё («аренда квартиры», «вернул за ремонт»), а «ничего не подходит» — не
 # повод оставлять деньги неразобранными. Добавляется здесь, а не в правилах:
@@ -71,10 +79,14 @@ class QuestionOut(BaseModel):
     explanation: str = ""
     amount: MoneyOut | None = None
     occurred_at: datetime | None = None
+    occurred_label: str | None = None
+    counterparty: str | None = None
+    transaction_sources: list[QuestionSourceOut] = []
 
     @classmethod
     def of(cls, item: ReviewItem) -> QuestionOut:
         op = item.operation
+        context = operation_question_context(op)
         options = [QuestionOptionOut(**o) for o in (item.options or [])]
         if all(o.code != FREE_OPTION.code for o in options):
             options.append(FREE_OPTION)
@@ -87,6 +99,9 @@ class QuestionOut(BaseModel):
             explanation=(op.explanation if op else ""),
             amount=MoneyOut.of(op.amount) if op else None,
             occurred_at=(op.occurred_at if op else None),
+            occurred_label=question_date_label(op.occurred_at if op else None),
+            counterparty=context["counterparty"],
+            transaction_sources=[QuestionSourceOut(**source) for source in context["sources"]],
         )
 
 
@@ -389,6 +404,7 @@ class StatementFileOut(BaseModel):
     error: str = ""
     extraction_method: str = ""
     pending_count: int = 0
+
 
 class IngestResultOut(BaseModel):
     ok: bool

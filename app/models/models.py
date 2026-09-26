@@ -220,6 +220,7 @@ class RawTransaction(Base, TimestampMixin):
     )
 
     account: Mapped[Account] = relationship()
+    batch: Mapped[ImportBatch | None] = relationship()
     counterparty: Mapped[Counterparty | None] = relationship()
     operation: Mapped[Operation | None] = relationship(back_populates="legs")
 

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from datetime import datetime
+from html import escape
 
 from app.analytics.insights import Insight
 from app.analytics.reports import PeriodReport
 from app.classify import categories as cats
 from app.models import Money, ReviewItem, fmt_money
+from app.question_context import operation_question_context, question_date_label
 from app.service import BatchTrace
 
 BAR_FULL = "█"
@@ -179,9 +181,30 @@ def insights_message(items: list[Insight], saving: Money) -> str:
 
 def question_message(item: ReviewItem, *, left: int) -> str:
     head = f"<b>Вопрос</b>  <i>(осталось {left})</i>" if left else "<b>Вопрос</b>"
-    body = [head, "", item.question]
+    body = [head]
+    operation = item.operation
+    context = operation_question_context(operation)
+    occurred_label = question_date_label(operation.occurred_at if operation else None)
+    if occurred_label:
+        body += ["", f"<b>Дата:</b> {occurred_label}"]
+    person_question = str(item.kind) in {"incoming_unknown", "outgoing_to_person"}
+    if context["counterparty"]:
+        name_label = "ФИО" if person_question else "Контрагент"
+        body.append(f"<b>{name_label}:</b> {escape(context['counterparty'])}")
+    for source in context["sources"]:
+        if source["phone"]:
+            body.append(f"<b>Телефон:</b> {escape(source['phone'])}")
+    for source in context["sources"]:
+        if source["bank"]:
+            body.append(f"<b>Банк:</b> {escape(source['bank'])}")
+    body += ["", escape(item.question)]
+    for source in context["sources"]:
+        if source["description"]:
+            body.append(f"<b>В выписке:</b> {escape(source['description'])}")
+        if source["filename"]:
+            body.append(f"<b>Файл:</b> {escape(source['filename'])}")
     if item.operation is not None and item.operation.explanation:
-        body += ["", f"<i>{item.operation.explanation}</i>"]
+        body += ["", f"<i>{escape(item.operation.explanation)}</i>"]
     return "\n".join(body)
 
 
