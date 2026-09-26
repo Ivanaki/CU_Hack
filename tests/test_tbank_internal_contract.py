@@ -66,6 +66,43 @@ def test_tbank_contract_transfer_from_pdf_is_not_spending_or_question(session):
     }]
 
 
+def test_tbank_pdf_transfer_to_self_is_not_income_or_question(session):
+    # В выписке банк пишет «Перевод себе» для поступлений с другого своего счёта.
+    statement = """АКЦИОНЕРНОЕ ОБЩЕСТВО «ТБАНК»
+Справка о движении средств
+10.09.2026 10.09.2026 +1 200.00 ₽ +1 200.00 ₽ Перевод себе 8673
+19:23 19:24
+10.09.2026 10.09.2026 +1 900.00 ₽ +1 900.00 ₽ Перевод себе 8673
+12:49 12:50
+Пополнения: 3 100,00 ₽
+Расходы: 0,00 ₽
+"""
+    parsed = _tbank([statement])
+    assert [row.description for row in parsed.rows] == ["Перевод себе", "Перевод себе"]
+
+    user = User(tg_id=990105, display_name="Алексей")
+    session.add(user)
+    session.flush()
+    import_rows(session, user.id, parsed.rows, source=parsed.bank)
+    reclassify(session, user.id, now=datetime(2026, 10, 10))
+
+    operations = session.scalars(
+        select(Operation).where(Operation.user_id == user.id)
+    ).all()
+    assert len(operations) == 2
+    assert {op.amount for op in operations} == {120_000, 190_000}
+    assert all(op.kind == OperationKind.TRANSFER for op in operations)
+    assert all(op.rule == "own_accounts_by_text" for op in operations)
+    assert all(op.spend_amount == 0 for op in operations)
+    assert all(
+        posting.account_kind not in ("expense", "income")
+        for op in operations for posting in op.postings
+    )
+    assert not session.scalars(
+        select(ReviewItem).where(ReviewItem.user_id == user.id)
+    ).all()
+
+
 def test_contract_wording_is_specific_to_tbank():
     description = "Внутренний перевод на договор 1234567890"
     assert tbank_contract_transfer(description, "Т-Банк")
