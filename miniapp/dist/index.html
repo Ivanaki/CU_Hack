@@ -379,6 +379,15 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .qfree-in::placeholder{color:var(--hint);font-weight:700}
 .qfree-in:focus{outline:none;border-color:var(--green)}
 .qfree-in.bad{border-color:var(--coral);animation:q-shake .34s}
+.phone-manager{margin:14px 0;padding:15px;border:3px solid var(--stroke);border-radius:22px;background:var(--paper,#fffdf6)}
+.phone-manager h3{margin:0 0 8px;font-size:16px}
+.phone-manager p{margin:4px 0 12px;font-size:12px;line-height:1.4}
+.phone-manager input,.phone-manager select{box-sizing:border-box;width:100%;margin:4px 0;padding:10px;border:2px solid var(--stroke);border-radius:12px;background:white;font:inherit;font-size:14px}
+.phone-manager button,.phone-entry{font:inherit;font-size:13px;font-weight:800}
+.phone-manager button{margin:6px 6px 4px 0;padding:9px 13px;border:2px solid var(--stroke);border-radius:12px;background:var(--gold-soft);cursor:pointer}
+.phone-entry{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-top:1px solid #d8d2bf}
+.phone-entry button{margin:0;padding:5px 8px}
+.phone-error{color:#b83e32;font-size:12px;font-weight:800}
 @keyframes q-shake{0%,100%{transform:none}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
 .qfree-ok{appearance:none;font:inherit;font-size:14px;font-weight:900;color:#0F2417;cursor:pointer;
   background:var(--green);border:2.5px solid var(--stroke);border-radius:13px;padding:10px 15px;
@@ -3184,6 +3193,72 @@ const KIND_ICON = {
 const KIND_SVG = {incoming_unknown: true, cash_spent_on: true, shared_bill_heads: false,
   uncategorized: false, transfer_purpose: true};
 
+let PHONE_IDENTITIES = [];
+let PHONE_OPEN = false;
+let PHONE_PREFILL = '';
+
+async function loadPhoneIdentities() {
+  if (SUM?.offline) return;
+  try { PHONE_IDENTITIES = await api('/me/phone-identities'); }
+  catch (e) { PHONE_IDENTITIES = []; }
+  renderPhoneManager();
+}
+
+function renderPhoneManager() {
+  const box = $('phoneManager');
+  if (!box) return;
+  box.hidden = !PHONE_OPEN;
+  if (!PHONE_OPEN) return;
+  box.innerHTML = `<div class="phone-manager">
+    <h3>Мои номера и люди</h3>
+    <p>Свой номер поможет узнать переводы между банками. Номер человека подпишет его переводы по имени.</p>
+    <label>Номер телефона<input id="phoneInput" type="tel" inputmode="tel" placeholder="+7 900 000-00-01" value="${esc(PHONE_PREFILL)}"></label>
+    <label>Кому принадлежит<select id="phoneKind"><option value="own">Это мой номер</option><option value="contact">Это другой человек</option></select></label>
+    <label id="phoneNameLabel" hidden>Как его зовут<input id="phoneName" type="text" maxlength="100" placeholder="Например, Петя"></label>
+    <button type="button" id="phoneSave">Запомнить номер</button>
+    <div id="phoneError" class="phone-error" role="alert"></div>
+    <h3 style="margin-top:12px">Сохранённые номера</h3>
+    ${PHONE_IDENTITIES.length ? PHONE_IDENTITIES.map((line) => `<div class="phone-entry">
+      <span>${esc(line.phone)} · ${line.kind === 'own' ? 'Мой номер' : esc(line.name)}</span>
+      <button type="button" data-phone-delete="${esc(line.phone)}" aria-label="Удалить ${esc(line.phone)}">Удалить</button>
+    </div>`).join('') : '<p>Пока нет сохранённых номеров.</p>'}
+  </div>`;
+  const kind = $('phoneKind');
+  kind.onchange = () => { $('phoneNameLabel').hidden = kind.value !== 'contact'; };
+  $('phoneSave').onclick = async () => {
+    if (SUM?.offline) { $('phoneError').textContent = 'В демонстрационном режиме сохранить номер нельзя.'; return; }
+    const button = $('phoneSave');
+    button.disabled = true;
+    try {
+      await api('/me/phone-identities', {method:'POST', body:JSON.stringify({
+        phone:$('phoneInput').value, kind:kind.value, name:$('phoneName').value,
+      })});
+      PHONE_PREFILL = '';
+      await loadPhoneIdentities();
+      await refresh(true);
+    } catch (e) { $('phoneError').textContent = humanError(e); button.disabled = false; }
+  };
+  box.querySelectorAll('[data-phone-delete]').forEach((button) => {
+    button.onclick = async () => {
+      button.disabled = true;
+      try {
+        await api('/me/phone-identities/' + encodeURIComponent(button.dataset.phoneDelete), {method:'DELETE'});
+        await loadPhoneIdentities();
+        await refresh(true);
+      } catch (e) { $('phoneError').textContent = humanError(e); button.disabled = false; }
+    };
+  });
+}
+
+function rememberQuestionPhone(q) {
+  const phone = (q.transaction_sources || []).find((source) => source.phone)?.phone;
+  if (!phone) return;
+  PHONE_PREFILL = phone;
+  PHONE_OPEN = true;
+  renderPhoneManager();
+  $('phoneManager')?.scrollIntoView({behavior:'smooth', block:'center'});
+}
+
 function viewQuestions() {
   const d = SUM;
   const list = d.questions || [];
@@ -3210,7 +3285,8 @@ function viewQuestions() {
     </div>
   </div>`;
 
-  html += `<div id="queue"></div>`;
+  html += `<button class="ans" type="button" id="phoneManagerToggle" style="margin:14px 0">Мои номера и люди</button>
+    <div id="phoneManager" hidden></div><div id="queue"></div>`;
   html += `<div class="foot">Каждый ответ — один тап. Ответы меняют цифры на всех экранах.</div>`;
   return html;
 }
@@ -3320,6 +3396,7 @@ function questionCard(q, idx, total) {
           <button class="qhelp" type="button" aria-label="Подробности операции"
             aria-controls="qdetails-${q.id}" aria-expanded="false">?</button></div>
         ${details}
+        ${personQuestion && sourceRows.some((source) => source.phone) ? `<button class="ans" type="button" data-remember-phone="${q.id}"><span>Запомнить номер</span><span class="plus">&rsaquo;</span></button>` : ''}
         ${opts}
         ${q.status === 'skipped' ? '' : `<button class="qskip" type="button" data-skip="${q.id}">Отложить вопрос</button>`}
         <div class="qhere"></div>
@@ -3329,6 +3406,8 @@ function questionCard(q, idx, total) {
     });
     const own = wrap.querySelector('.ans.own');
     if (own) own.onclick = () => openOwnAnswer(q, wrap, own);
+    const remember = wrap.querySelector('[data-remember-phone]');
+    if (remember) remember.onclick = () => rememberQuestionPhone(q);
     const sk = wrap.querySelector('[data-skip]');
     if (sk) sk.onclick = () => skipQuestion(q, wrap);
     const help = wrap.querySelector('.qhelp');
@@ -3992,7 +4071,11 @@ function render(focusId) {
       if (status) istatus(way, status.kind, status.html, status.progress);
     }
   }
-  if (TAB === 'questions') renderQueue(focusId);
+  if (TAB === 'questions') {
+    $('phoneManagerToggle').onclick = () => { PHONE_OPEN = !PHONE_OPEN; renderPhoneManager(); };
+    renderPhoneManager();
+    renderQueue(focusId);
+  }
   if (TAB === 'awards') {
     bindAwards();
     renderPath();
@@ -4138,6 +4221,7 @@ async function load() {
     /* Отдельно и молча: список мест не нужен для первого экрана, а его
        отсутствие не повод показывать человеку ошибку. */
     loadPlaces();
+    loadPhoneIdentities();
   } catch (e) {
     console.warn('API недоступен, показываю демонстрационные данные:', e.message);
     SUM = FALLBACK;

@@ -61,6 +61,8 @@ def extract_phone(text: str) -> str | None:
 
 def person_question_label(context: dict) -> str | None:
     """Показываем в коротком вопросе только настоящее имя или телефон."""
+    if context.get("named_by_user") and context.get("counterparty"):
+        return context["counterparty"]
     name = extract_person_name(context.get("counterparty") or "")
     if name:
         return name
@@ -100,5 +102,8 @@ def operation_question_context(operation: Operation | None) -> dict:
     counterparty = operation.counterparty
     return {
         "counterparty": counterparty.display_name if counterparty is not None else None,
+        "named_by_user": bool(
+            counterparty is not None and counterparty.norm_key.startswith("phone:")
+        ),
         "sources": sources,
     }

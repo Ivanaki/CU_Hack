@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import re
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.classify import categories as cats
 from app.classify import places
+from app.classify.phone_identities import identities, transfer_phone
 from app.ledger.accounts import AccountRegistry, norm_key
-from app.models import CounterpartyKind, RawTransaction
+from app.models import Counterparty, CounterpartyKind, RawTransaction
 
 # --- назначение платежа ----------------------------------------------------
 # Теги, а не категории: одно и то же слово может значить разное в зависимости
@@ -201,14 +203,36 @@ def _enrich_with_places(session: Session, rows: list[RawTransaction]) -> None:
 def _enrich_basic(
     session: Session, reg: AccountRegistry, rows: list[RawTransaction]
 ) -> None:
+    phone_rules = identities(session, reg.user_id)
     for row in rows:
+        row.counterparty_id = None
         text = f"{row.description} {row.counterparty_raw}".strip()
         row.purpose_tags = purpose_tags(text, bank=row.account.bank or "")
 
         name = extract_person_name(row.counterparty_raw or row.description)
         kind = guess_counterparty_kind(text, name)
         display = name or clean_merchant(row.counterparty_raw or row.description)
-        if display:
+        number = transfer_phone(row)
+        named = phone_rules.get(number) if number else None
+        if named is not None and named.kind == "contact":
+            # Номер — ключ личности. Два друга с одинаковым именем не
+            # разделяют долги и вопросы, а переименование обновляет прошлое.
+            key = f"phone:{number}"
+            cp = session.scalar(select(Counterparty).where(
+                Counterparty.user_id == row.user_id, Counterparty.norm_key == key
+            ))
+            if cp is None:
+                cp = Counterparty(
+                    user_id=row.user_id, kind=CounterpartyKind.PERSON,
+                    norm_key=key, display_name=named.name,
+                )
+                session.add(cp)
+                session.flush()
+            else:
+                cp.display_name = named.name
+                cp.kind = CounterpartyKind.PERSON
+            row.counterparty_id = cp.id
+        elif display:
             row.counterparty_id = reg.counterparty(display, kind).id
 
         # Категорию по тексту ищем и для переводов физлицам: "Аренда квартиры

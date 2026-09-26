@@ -838,6 +838,8 @@ def _incoming_choice(text: str) -> str:
     мои же деньги, и доход от такого ответа был бы завышен.
     """
     tags = set(purpose_tags(text))
+    if "self" in tags and not re.search(r"\bне\s+себе\b", text, re.IGNORECASE):
+        return "self"
     if {"debt", "return"} & tags:
         return "debt_back"
     if {"share_meal", "share_ride", "split"} & tags:

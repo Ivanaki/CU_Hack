@@ -29,9 +29,11 @@ from app.classify import places
 from app.classify.enrich import (
     clean_merchant,
     enrich,
+    extract_person_name,
     own_number_transfer,
     tbank_contract_transfer,
 )
+from app.classify.phone_identities import identities, transfer_phone
 from app.config import Settings, get_settings
 from app.ledger import build
 from app.ledger.accounts import AccountRegistry, norm_key
@@ -107,6 +109,7 @@ class Ctx:
     settings: Settings
     rows: list[RawTransaction]
     own_ids: set[int]
+    phone_rules: dict = field(default_factory=dict)
     decisions: dict[tuple[str, str], dict] = field(default_factory=dict)
     used: set[int] = field(default_factory=set)
     ops: list[Operation] = field(default_factory=list)
@@ -353,6 +356,34 @@ def _transfer_confidence(
     if ctx.decision(out.dedup_hash, DecisionKind.FORCE_TRANSFER) is not None:
         return 1.0
 
+    out_phone, inc_phone = transfer_phone(out), transfer_phone(inc)
+    out_rule = ctx.phone_rules.get(out_phone) if out_phone else None
+    inc_rule = ctx.phone_rules.get(inc_phone) if inc_phone else None
+    # Признак «мой номер» на одной строке не может переименовать явно чужой
+    # перевод в паре. Разные номера тоже нельзя отождествлять по сумме.
+    if (out_rule is not None and out_rule.kind == "contact") or (
+        inc_rule is not None and inc_rule.kind == "contact"
+    ):
+        return 0.0
+    if out_phone and inc_phone and out_phone != inc_phone:
+        return 0.0
+    own_phone = any(rule is not None and rule.kind == "own" for rule in (out_rule, inc_rule))
+    if own_phone:
+        own_tokens = [token for token in own_name.split() if len(token) >= 3]
+        for row in (out, inc):
+            person_name = extract_person_name(f"{row.counterparty_raw} {row.description}")
+            if person_name and own_tokens:
+                person_tokens = [
+                    token for token in norm_key(person_name).split() if len(token) >= 3
+                ]
+                # Совпадение одной общей фамилии не доказывает, что перевод
+                # был себе. При кратком имени профиля сравниваем первое имя.
+                if len(own_tokens) == 1:
+                    if person_tokens and person_tokens[0] != own_tokens[0]:
+                        return 0.0
+                elif any(token not in own_tokens for token in person_tokens):
+                    return 0.0
+
     dst = _account(ctx, inc)
     tags = set(out.purpose_tags) | set(inc.purpose_tags)
     evidence = 0.0
@@ -361,6 +392,8 @@ def _transfer_confidence(
         evidence += 0.5
     if "self" in tags or "topup" in tags:
         evidence += 0.45
+    if own_phone:
+        evidence += 0.6
     if own_name and (
         own_name in norm_key(out.counterparty_raw) or own_name in norm_key(inc.counterparty_raw)
     ):
@@ -368,7 +401,10 @@ def _transfer_confidence(
     if "transfer" in tags:
         evidence += 0.1
     # Перевод человеку — сильный довод против: это долг или оплата, не себе.
-    if _is_person(ctx, out) and not (own_name and own_name in norm_key(out.counterparty_raw)):
+    if (
+        _is_person(ctx, out) and not own_phone
+        and not (own_name and own_name in norm_key(out.counterparty_raw))
+    ):
         evidence -= 0.25
     if {"debt", "return", "share_meal", "split", "gift"} & tags:
         evidence -= 0.4
@@ -465,13 +501,18 @@ def rule_own_accounts_by_text(ctx: Ctx) -> None:
     """
     for row in ctx.free():
         text = f"{row.counterparty_raw} {row.description}"
-        if not (
+        choice = ctx.decision(row.dedup_hash, DecisionKind.SET_KIND)
+        user_said_self = choice is not None and choice.get("kind") == "self"
+        bank_said_self = bool(
             _OWN_ACCOUNTS_RE.search(text)
             or own_number_transfer(text)
             or tbank_contract_transfer(text, _account(ctx, row).bank or "")
-        ):
+        )
+        phone = transfer_phone(row)
+        identity = ctx.phone_rules.get(phone) if phone else None
+        own_phone = identity is not None and identity.kind == "own"
+        if not (bank_said_self or user_said_self or own_phone):
             continue
-        choice = ctx.decision(row.dedup_hash, DecisionKind.SET_KIND)
         if choice is not None and choice.get("kind") != "self":
             continue
         other = ctx.reg.get_or_create(
@@ -479,20 +520,27 @@ def rule_own_accounts_by_text(ctx: Ctx) -> None:
         )
         amount = abs(row.amount)
         outgoing = row.amount < 0
+        if user_said_self:
+            evidence_text = "Вы указали, что это перевод между вашими счетами. "
+        elif own_phone and not bank_said_self:
+            evidence_text = "Номер в реквизитах вы сохранили как свой. "
+        else:
+            evidence_text = "Банк пометил операцию как перевод между вашими счетами. "
         op = ctx.new_op(
             kind=OperationKind.TRANSFER,
             occurred_at=row.booked_at,
             title="Перевод между своими счетами",
             amount=amount,
             legs=[row],
-            rule="own_accounts_by_text",
+            rule="user_decision" if user_said_self else "own_accounts_by_text",
             confidence=0.95,
             explanation=(
-                "Банк сам пометил операцию как перевод между вашими счетами. "
-                "Деньги не ушли наружу, поэтому это перемещение, а не трата: "
-                "в расходах месяца их нет."
+                evidence_text
+                + "Деньги остались у вас, поэтому сумма не входит в расходы и доходы."
             ),
         )
+        if user_said_self:
+            op.status = OperationStatus.CONFIRMED
         mine = _account(ctx, row)
         src, dst = (mine, other) if outgoing else (other, mine)
         build.transfer(ctx.session, ctx.reg, op, src=src, dst=dst, sent=amount, received=amount)
@@ -1867,6 +1915,7 @@ def reclassify(session: Session, user_id: int, *, now: datetime | None = None) -
         settings=get_settings(),
         rows=rows,
         own_ids=own,
+        phone_rules=identities(session, user_id),
         decisions=decisions,
     )
 

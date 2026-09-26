@@ -402,6 +402,18 @@ class PlaceIn(BaseModel):
     category: str | None = Field(default=None, examples=["cafe"])
 
 
+class PhoneIdentityIn(BaseModel):
+    phone: str = Field(max_length=32, examples=["+7 900 000-00-01"])
+    kind: str = Field(examples=["own", "contact"])
+    name: str = Field(default="", max_length=100, examples=["Петя"])
+
+
+class PhoneIdentityOut(BaseModel):
+    phone: str
+    kind: str
+    name: str
+
+
 class StatementFileOut(BaseModel):
     """Результат обработки одного файла в пакетной загрузке выписок."""
 

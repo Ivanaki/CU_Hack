@@ -78,6 +78,19 @@ class User(Base, TimestampMixin):
     accounts: Mapped[list[Account]] = relationship(back_populates="user")
 
 
+class PhoneIdentity(Base, TimestampMixin):
+    """Явно названный пользователем номер: свой или конкретного человека."""
+
+    __tablename__ = "phone_identities"
+    __table_args__ = (UniqueConstraint("user_id", "phone", name="uq_phone_identity_user_phone"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    phone: Mapped[str] = mapped_column(String(12))
+    kind: Mapped[str] = mapped_column(String(16))  # own / contact
+    name: Mapped[str] = mapped_column(String(100), default="")
+
+
 class Counterparty(Base, TimestampMixin):
     """Контрагент: человек, магазин, банк или я сам.
 

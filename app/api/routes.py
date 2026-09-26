@@ -34,6 +34,8 @@ from app.api.analytics import PERIOD_HELP, resolve_period
 from app.api.analytics import analytics as analytics_router
 from app.api.auth import current_user, db_session, require_service_key
 from app.api.uploads import _STORED_NAME, file_url, private_dir, public_base, store_image
+from app.classify.phone_identities import PhoneRejected, delete_identity, save_identity
+from app.classify.pipeline import reclassify
 from app.classify.places import PlaceRejected
 from app.config import Settings, get_settings
 from app.ledger.invariants import run_all
@@ -48,6 +50,7 @@ from app.models import (
     MerchantRule,
     Operation,
     OperationSource,
+    PhoneIdentity,
     Posting,
     RawTransaction,
     ReviewItem,
@@ -219,6 +222,7 @@ def delete_my_data(
     session.execute(delete(DailyActivity).where(DailyActivity.user_id == user_id))
     session.execute(delete(Decision).where(Decision.user_id == user_id))
     session.execute(delete(MerchantRule).where(MerchantRule.user_id == user_id))
+    session.execute(delete(PhoneIdentity).where(PhoneIdentity.user_id == user_id))
     session.execute(update(Operation).where(Operation.user_id == user_id).values(
         claim_id=None, parent_id=None
     ))
@@ -250,6 +254,47 @@ def delete_my_data(
     # Фиксируем полное удаление сейчас, до ответа клиенту. Авторизация при
     # следующем запросе создаст пустой аккаунт из Telegram initData.
     session.commit()
+    return {"ok": True}
+
+
+@me.get("/phone-identities", response_model=list[s.PhoneIdentityOut], summary="Мои номера и люди")
+def phone_identities_list(
+    user: User = Depends(current_user),
+    session: Session = Depends(db_session),
+) -> list[s.PhoneIdentityOut]:
+    lines = session.scalars(select(PhoneIdentity).where(
+        PhoneIdentity.user_id == user.id
+    ).order_by(PhoneIdentity.kind, PhoneIdentity.phone)).all()
+    return [s.PhoneIdentityOut(phone=line.phone, kind=line.kind, name=line.name) for line in lines]
+
+
+@me.post("/phone-identities", response_model=s.PhoneIdentityOut, summary="Запомнить номер")
+def phone_identity_save(
+    payload: s.PhoneIdentityIn,
+    user: User = Depends(current_user),
+    session: Session = Depends(db_session),
+) -> s.PhoneIdentityOut:
+    try:
+        line = save_identity(session, user.id, payload.phone, payload.kind, payload.name)
+    except PhoneRejected as rejected:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(rejected)) from rejected
+    reclassify(session, user.id)
+    return s.PhoneIdentityOut(phone=line.phone, kind=line.kind, name=line.name)
+
+
+@me.delete("/phone-identities/{phone}", summary="Забыть номер")
+def phone_identity_delete(
+    phone: str,
+    user: User = Depends(current_user),
+    session: Session = Depends(db_session),
+) -> dict:
+    try:
+        removed = delete_identity(session, user.id, phone)
+    except PhoneRejected as rejected:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(rejected)) from rejected
+    if not removed:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "номер не найден")
+    reclassify(session, user.id)
     return {"ok": True}
 
 
