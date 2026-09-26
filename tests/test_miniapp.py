@@ -88,7 +88,7 @@ ANSWER_FN = r"async function answer\(q, wrap, btn, ownText\) \{(.+?)\n\}"
 
 # Идентификаторы, за которые скрипт держится руками.
 WIRED_IDS = (
-    "howtoOpen", "howtoDone", "howtoClose", "howtoInstall",
+    "howtoWay", "howtoDone", "howtoClose", "howtoInstall",
     "howtoActivate", "howtoRetry",
 )
 
