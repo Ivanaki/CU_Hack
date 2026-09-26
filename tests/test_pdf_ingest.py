@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from PIL import Image
 
+from app.classify.enrich import category_from_text
 from app.ingest.base import UnknownStatementFormat
 from app.ingest.pdf import _alfa, _tbank, parse_pdf_statement
 
@@ -136,6 +137,56 @@ def test_alfa_hold_uses_matching_companion_operation_date():
 
     assert result.rows[-1].booked_at.isoformat() == "2026-08-31T00:00:00"
     assert result.rows[-1].raw["date_inferred"] is False
+
+
+def test_alfa_normalizes_different_hold_merchant_formats():
+    text = """Выписка по счету
+Поступления 0,00 RUR
+Расходы 2 229,72 RUR
+Неподтвержденные операции 2 219,72 RUR
+Дата проводки Код операции Описание Сумма
+в валюте счета
+01.09.2026 CRD_A1 Операция по карте: ++++++4321, на сумму: 10.00 RUR, дата совершения -10,00 RUR
+операции: 31.08.26, место совершения операции: 36259933\\RU\\MOSCOW\\CH77420 (AP-1234) MCC5411
+HOLD Неподтвержденная операция: 51K822 36259933 RU CH77420>MOSCOW 24.09.26 -316,75 RUR
+24.09.26 316.75 RUR 220015++++++4321, дата операции: 24.09.2026
+HOLD Неподтвержденная операция: 2052UW 42855799 RU T Vending>Moskva 24.09.26 -185,00 RUR
+24.09.26 185.00 RUR 220015++++++4321, дата операции: 24.09.2026
+HOLD Неподтвержденная операция: 2U17U0 40539264 RU INTER -95,00 RUR
+STOLOVAYA>MOSCOW 24.09.26 24.09.26 95.00 RUR 220015++++++4321, дата операции: 24.09.2026
+HOLD Неподтвержденная операция: 4WS302 33735090 RU MAGNIT MM -337,97 RUR
+MULTIZITER>MO24.09.26 24.09.26 337.97 RUR 220015++++++4321, дата операции: 24.09.2026
+HOLD Неподтвержденная операция: 36451E 07470779 RU LK METRO>Moskva 25.09.26 -300,00 RUR
+25.09.26 300.00 RUR 220015++++++4321, дата операции: 25.09.2026
+HOLD Неподтвержденная операция: 7C64WN 07770562 RU METRO>Moskva 25.09.26 -720,00 RUR
+25.09.26 720.00 RUR 220015++++++4321, дата операции: 25.09.2026
+HOLD Неподтвержденная операция: 7W484U 42855799 RU T Vending>Moskva 25.09.26 -265,00 RUR
+25.09.26 265.00 RUR 220015++++++4321, дата операции: 25.09.2026
+АО «АЛЬФА-БАНК»
+"""
+
+    result = _alfa([text])
+
+    assert result.pending_count == 7
+    assert [row.description for row in result.rows[:1]] == ["Чижик"]
+    assert [row.description for row in result.rows[-7:]] == [
+        "Чижик", "Торговый автомат", "Интер", "Магнит",
+        "Метро Москвы", "METRO", "Торговый автомат",
+    ]
+    assert category_from_text("Чижик") == "groceries"
+    assert category_from_text("Торговый автомат") == "delivery"
+    assert category_from_text("Интер") == "delivery"
+    assert category_from_text("Метро Москвы") == "transport"
+    assert category_from_text("METRO") == "groceries"
+    assert [row.booked_at.isoformat() for row in result.rows[-7:]] == [
+        "2026-09-24T00:00:00",
+        "2026-09-24T00:00:00",
+        "2026-09-24T00:00:00",
+        "2026-09-24T00:00:00",
+        "2026-09-25T00:00:00",
+        "2026-09-25T00:00:00",
+        "2026-09-25T00:00:00",
+    ]
 
 
 def test_tbank_uses_operation_time_and_card_currency():

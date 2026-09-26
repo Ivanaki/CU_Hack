@@ -30,6 +30,27 @@ _TBANK_ROW = re.compile(
 )
 _TIME = re.compile(r"^(\d{2}:\d{2})\s+\d{2}:\d{2}(?:\s+(.*))?$")
 
+# Альфа в разных частях выписки может отдавать короткий код продавца,
+# техническое имя или название станции. Нормализуем их одинаково в обычных
+# и ожидающих операциях, чтобы холд и последующее списание совпадали.
+_ALFA_MERCHANT_ALIASES = {
+    "CH77420": "Чижик",
+    "T VENDING": "Торговый автомат",
+    "LK METRO": "Метро Москвы",
+    "INTER STOLOVAYA": "Интер",
+    "INTER": "Интер",
+    "MAGNIT MM": "Магнит",
+}
+
+
+def _alfa_merchant_name(description: str) -> str:
+    normalized = re.sub(r"\s+", " ", description).strip()
+    key = normalized.upper()
+    for alias in sorted(_ALFA_MERCHANT_ALIASES, key=len, reverse=True):
+        if key == alias or key.startswith(f"{alias} "):
+            return _ALFA_MERCHANT_ALIASES[alias]
+    return normalized
+
 
 @dataclass(slots=True)
 class PdfStatement:
@@ -103,6 +124,7 @@ def _alfa(pages: list[str]) -> PdfStatement:
             description = merchant.group(1).strip() if merchant else match.group(3).strip()
             if merchant and "\\" in description:
                 description = description.rsplit("\\", 1)[-1]
+            description = _alfa_merchant_name(description)
             card = re.search(r"\+{6}(\d{4})", full)
             mcc = re.search(r"MCC(\d{4})", full)
             rows.append(ParsedRow(
@@ -201,9 +223,13 @@ def _alfa(pages: list[str]) -> PdfStatement:
         if date:
             detail = detail[:date.start()].strip()
         # После кода HOLD стоит номер терминала; он не часть названия продавца.
+        # Формат Альфы «продавец>город»: последняя часть — обычно город,
+        # поэтому брать её как название места нельзя.
         description = re.sub(r"^[A-Z0-9]+\s+\d{8}\s+", "", detail).strip()
         if ">" in description:
-            description = description.rsplit(">", 1)[-1].strip()
+            description = description.split(">", 1)[0].strip()
+        description = re.sub(r"^RU\s+", "", description, flags=re.IGNORECASE).strip()
+        description = _alfa_merchant_name(description)
         if not description:
             raise UnknownStatementFormat("в PDF не найдено описание ожидающей операции")
         pending.append(ParsedRow(

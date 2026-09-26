@@ -140,6 +140,9 @@ MCC_ATM = frozenset({"6011", "6010"})
 # Работает, когда MCC в выписке нет (частый случай у Сбера и в CSV-выгрузках).
 MERCHANT_KEYWORDS: tuple[tuple[str, str], ...] = (
     ("пятероч", "groceries"), ("перекрест", "groceries"), ("магнит", "groceries"),
+    ("чижик", "groceries"), ("chizhik", "groceries"),
+    ("метро москвы", "transport"), ("metro", "groceries"),
+    ("торговый автомат", "delivery"), ("интер", "delivery"),
     ("лента", "groceries"), ("ашан", "groceries"), ("вкусвилл", "groceries"),
     ("дикси", "groceries"), ("метро", "groceries"), ("окей", "groceries"),
     ("самокат", "groceries"), ("купер", "groceries"), ("сбермаркет", "groceries"),
