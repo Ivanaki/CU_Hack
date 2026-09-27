@@ -25,6 +25,18 @@ function Invoke-Native([string]$Executable, [string[]]$Arguments) {
     }
 }
 
+function Get-Sha256([string]$Path) {
+    $stream = [System.IO.File]::OpenRead($Path)
+    $hasher = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return [System.BitConverter]::ToString($hasher.ComputeHash($stream)).Replace('-', '').ToLowerInvariant()
+    }
+    finally {
+        $hasher.Dispose()
+        $stream.Dispose()
+    }
+}
+
 function Invoke-SshWithRetry([string]$Stage, [string]$Executable, [string[]]$Arguments, [bool]$RetryAnyFailure = $false) {
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
         Write-Host "$Stage (попытка $attempt/$MaxAttempts)"
@@ -83,7 +95,7 @@ try {
         if ((Get-Content -LiteralPath (Join-Path $sourceDir 'deploy\remote_release.sh') -Raw).Contains("`r")) {
             throw 'В архиве deploy/remote_release.sh содержит CRLF; выкладка остановлена до отправки на сервер.'
         }
-        $indexHash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $sourceDir 'miniapp\dist\index.html')).Hash.ToLowerInvariant()
+        $indexHash = Get-Sha256 (Join-Path $sourceDir 'miniapp\dist\index.html')
 
         Write-Host 'Проверяю тесты на содержимом коммита'
         Push-Location $sourceDir
@@ -114,7 +126,7 @@ try {
             & $curl @('-fLsS', '--max-time', '15', '-H', 'Cache-Control: no-cache', '--output', $publicIndex, 'https://grosh.cu3rd.ru/')
             $curlExit = $LASTEXITCODE
             if ($curlExit -eq 0) {
-                $publicHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $publicIndex).Hash.ToLowerInvariant()
+                $publicHash = Get-Sha256 $publicIndex
                 if ($publicHash -eq $indexHash) { break }
                 $failure = "На публичном адресе другой index.html (SHA256 $publicHash); ожидается $indexHash"
             } else {
