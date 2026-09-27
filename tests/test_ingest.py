@@ -320,6 +320,106 @@ def test_неоднозначные_совпадения_разных_счето
     assert count_raw(session, user.id) == 3
 
 
+@pytest.mark.parametrize(("screen", "statement"), [
+    ("Московский метрополитен", "Оплата в LK METRO Moskva RUS"),
+    ("Пятёрочка", "PYATEROCHKA 3101"),
+    ("Неофарм", "NEO FARM"),
+    ("Ригла", "MSKAPT 86"),
+    ("GGsel", 'Оплата в ОсОО "Гуудуу" "Guuduu" LLC'),
+])
+def test_названия_продавцов_на_скрине_и_в_выписке(screen, statement):
+    from app.ingest.service import _similar_merchant
+
+    assert _similar_merchant(screen, statement)
+
+
+def test_метро_магазин_не_равен_метрополитену():
+    from app.ingest.service import _similar_merchant
+
+    assert not _similar_merchant("METRO", "Оплата в LK METRO Moskva RUS")
+
+
+def test_выписка_заменяет_несколько_наблюдений_одной_покупки(session, _isolated_db):
+    from app.models import User
+
+    user = User(tg_id=5106, display_name="Одна поездка")
+    session.add(user)
+    session.flush()
+    when = datetime(2026, 9, 22, 12)
+    for name in ("Московский метрополитен", "Метро Москвы"):
+        shot = row(when=when, amount=-30_000, text=name, bank="Т-Банк", last4="")
+        import_rows(session, user.id, [shot], source="Т-Банк",
+                    origin=OperationSource.SCREENSHOT)
+    assert count_raw(session, user.id) == 2
+    pdf = row(when=datetime(2026, 9, 22, 13, 35), amount=-30_000,
+              text="Оплата в LK METRO Moskva RUS", bank="Т-Банк", last4="8673")
+    result = import_rows(session, user.id, [pdf], source="Т-Банк")
+    assert result.superseded == 2
+    assert count_raw(session, user.id) == 1
+
+
+def test_точная_выписка_убирает_и_ошибочное_чтение_суммы(session, _isolated_db):
+    from app.models import User
+
+    user = User(tg_id=5107, display_name="Два чтения суммы")
+    session.add(user)
+    session.flush()
+    when = datetime(2026, 9, 24, 12)
+    for amount in (-33_797, -33_791):
+        shot = row(when=when, amount=amount, text="Магнит",
+                   bank="Альфа-Банк", last4="")
+        import_rows(session, user.id, [shot], source="Альфа-Банк",
+                    origin=OperationSource.SCREENSHOT)
+    pdf = row(when=when, amount=-33_797, text="Магнит",
+              bank="Альфа-Банк", last4="9043")
+    result = import_rows(session, user.id, [pdf], source="Альфа-Банк")
+    assert result.superseded == 2
+    assert count_raw(session, user.id) == 1
+
+
+@pytest.mark.parametrize(("screen_name", "amount", "statement_name"), [
+    ("Вячеслав С.", 1_000_424, "Перевод через Систему быстрых платежей"),
+    ("Себе в другой банк", -550_000, "Внешний перевод по номеру телефона"),
+])
+def test_перевод_сверяется_по_сумме_и_дате(
+    session, _isolated_db, screen_name, amount, statement_name
+):
+    from app.models import User
+
+    user = User(tg_id=5108 if amount > 0 else 5110, display_name="Перевод СБП")
+    session.add(user)
+    session.flush()
+    shot = row(when=datetime(2026, 9, 25, 12), amount=amount,
+               text=screen_name, bank="Альфа-Банк", last4="")
+    pdf = row(when=datetime(2026, 9, 25), amount=amount,
+              text=statement_name,
+              bank="Альфа-Банк", last4="9043")
+    import_rows(session, user.id, [shot], source="Альфа-Банк",
+                origin=OperationSource.SCREENSHOT)
+    result = import_rows(session, user.id, [pdf], source="Альфа-Банк")
+    assert result.superseded == 1
+    assert count_raw(session, user.id) == 1
+
+
+def test_два_перевода_одной_суммы_не_сверяются_наугад(session, _isolated_db):
+    from app.models import User
+
+    user = User(tg_id=5109, display_name="Неоднозначный перевод")
+    session.add(user)
+    session.flush()
+    when = datetime(2026, 9, 25, 12)
+    for name in ("Вячеслав С.", "Александр М."):
+        shot = row(when=when, amount=100_000, text=name,
+                   bank="Альфа-Банк", last4="")
+        import_rows(session, user.id, [shot], source="Альфа-Банк",
+                    origin=OperationSource.SCREENSHOT)
+    pdf = row(when=when, amount=100_000, text="Перевод через СБП",
+              bank="Альфа-Банк", last4="9043")
+    result = import_rows(session, user.id, [pdf], source="Альфа-Банк")
+    assert result.superseded == 0
+    assert count_raw(session, user.id) == 3
+
+
 def test_перекрывающиеся_скриншоты_без_номера_карты(session, _isolated_db):
     from app.models import User
 

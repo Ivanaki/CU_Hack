@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import timedelta
@@ -99,7 +100,7 @@ def resolve_account(reg: AccountRegistry, row: ParsedRow) -> Account:
 
 def _similar_merchant(a: str, b: str) -> bool:
     """Грубое сходство названий: скриншот и выписка пишут продавца по-разному."""
-    x, y = norm_key(a), norm_key(b)
+    x, y = _merchant_key(a), _merchant_key(b)
     if not x or not y:
         return True  # нечего сравнивать — полагаемся на сумму, день и счёт
     if x in y or y in x:
@@ -112,6 +113,23 @@ def _similar_merchant(a: str, b: str) -> bool:
     return overlap >= 0.5
 
 
+_MERCHANT_ALIASES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("метро москвы", ("lk metro", "метро москвы", "московский метрополитен")),
+    ("пятерочка", ("pyaterochka", "пятерочка")),
+    ("неофарм", ("neo farm", "неофарм")),
+    ("ригла", ("mskapt", "ригла")),
+    ("ggsel", ("guuduu", "гуудуу", "ggsel")),
+)
+
+
+def _merchant_key(value: str) -> str:
+    key = norm_key(value)
+    for canonical, aliases in _MERCHANT_ALIASES:
+        if any(alias in key for alias in aliases):
+            return canonical
+    return key
+
+
 def _find_soft_duplicate(
     session: Session,
     user_id: int,
@@ -119,7 +137,7 @@ def _find_soft_duplicate(
     account_id: int,
     source: OperationSource,
     *, consumed: set[int],
-) -> RawTransaction | None:
+) -> list[RawTransaction]:
     """Ищет тот же факт из другого источника, даже без номера карты на скрине.
 
     Счёт без последних цифр не является доказательством другого счёта. При
@@ -129,12 +147,15 @@ def _find_soft_duplicate(
     candidates = session.scalars(
         select(RawTransaction).where(
             RawTransaction.user_id == user_id,
+            RawTransaction.amount >= row.amount - 1_000,
+            RawTransaction.amount <= row.amount + 1_000,
             RawTransaction.booked_at >= row.booked_at - SOFT_WINDOW,
             RawTransaction.booked_at <= row.booked_at + SOFT_WINDOW,
         )
     ).all()
     matches: list[RawTransaction] = []
     near_matches: list[RawTransaction] = []
+    transfer_matches: list[RawTransaction] = []
     for candidate in candidates:
         if candidate.id in consumed:
             continue
@@ -146,8 +167,7 @@ def _find_soft_duplicate(
             continue
         candidate_name = candidate.counterparty_raw or candidate.description
         row_name = row.counterparty_raw or row.description
-        if not _similar_merchant(candidate_name, row_name):
-            continue
+        merchant_matches = _similar_merchant(candidate_name, row_name)
         same_bank = candidate.account_id == account_id
         if candidate.account_id != account_id:
             account = candidate.account
@@ -168,6 +188,16 @@ def _find_soft_duplicate(
                     continue
                 if account.last4 and row.last4:
                     continue
+        if not merchant_matches:
+            if (
+                same_bank
+                and candidate.amount == row.amount
+                and candidate.booked_at.date() == row.booked_at.date()
+                and _transfer_like(candidate_name)
+                and _transfer_like(row_name)
+            ):
+                transfer_matches.append(candidate)
+            continue
         if candidate.amount == row.amount:
             matches.append(candidate)
         elif (
@@ -180,10 +210,34 @@ def _find_soft_duplicate(
             # близкий платёж на том же счёте можно заменить точной выпиской.
             near_matches.append(candidate)
     if len(matches) == 1:
-        return matches[0]
+        if (
+            source.is_statement
+            and near_matches
+            and all(candidate.source == OperationSource.SCREENSHOT for candidate in near_matches)
+            and all(candidate.account_id == matches[0].account_id for candidate in near_matches)
+            and all(_merchant_key(candidate.counterparty_raw or candidate.description)
+                    == _merchant_key(matches[0].counterparty_raw or matches[0].description)
+                    for candidate in near_matches)
+        ):
+            return matches + near_matches
+        return matches
+    if (
+        len(matches) > 1
+        and source.is_statement
+        and all(candidate.source == OperationSource.SCREENSHOT for candidate in matches)
+        and len({candidate.account_id for candidate in matches}) == 1
+        and len({(candidate.booked_at.date(), _merchant_key(
+            candidate.counterparty_raw or candidate.description))
+                 for candidate in matches}) == 1
+    ):
+        # Выписка содержит одну операцию, а несколько кадров показали её
+        # повторно. Все одинаковые наблюдения уступают одной строке банка.
+        return matches
     if not matches and len(near_matches) == 1:
-        return near_matches[0]
-    return None
+        return near_matches
+    if not matches and not near_matches and len(transfer_matches) == 1:
+        return transfer_matches
+    return []
 
 
 _GENERIC_MERCHANT = {
@@ -192,9 +246,21 @@ _GENERIC_MERCHANT = {
 
 
 def _specific_merchant_match(a: str, b: str) -> bool:
-    x, y = norm_key(a), norm_key(b)
+    x, y = _merchant_key(a), _merchant_key(b)
     return bool(x and y and x not in _GENERIC_MERCHANT and y not in _GENERIC_MERCHANT
                 and _similar_merchant(a, b))
+
+
+_PERSON_INITIAL = re.compile(r"^[а-яё]+\s+[а-яё]$", re.IGNORECASE)
+
+
+def _transfer_like(value: str) -> bool:
+    key = norm_key(value)
+    return bool(
+        "перевод" in key or "пополнение" in key
+        or "быстрых платежей" in key or "себе в другой банк" in key
+        or _PERSON_INITIAL.fullmatch(key)
+    )
 
 
 def _overlapping_screenshots(
@@ -402,23 +468,25 @@ def import_rows(
             session.flush()
             superseded += 1
 
-        twin = _find_soft_duplicate(
+        twins = _find_soft_duplicate(
             session, user_id, row, account.id, origin, consumed=consumed
         )
-        if twin is not None:
-            consumed.add(twin.id)
+        if twins:
             if not origin.is_statement:
                 # Приехало из быстрого источника, а выписка уже есть — она точнее.
                 duplicates += 1
                 # Хеш уцелевшей строки, а не присланной: искать потом надо
                 # то, что действительно лежит в базе.
-                known_again.append(twin.dedup_hash)
+                known_again.append(twins[0].dedup_hash)
                 continue
             # Выписка уточняет то, что раньше пришло скриншотом.
-            _move_user_answers(session, user_id, twin.dedup_hash, digest)
-            session.delete(twin)
+            for twin in twins:
+                consumed.add(twin.id)
+                _move_user_answers(session, user_id, twin.dedup_hash, digest)
+                existing_hashes.discard(twin.dedup_hash)
+                session.delete(twin)
             session.flush()
-            superseded += 1
+            superseded += len(twins)
 
         existing_hashes.add(digest)
         raw = RawTransaction(
