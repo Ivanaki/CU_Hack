@@ -244,6 +244,160 @@ def test_posted_and_pending_in_one_statement_are_both_imported(session, _isolate
     assert result.duplicates == 0
 
 
+def test_скриншот_без_номера_карты_заменяется_выпиской(session, _isolated_db):
+    from app.models import User
+
+    user = User(tg_id=5101, display_name="Сверка счёта")
+    session.add(user)
+    session.flush()
+    shot = row(
+        when=datetime(2026, 9, 24, 12), amount=-33_797,
+        text="Магнит", bank="Т-Банк", last4="",
+    )
+    pdf = row(
+        when=datetime(2026, 9, 24), amount=-33_797,
+        text="Магнит", bank="Альфа-Банк", last4="9043",
+    )
+    import_rows(session, user.id, [shot], source="Скриншот", origin=OperationSource.SCREENSHOT)
+    result = import_rows(session, user.id, [pdf], source="Альфа-Банк")
+    assert result.superseded == 1
+    assert count_raw(session, user.id) == 1
+    survivor = session.query(RawTransaction).filter_by(user_id=user.id).one()
+    assert survivor.source == OperationSource.IMPORT
+
+
+def test_выписка_уточняет_однозначную_ошибку_в_сумме_скриншота(session, _isolated_db):
+    from app.models import User
+
+    user = User(tg_id=5104, display_name="Исправление суммы")
+    session.add(user)
+    session.flush()
+    when = datetime(2026, 9, 24, 12)
+    shot = row(when=when, amount=-33_191, text="Магнит",
+               bank="Альфа-Банк", last4="")
+    pdf = row(when=when, amount=-33_797, text="Магнит",
+              bank="Альфа-Банк", last4="9043")
+    import_rows(session, user.id, [shot], source="Альфа-Банк",
+                origin=OperationSource.SCREENSHOT)
+    result = import_rows(session, user.id, [pdf], source="Альфа-Банк")
+    assert result.superseded == 1
+    assert session.query(RawTransaction).filter_by(user_id=user.id).one().amount == -33_797
+
+
+def test_новый_скриншот_использует_единственный_известный_счет(session, _isolated_db):
+    from app.models import User
+
+    user = User(tg_id=5105, display_name="Счёт без цифр")
+    session.add(user)
+    session.flush()
+    pdf = row(when=datetime(2026, 9, 22), amount=-10_000,
+              text="Пекарня", bank="Альфа-Банк", last4="9043")
+    import_rows(session, user.id, [pdf], source="Альфа-Банк")
+    shot = row(when=datetime(2026, 9, 26), amount=-18_000,
+               text="Торговый автомат", bank="Альфа-Банк", last4="")
+    shot.raw["vision"] = True
+    result = import_rows(session, user.id, [shot], source="Альфа-Банк",
+                         origin=OperationSource.SCREENSHOT)
+    existing = session.query(RawTransaction).filter_by(user_id=user.id).first()
+    assert result.new_rows[0].account_id == existing.account_id
+    assert shot.last4 == ""
+
+
+def test_неоднозначные_совпадения_разных_счетов_не_склеиваются(session, _isolated_db):
+    from app.models import User
+
+    user = User(tg_id=5102, display_name="Два банка")
+    session.add(user)
+    session.flush()
+    when = datetime(2026, 9, 24, 12)
+    for bank, card in (("Альфа-Банк", "9043"), ("Т-Банк", "8673")):
+        import_rows(session, user.id, [row(when=when, amount=-30_000,
+                                           text="Метро", bank=bank, last4=card)], source=bank)
+    shot = row(when=when, amount=-30_000, text="Метро", bank="Банк", last4="")
+    result = import_rows(session, user.id, [shot], source="Скриншот",
+                         origin=OperationSource.SCREENSHOT)
+    assert len(result.new_rows) == 1
+    assert count_raw(session, user.id) == 3
+
+
+def test_перекрывающиеся_скриншоты_без_номера_карты(session, _isolated_db):
+    from app.models import User
+
+    user = User(tg_id=5103, display_name="Перекрытие")
+    session.add(user)
+    session.flush()
+    when = datetime(2026, 9, 24, 12)
+    first = [row(when=when, amount=-33_797, text="Магнит", bank="Банк", last4=""),
+             row(when=when, amount=-9_500, text="Интер", bank="Банк", last4="")]
+    second = [row(when=when, amount=-33_797, text="Магнит", bank="Тинькофф", last4=""),
+              row(when=when, amount=-9_500, text="Интер", bank="Тинькофф", last4=""),
+              row(when=when, amount=-18_500, text="Торговый автомат",
+                  bank="Тинькофф", last4="")]
+    import_rows(session, user.id, first, source="Банк", origin=OperationSource.SCREENSHOT)
+    result = import_rows(session, user.id, second, source="Тинькофф",
+                         origin=OperationSource.SCREENSHOT)
+    assert result.duplicates == 2
+    assert len(result.new_rows) == 1
+    assert count_raw(session, user.id) == 3
+
+
+def test_разбор_нескольких_кадров_по_отдельности_и_без_кэшбэка():
+    from datetime import date
+
+    from app.ingest.vision import parse_images
+
+    class FakeVision:
+        available = True
+
+        def __init__(self):
+            self.calls = []
+
+        def vision_json(self, prompt, images, **kwargs):
+            self.calls.append((len(images), kwargs["mime"]))
+            index = len(self.calls)
+            operations = [
+                {"date": "2026-09-24", "amount": -337.97, "merchant": "Магнит"},
+                {"date": "2026-09-24", "amount": -95, "merchant": "Интер"},
+            ]
+            if index == 1:
+                operations.append({"date": "2026-09-24", "amount": 9,
+                                   "merchant": "Магнит", "is_reward": True})
+                operations.append({"date": "2026-09-24", "amount": 9,
+                                   "merchant": "Продукты", "category_hint": "Продукты"})
+            else:
+                operations.append({"date": "2026-09-24", "amount": -185,
+                                   "merchant": "Торговый автомат"})
+            return {"kind": "statement", "bank": "Tinkoff", "operations": operations}
+
+    fake = FakeVision()
+    result = parse_images([b"\xff\xd8\xffabc", b"\x89PNG\r\n\x1a\nabc"],
+                          today=date(2026, 9, 27), llm=fake)
+    assert sorted(fake.calls) == [(1, "image/jpeg"), (1, "image/png")]
+    assert result.source_name == "Т-Банк"
+    assert sorted(r.amount for r in result.rows) == [-33_797, -18_500, -9_500]
+
+
+def test_отказ_одного_кадра_не_импортирует_половину_пачки():
+    from datetime import date
+
+    from app.ingest.vision import parse_images
+
+    class PartialVision:
+        available = True
+
+        def vision_json(self, prompt, images, **kwargs):
+            if images[0] == b"broken":
+                return None
+            return {"kind": "statement", "bank": "Альфа-Банк", "operations": [
+                {"date": "2026-09-24", "amount": -95, "merchant": "Интер"},
+            ]}
+
+    result = parse_images([b"good", b"broken"], today=date(2026, 9, 27),
+                          llm=PartialVision())
+    assert not result.rows
+    assert result.kind == "other"
+
+
 def test_кошелёк_маркетплейса_заводится_отдельным_счётом(session, _isolated_db):
     """Выписка маркетплейса — не карта: иначе пополнение стало бы тратой."""
     from app.ledger.accounts import AccountRegistry

@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import timedelta
 
@@ -21,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.classify.categories import WALLET_MERCHANTS
 from app.ingest.base import ParsedRow, parse_statement
+from app.ingest.vision import canonical_bank
 from app.ledger.accounts import AccountRegistry, norm_key
 from app.models import (
     Account,
@@ -80,6 +82,18 @@ def resolve_account(reg: AccountRegistry, row: ParsedRow) -> Account:
         return reg.cash()
     if _is_wallet_bank(row.bank):
         return reg.wallet_account(row.bank)
+    if row.raw.get("vision") and not row.last4 and canonical_bank(row.bank):
+        # Скрин не показывает номер карты. Если банк представлен единственным
+        # известным счётом, относим новые покупки к нему, а не к "bank:main".
+        known = [account for account in reg.session.scalars(
+            select(Account).where(
+                Account.user_id == reg.user_id,
+                Account.kind == AccountKind.CARD,
+                Account.last4.is_not(None),
+            )
+        ).all() if canonical_bank(account.bank) == canonical_bank(row.bank)]
+        if len(known) == 1:
+            return known[0]
     return reg.bank_account(row.bank, row.last4, name=row.account_name)
 
 
@@ -106,16 +120,21 @@ def _find_soft_duplicate(
     source: OperationSource,
     *, consumed: set[int],
 ) -> RawTransaction | None:
-    """Ищет тот же факт, пришедший из источника другого типа."""
+    """Ищет тот же факт из другого источника, даже без номера карты на скрине.
+
+    Счёт без последних цифр не является доказательством другого счёта. При
+    разных названиях банков разрешаем только единственное совпадение покупки
+    по дню, точной сумме и продавцу; перевод с общим названием не склеиваем.
+    """
     candidates = session.scalars(
         select(RawTransaction).where(
             RawTransaction.user_id == user_id,
-            RawTransaction.account_id == account_id,
-            RawTransaction.amount == row.amount,
             RawTransaction.booked_at >= row.booked_at - SOFT_WINDOW,
             RawTransaction.booked_at <= row.booked_at + SOFT_WINDOW,
         )
     ).all()
+    matches: list[RawTransaction] = []
+    near_matches: list[RawTransaction] = []
     for candidate in candidates:
         if candidate.id in consumed:
             continue
@@ -123,10 +142,98 @@ def _find_soft_duplicate(
         # (два кофе за день), а не дубль.
         if OperationSource(candidate.source).is_statement == source.is_statement:
             continue
-        if _similar_merchant(candidate.counterparty_raw or candidate.description,
-                             row.counterparty_raw or row.description):
-            return candidate
+        if (candidate.amount > 0) != (row.amount > 0):
+            continue
+        candidate_name = candidate.counterparty_raw or candidate.description
+        row_name = row.counterparty_raw or row.description
+        if not _similar_merchant(candidate_name, row_name):
+            continue
+        same_bank = candidate.account_id == account_id
+        if candidate.account_id != account_id:
+            account = candidate.account
+            same_bank = canonical_bank(account.bank) == canonical_bank(row.bank)
+            if same_bank:
+                # Две известные разные карты банка — разные источники денег.
+                if account.last4 and row.last4 and account.last4 != row.last4:
+                    continue
+            else:
+                # Неверно распознанный банк исправляет только точное,
+                # однозначное совпадение покупки, а не общий текст перевода.
+                if (
+                    source != OperationSource.SCREENSHOT
+                    and candidate.source != OperationSource.SCREENSHOT
+                ):
+                    continue
+                if row.amount > 0 or not _specific_merchant_match(candidate_name, row_name):
+                    continue
+                if account.last4 and row.last4:
+                    continue
+        if candidate.amount == row.amount:
+            matches.append(candidate)
+        elif (
+            same_bank
+            and row.booked_at.date() == candidate.booked_at.date()
+            and abs(candidate.amount - row.amount) <= min(1_000, abs(row.amount) // 50)
+            and _specific_merchant_match(candidate_name, row_name)
+        ):
+            # OCR иногда меняет одну цифру суммы. Только однозначный
+            # близкий платёж на том же счёте можно заменить точной выпиской.
+            near_matches.append(candidate)
+    if len(matches) == 1:
+        return matches[0]
+    if not matches and len(near_matches) == 1:
+        return near_matches[0]
     return None
+
+
+_GENERIC_MERCHANT = {
+    "перевод", "себе в другой банк", "между своими счетами", "пополнение", "оплата",
+}
+
+
+def _specific_merchant_match(a: str, b: str) -> bool:
+    x, y = norm_key(a), norm_key(b)
+    return bool(x and y and x not in _GENERIC_MERCHANT and y not in _GENERIC_MERCHANT
+                and _similar_merchant(a, b))
+
+
+def _overlapping_screenshots(
+    session: Session, user_id: int, rows: list[ParsedRow]
+) -> dict[tuple[object, int, str], list[RawTransaction]]:
+    """Предыдущие кадры с двумя общими покупками и тем же видимым списком."""
+    if len(rows) < 2:
+        return {}
+
+    def key(day, amount, merchant):
+        return (day, amount, norm_key(merchant))
+
+    incoming = {
+        key(row.booked_at.date(), row.amount, row.counterparty_raw or row.description)
+        for row in rows
+    }
+    earlier = session.scalars(
+        select(RawTransaction).where(
+            RawTransaction.user_id == user_id,
+            RawTransaction.source == OperationSource.SCREENSHOT,
+            RawTransaction.booked_at >= min(r.booked_at for r in rows) - timedelta(days=1),
+            RawTransaction.booked_at <= max(r.booked_at for r in rows) + timedelta(days=1),
+        )
+    ).all()
+    by_batch: dict[int, set[tuple[object, int, str]]] = defaultdict(set)
+    by_key: dict[tuple[object, int, str], list[RawTransaction]] = defaultdict(list)
+    for candidate in earlier:
+        signature = key(
+            candidate.booked_at.date(), candidate.amount,
+            candidate.counterparty_raw or candidate.description,
+        )
+        if signature in incoming:
+            by_batch[candidate.batch_id].add(signature)
+            by_key[signature].append(candidate)
+    eligible = {batch_id for batch_id, keys in by_batch.items() if len(keys) >= 2}
+    return {
+        signature: [candidate for candidate in candidates if candidate.batch_id in eligible]
+        for signature, candidates in by_key.items()
+    }
 
 
 def _find_pending_pair(
@@ -252,13 +359,31 @@ def import_rows(
     # не пишем, иначе сломается дедупликация, — а связь «этот файл показал
     # эти операции» без них рвётся ровно на повторной присылке.
     known_again: list[str] = []
+    screenshot_overlap = (
+        _overlapping_screenshots(session, user_id, rows)
+        if origin == OperationSource.SCREENSHOT else {}
+    )
 
     for row in rows:
+        row.bank = canonical_bank(row.bank) or row.bank
         digest = row.dedup_hash()
         if digest in existing_hashes:
             duplicates += 1
             known_again.append(digest)
             continue
+
+        if screenshot_overlap:
+            signature = (
+                row.booked_at.date(), row.amount,
+                norm_key(row.counterparty_raw or row.description),
+            )
+            twins = [candidate for candidate in screenshot_overlap.get(signature, [])
+                     if candidate.id not in consumed]
+            if len(twins) == 1:
+                consumed.add(twins[0].id)
+                duplicates += 1
+                known_again.append(twins[0].dedup_hash)
+                continue
 
         account = resolve_account(reg, row)
         pending_pair = _find_pending_pair(
