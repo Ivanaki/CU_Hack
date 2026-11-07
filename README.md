@@ -29,9 +29,9 @@ Built for **case 3 at CU@Hack, Central University**. The team created the initia
 
 ## A look inside
 
-| Month dashboard | Reports | Questions | Rewards |
+| Month dashboard | Spending categories | Questions | Daily habit |
 | :---: | :---: | :---: | :---: |
-| <img src="docs/media/miniapp.png" alt="Month dashboard with Grosh and the awareness score" width="205"> | <img src="pitch2/img/app-reports.png" alt="Monthly spending report" width="205"> | <img src="pitch2/img/app-questions.png" alt="Questions about unresolved transactions" width="205"> | <img src="pitch2/img/app-awards.png" alt="Achievements and rewards" width="205"> |
+| <img src="docs/media/miniapp.png" alt="Month dashboard with Grosh and the awareness score" width="205"> | <img src="pitch2/img/c-cats.png" alt="Spending by category" width="205"> | <img src="pitch2/img/c-question.png" alt="Questions about unresolved transactions" width="205"> | <img src="pitch2/img/c-streak.png" alt="Streak and daily activity" width="205"> |
 
 Screens show the prototype and demonstration data. The cover is from the hackathon presentation; its figures are the results reported for that demonstration.
 
