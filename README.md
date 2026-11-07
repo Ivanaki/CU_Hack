@@ -1,290 +1,123 @@
-# Честный месяц
+<p align="center">
+  <img src="docs/media/presentation-cover.png" alt="Honest Month — Честный месяц, with Grosh the coin mascot" width="900">
+</p>
 
-**Работает прямо сейчас:** бот [@ICEQ_cu_hackBot](https://t.me/ICEQ_cu_hackBot),
-приложение — `https://grosh.cu3rd.ru`. Поднимать ничего не нужно.
-Как посмотреть логи, перезапустить и выкатить правку — `deploy/HOSTING.md`.
+<h1 align="center">Honest Month · Честный месяц</h1>
 
-Решение кейса 3 хакатона CU@Hack. Телеграм-бот, Mini App и HTTP API поверх
-одного движка: человек присылает выписку, скриншот из приложения банка или
-голосовое про наличные, а инструмент раскладывает это в двойную запись и
-отвечает на вопрос «сколько я потратил за день / неделю / месяц / год».
-Ключевая величина в отчёте — не сумма списаний с карты, а сумма трат: перевод
-себе, возврат долга и чужая доля в общем счёте туда не попадают.
+<p align="center"><b>Understand your spending. Build a habit.</b><br>A Telegram bot and Mini App that distinguish real expenses from money simply moving between accounts.</p>
 
-Кейс описывает две группы существующих инструментов, и обе промахиваются.
-Ручной ввод даёт точные цифры ценой ежедневного усилия — его бросают. Импорт
-не требует усилий, но классифицирует неверно: перевод между своими картами
-становится одновременно расходом и доходом, возврат долга — доходом, счёт за
-компанию завышает траты в пять раз. Одна такая ошибка обнуляет доверие ко
-всей аналитике. Здесь оба свойства держатся одновременно: данные приезжают
-сами, спорные случаи не угадываются, а выносятся в очередь вопросов, где
-каждый закрывается одним тапом, и ровно до ответа сумма честно висит как
-«не разобрано», а не растворяется в «Прочем».
+<p align="center">
+  <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white">
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white">
+  <img alt="aiogram 3" src="https://img.shields.io/badge/aiogram_3-229ED9?style=flat-square&logo=telegram&logoColor=white">
+  <img alt="SQLAlchemy" src="https://img.shields.io/badge/SQLAlchemy-735345?style=flat-square">
+  <img alt="CU@Hack prototype" src="https://img.shields.io/badge/CU%40Hack-Prototype-E8B548?style=flat-square">
+</p>
 
-## Число действий пользователя в день: 0–2 тапа
+<p align="center">
+  <b>English</b> · <a href="README.ru.md">Русский</a><br>
+  <a href="https://t.me/ICEQ_cu_hackBot">Telegram bot</a> · <a href="pitch2/Честный-месяц.pdf">Presentation</a> · <a href="docs/media/pitch.mp4">Watch the pitch · 2:56</a> · <a href="#quick-start">Quick start</a> · <a href="#inside-the-backend">Code tour</a>
+</p>
 
-Источник данных — выписка или скриншот, а не ручной ввод. Одно действие
-(прислать файл или картинку в чат) закрывает месяц или неделю операций сразу.
-Руками вводится только то, чего физически нет ни в одной выписке — наличные:
-голосовое или строка «кофе 300».
+## The idea
 
-Дальше пользователь отвечает **только на спорные операции**. Демонстрационный
-набор — 104 строки, 102 операции; вопросов к человеку по ним ровно **два**:
-на скольких человек делили счёт в ресторане и что за 500 ₽ пришло «за обед».
-Всё остальное разобрано правилами. Отсюда и вилка:
+Bank debits do not always mean spending. A transfer to your own card, a cash withdrawal or a friend repaying a debt should not inflate an expense report. A shared restaurant bill should count only your share.
 
-| Что за день | Действий |
-|---|---|
-| система ни о чём не спросила, наличных не было | **0** |
-| пришёл один вопрос про спорную операцию | **1 тап** |
-| вопрос + трата наличными голосом | **2** |
-| день загрузки выписки (раз в месяц) | +1 |
+**Honest Month** brings statement imports, screenshots, receipts and cash entries into one accounting engine. Rules handle known cases; ambiguous transactions become short questions. The Mini App shows spending, unresolved amounts and a **financial awareness score**: how much of the money movement has been explained.
 
-Число не объявляется, а измеряется. Каждый ответ, ручной ввод и загрузка
-пишутся в таблицу `daily_activity` (`taps` / `manual_entries` / `imports`,
-см. `app/service.py:record_action`), среднее считает
-`average_actions_per_day` за 30 дней. Посмотреть можно командой `/streak` в
-боте — она печатает посчитанное значение с подписью «считается по факту, а
-не обещается» — или в поле `streak.actions_per_day` ответа
-`GET /api/v1/me/summary`. На чистой базе там честный ноль: цифра растёт по
-мере реальных действий.
+Built for **case 3 at CU@Hack, Central University**. The team created the initial working prototype in **six hours**, took **first place** and qualified for the university hackathon team. **Vyacheslav Samuilenko / [Ivanaki](https://github.com/Ivanaki)** participated in the project.
 
-## Как запустить
+## A look inside
 
-### Локально
+| Month dashboard | Reports | Questions | Rewards |
+| :---: | :---: | :---: | :---: |
+| <img src="docs/media/miniapp.png" alt="Month dashboard with Grosh and the awareness score" width="205"> | <img src="pitch2/img/app-reports.png" alt="Monthly spending report" width="205"> | <img src="pitch2/img/app-questions.png" alt="Questions about unresolved transactions" width="205"> | <img src="pitch2/img/app-awards.png" alt="Achievements and rewards" width="205"> |
+
+Screens show the prototype and demonstration data. The cover is from the hackathon presentation; its figures are the results reported for that demonstration.
+
+### Less bookkeeping, more clarity
+
+| Capability | Implementation |
+| --- | --- |
+| **Import transactions** | CSV statement formats, screenshot and receipt recognition, duplicate detection. |
+| **Record cash spending** | Text such as `coffee 300`, or voice transcription through a configured speech provider. |
+| **Resolve uncertainty** | A review queue for shared bills, unclear receipts of money and other ambiguous cases. |
+| **See the month clearly** | Category and weekly breakdowns, debts, account balances and month-end projections. |
+| **Keep the habit** | Grosh the mascot, streaks, freezes, XP, achievements, reminders and partner quests. |
+| **Capture from iPhone** | A Shortcut can send screenshots and audio to the upload API using a personal upload token. |
+
+### What counts as an expense?
+
+| Money movement | How the engine treats it |
+| --- | --- |
+| Transfer between your own accounts | A transfer; any bank fee is treated separately. |
+| Cash withdrawal / marketplace wallet top-up | Movement between forms of money, with spending recognised separately. |
+| Lending money / receiving repayment | A debt and its settlement. |
+| Paying for a group | Your share is an expense; the rest is a receivable. |
+| Refund / unclear incoming payment | Matched or sent for review rather than silently treated as ordinary income. |
+
+## Inside the backend
+
+The bot and Mini App use a shared service layer. Raw transactions and user decisions are retained; classification rebuilds operations, ledger postings and review items from those inputs. Monetary amounts use **integer kopecks**, and the ledger has explicit balance and neutrality checks.
+
+| Area | Start reading |
+| --- | --- |
+| **Application & shared use cases** | [app/main.py](app/main.py) · [app/service.py](app/service.py) |
+| **Statement and image ingestion** | [app/ingest/base.py](app/ingest/base.py) · [app/ingest/vision.py](app/ingest/vision.py) |
+| **Classification & recalculation** | [app/classify/pipeline.py](app/classify/pipeline.py) |
+| **Double-entry ledger & invariants** | [app/ledger/build.py](app/ledger/build.py) · [app/ledger/invariants.py](app/ledger/invariants.py) |
+| **Reports & periods** | [app/analytics/reports.py](app/analytics/reports.py) · [app/analytics/periods.py](app/analytics/periods.py) |
+| **API, identity & uploads** | [app/api/auth.py](app/api/auth.py) · [app/api/uploads.py](app/api/uploads.py) |
+| **Habit mechanics** | [app/gamification.py](app/gamification.py) · [app/bot/scheduler.py](app/bot/scheduler.py) |
+| **Scenario & consistency tests** | [tests/test_scenarios.py](tests/test_scenarios.py) · [tests/test_additivity.py](tests/test_additivity.py) |
+
+### Stack
+
+| Category | Tools |
+| --- | --- |
+| Language | Python 3.11+ |
+| Backend & bot | FastAPI · uvicorn · aiogram 3 · APScheduler |
+| Data & configuration | SQLAlchemy 2 · SQLite · Pydantic Settings |
+| Mini App | HTML · CSS · JavaScript · Telegram Web Apps |
+| AI integrations | OpenAI-compatible vision and speech APIs, with configurable providers and fallbacks |
+| Deployment & verification | Docker Compose · systemd · pytest |
+
+## Quick start
+
+Requires **Python 3.11+**. Run from the repository root:
 
 ```bash
+git clone https://github.com/Ivanaki/CU_Hack.git
+cd CU_Hack
 python -m venv .venv
-.venv\Scripts\activate           # Linux/macOS: source .venv/bin/activate
-pip install -e ".[dev]"
-
-copy .env.example .env           # Linux/macOS: cp .env.example .env
-# минимум для бота — BOT_TOKEN; API и Mini App поднимутся и без него
-
-python -m scripts.gen_dataset    # соберёт data/demo (104 операции)
-python -m scripts.seed --reset   # зальёт набор и напечатает итоги сентября
-python -m app.main               # бот (long polling) + API на :8080
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
 ```
 
-`python -m app.main --api` поднимает только HTTP API, `--bot` — только бота.
-Проверка живости: `curl localhost:8080/healthz`. Документация эндпоинтов —
-`http://localhost:8080/docs`, экран итогов — `http://localhost:8080/`.
+On Windows PowerShell, activate with `.venv\Scripts\Activate.ps1` and copy the configuration with `Copy-Item .env.example .env`.
 
-Тесты:
+For an API-only local start, set `LLM_PROVIDER=none` and `ASR_PROVIDER=none` in `.env`, then run:
 
 ```bash
-python -m pytest -q      # 24 теста: семь сценариев, сходимость, API
+python -m app.main --api
 ```
 
-На Windows у консоли по умолчанию кодировка cp1251, а скрипты печатают «₽» —
-перед запуском `scripts.seed` задайте `PYTHONIOENCODING=utf-8`, иначе печать
-итогов упадёт на `UnicodeEncodeError` (сама заливка при этом уже пройдёт).
+Open **[localhost:8080](http://localhost:8080)** for the Mini App shell and **[localhost:8080/docs](http://localhost:8080/docs)** for the API reference. Personal Mini App endpoints use Telegram identity. The health check is `GET /healthz`.
 
-### В docker
+| Mode | Configuration / command |
+| --- | --- |
+| **Bot + API** | Set `BOT_TOKEN`, then run `python -m app.main`. Set `MINIAPP_URL` to the HTTPS address used by Telegram. |
+| **Vision / speech** | Configure provider credentials in `.env`; see [.env.example](.env.example). CSV imports and text entries do not require these providers. |
+| **Demo data** | In a fresh local database, run `python -m scripts.seed`, then `python -m scripts.dump`. |
+| **Docker** | After configuring `.env`, run `docker compose up -d --build`. |
+| **Tests** | Install `pytest pytest-asyncio freezegun`, then run `python -m pytest -q`. |
 
-```bash
-docker compose up -d --build
-docker compose exec app python -m scripts.seed --reset   # демо-набор внутри контейнера
-```
+## Documentation & project materials
 
-База лежит в именованном томе `honest-data` и переживает пересборку.
-Подробности, systemd-вариант, откат и бэкап — в [deploy/README.md](deploy/README.md).
+- **[Technical guide, in Russian](DEVELOPMENT.ru.md)** — detailed setup, transaction flows and the case scenarios.
+- **[Architecture](ARCHITECTURE.md)** · **[HTTP API](docs/API.md)** · **[Demo walkthrough](docs/DEMO.md)**.
+- **[Deployment](deploy/README.md)** · **[iPhone Shortcut](widget/SHORTCUT.md)**.
+- **[Presentation PDF](pitch2/Честный-месяц.pdf)** · **[Video pitch](docs/media/pitch.mp4)**.
 
-## Как добавляются операции
-
-**CSV-выписка** — основной путь. Файл присылается в чат документом, формат
-определяется по заголовку: Т-Банк (cp1251, `;`), Сбербанк, Альфа-Банк
-(utf-8 с BOM) и канонический формат, в который выгружается всё остальное.
-Добавить банк — это десять строк `ColumnMap` в `app/ingest/base.py`, а не
-новый парсер. Одна выписка закрывает месяц за одно действие.
-
-**Скриншот из приложения банка или фото чека** — путь «между выписками».
-Пользователь пересылает картинку, которую и так видит каждый день;
-vision-модель читает её в JSON (`app/ingest/vision.py`). Вид картинки
-определяет модель, а не человек: `statement` — список операций из
-приложения банка, `receipt` — кассовый чек (одна операция на сумму ИТОГО,
-состав покупки уходит в описание), `other` — операций на картинке нет.
-Просить выбрать в меню «это чек или скриншот» — лишний шаг там, где можно
-обойтись без него. Промпт запрещает выдумывать:
-не видно поля — `null`. Модель выбрана замером на эталонном скриншоте
-(`scripts/bench_vision.py` гоняет весь путь целиком, включая промпт и разбор
-ответа), запасные модели перечислены в `LLM_VISION_FALLBACKS` и перебираются
-при отказе провайдера. Операция, пришедшая сначала скриншотом и потом
-выпиской, засчитывается один раз.
-
-**Голос и текст — только для наличных.** `«кофе 300»`, `«такси 450»`:
-сумма и название разбираются регуляркой (`parse_quick_entry`), категория — по
-ключевым словам, трата списывается со счёта наличных, чтобы снятие в
-банкомате закрывалось, а не висело вечно. Голосовое распознаётся через
-OpenAI-совместимый `/audio/transcriptions` с перебором моделей; при
-`ASR_PROVIDER=none` бот просто просит написать текстом.
-
-**Служебная заливка по HTTP.** `POST /api/v1/ingest/screenshot` и
-`/statement` принимают данные за пользователя по `tg_id` — внешний сервис
-может слать скриншоты ещё до того, как человек написал боту. См.
-[docs/API.md](docs/API.md).
-
-**Шорткат на iPhone.** Двойное касание по задней панели телефона делает
-скриншот или голосовую запись и отправляет файл в `POST /upload` — файлом в
-поле `file` или прямо в теле запроса. Тип определяется по сигнатуре
-содержимого — не по имени и не по заявленному `Content-Type`, поэтому
-неопознанные байты получают `415`, чем бы их ни назвали. Файл ложится в том
-под именем `UUID.расширение`. Список — `GET /files`, содержимое —
-`GET /files/{имя}`.
-
-**Чужой скриншот банка — не публичная картинка.** Анонимная загрузка «по
-ТЗ» остаётся открытой: чей это файл, мы не знаем. А файл опознанного
-человека уезжает в закрытый подкаталог, не попадает в `GET /files` и
-отдаётся только владельцу — по подписанной ссылке (её мы сами и выдаём в
-ответе и в `/me/imports`), по личному ключу или по подписи Mini App.
-
-**Кто прислал и что из этого вышло.** Адрес `/upload` один на всех, поэтому
-человека опознаёт не URL, а личный ключ `X-Upload-Token`: бот выдаёт его по
-команде `/link`, Mini App — в `GET /api/v1/me/upload-link`, кнопка «Выпустить
-новую» отзывает старый немедленно. Telegram id больше не опознаёт никого —
-он не секрет, его видит каждый, кому человек писал, и по нему кто угодно мог
-залить операции в чужую книгу; теперь `tg_id` в запросе принимается только
-вместе со служебным `X-API-Key`. Ключ приходит только в личные сообщения:
-в группе бот на `/link@бот` отвечает отказом со ссылкой на личный чат, а
-кнопка «Выпустить новую» там не работает вовсе — под сообщением в общем
-чате её нажимает кто угодно, и раньше бот выдавал ключ именно нажавшему. Загруженный файл и его операции связаны в
-обе стороны: `GET /api/v1/me/imports` показывает каждую присылку с именем
-файла на диске, `…/imports/{id}` — операции и вопросы, которые она породила,
-а `GET /api/v1/me/operations?with_sources=true` — из какого файла приехала
-каждая операция.
-
-## Архитектура в трёх абзацах
-
-**Три слоя данных.** `RawTransaction` — сырая строка из выписки или скриншота,
-иммутабельная, с хешом дедупликации. `Operation` — экономическое событие,
-склеенное из одной или нескольких сырых строк: перевод между банками — это
-две строки и одно событие. `Posting` — проводка двойной записи, и только по
-ней считается аналитика. Ни один отчёт не суммирует `Operation.amount`:
-поэтому недельные срезы складываются в месячный по построению, а не потому
-что кто-то аккуратно написал SQL.
-
-**Двойная запись.** Дебет положительный: активы и расходы растут в плюс,
-доходы и обязательства пишутся минусом. Единственный инвариант — сумма
-проводок одной операции равна нулю, и он проверяется в момент записи
-(`app/ledger/writer.py`), так что записать в базу несходящиеся цифры
-технически невозможно. Категории расходов, дебиторка по каждому долгу и
-счёт «Не разобрано» — такие же счета, как карта. Ненулевой остаток на
-suspense — это ровно те деньги, про которые инструмент честно говорит
-«я не знаю, что это».
-
-**Классификация — чистая функция от (сырые данные, решения пользователя).**
-Операции, проводки, обязательства и вопросы полностью сносятся и
-пересобираются при каждом запуске `reclassify`. Сырые строки и `Decision`
-(то, что пользователь сказал сам) переживают пересчёт. Поэтому ответ,
-пришедший через неделю, корректно переписывает прошлое: четыре возврата «за
-ужин» задним числом превращают трату 8000 в 1600, а порядок поступления
-данных на результат не влияет. Подробности — в
-[ARCHITECTURE.md](ARCHITECTURE.md).
-
-## Аналитика
-
-**Периоды** — полуинтервалы `[start, end)`, поэтому операция в 23:59:59
-последнего дня попадает ровно в один период. Разбиение месяца на недели
-обрезается границами месяца: неполные недели по краям не выкидываются и не
-вылезают за месяц (`app/analytics/periods.py`).
-
-**Сходимость** — следствие того, что отчёт за период это `SUM(amount)` по
-проводкам расходных счетов с фильтром по дате. Разрезать одно и то же
-множество проводок по дням, неделям или месяцам можно как угодно — сумма не
-изменится. Проверяется тестами `tests/test_additivity.py` на всех уровнях
-(дни → месяц, недели → месяц, месяцы → квартал) и доступна в самом продукте:
-команда `/checkup` в боте и `GET /api/v1/me/checkup` пересчитывают месяц
-двумя способами и гоняют четыре инварианта книги. На демонстрационном наборе:
-сентябрь 125 618,20 ₽, сумма пяти недельных срезов — те же 125 618,20 ₽.
-
-**Процент осознанности** — доля оборота, смысл которого системе понятен.
-Это метрика качества данных, а не дисциплины пользователя: знаменатель —
-потраченное плюс поступления, направление которых неясно; числитель вычитает
-три вида честно признанного незнания — неразобранные поступления
-(`unknown`), траты без категории (`other`) и наличные, про которые никто
-ничего не сказал (`cash_unallocated`). Зарплата в знаменатель не входит
-намеренно: 300 тысяч дохода разбавили бы любую неясность до неразличимости.
-На демо-наборе — 99 %: 500 ₽ неразобранного поступления и 1 200 ₽ траты
-наличными без категории на 125 618,20 ₽ оборота. Каждый ответ на вопрос
-поднимает процент, и это видно сразу после тапа.
-
-**Прогноз до конца периода** считается по темпу уже прошедших дней, а не по
-всей длине периода — иначе третьего числа он показывал бы почти ноль. Из
-темпа исключаются крупные платежи, которые в этом месяце уже прошли один раз
-(жильё, подписки, налоги): аренда списывается шестого числа и не повторится,
-а без этой поправки прогноз улетал бы втрое вверх. В первые три дня периода и
-для уже закрытых периодов прогноз не показывается вовсе (`is_meaningful`).
-
-Кроме этого отчёт считает разрезы по категориям с долями, сравнение с
-предыдущим периодом такой же длины, разделение обязательных и
-необязательных трат, остатки по счетам, открытые долги и наблюдения с
-конкретной экономией (`app/analytics/insights.py`).
-
-## Сценарии кейса
-
-Все семь живут в сентябре демонстрационного набора и покрыты по одному тесту
-на сценарий в `tests/test_scenarios.py`.
-
-| Сценарий кейса | Как решён | Тест |
-|---|---|---|
-| **1.** Перевод 10 000 между своими картами разных банков | `rule_self_transfers` склеивает списание и зачисление в одну операцию `transfer` (окно 36 ч, допуск на комиссию). Проводки: −10 000 с Т-Банка, +10 000 на Альфу. В расходы 0, в доходы 0. Расхождение сумм внутри перевода — комиссия, и она единственное, что здесь является тратой | `test_1_перевод_между_своими_картами_не_расход_и_не_доход` |
-| **2.** Пополнение кошелька маркетплейса 6000, затем покупки с него | Та же склейка, но счёт-получатель заведён как `wallet`, поэтому тип — `wallet_topup`, а не трата. Расход появляется позже, на покупках с кошелька, и уже с категориями по MCC: продукты 2 300 и товары для дома 3 100 | `test_2_пополнение_кошелька_маркетплейса_не_трата_а_траты_с_него_с_категориями` |
-| **3.** Долг 3000, возврат двумя частями по 1500 с интервалом в неделю | `rule_debt_out` по метке «в долг» создаёт операцию `debt_lend`, обязательство `Claim` и персональный счёт дебиторки. `rule_debt_in` гасит его жадно, от самой ранней выдачи, поэтому частичный и отложенный возврат работают. Ни одно из трёх событий не расход и не доход | `test_3_долг_и_частичный_возврат_с_задержкой` |
-| **4.** Счёт 8000 за пятерых, четыре возврата по 1600 | `rule_shared_bill` кластеризует поступления от разных людей с похожими суммами и ищет счёт, у которого сумма ≈ доля × число участников. Трата задним числом переписывается: в расход 1 600, в дебиторку 6 400, каждый возврат гасит долю и не является доходом | `test_4_счёт_за_компанию_попадает_в_расходы_только_моей_долей` |
-| **5.** 500 «за обед» без зафиксированного долга | `rule_unknown_incoming`: тип `unknown`, вторая нога на счёте «Не разобрано». Деньги видны на карте, но не объявлены ни доходом, ни возвратом. Пользователю уходит один вопрос с четырьмя кнопками | `test_5_поступление_без_зафиксированного_долга_не_угадывается_а_спрашивается` |
-| **6.** Возврат товара, 4200 обратно на карту | `rule_refunds` находит покупку у того же продавца в окне 60 дней и пишет **отрицательный расход** в её категории («Техника и гаджеты»), датой возврата, а не датой покупки — закрытые периоды не переписываются | `test_6_возврат_товара_не_доход_а_минус_к_трате` |
-| **7.** Снятие 5000 в банкомате | В момент снятия это перемещение между своими активами, а не трата. Тратой каждый рубль становится, когда сказано, на что ушёл: 1 200 и 800 разобраны голосовыми. Остаток 3 000 виден отдельной строкой, а через 14 дней уходит в отдельную категорию «Наличные (не распределены)» — деньги потрачены, но на что, неизвестно, и отчёт говорит об этом прямо | `test_7_снятие_наличных_становится_тратой_только_когда_известно_на_что` |
-
-Сверх этого `test_ни_один_нейтральный_тип_не_создал_расход_или_доход`
-проверяет напрямую штрафной пункт кейса: ни одна операция из нейтральных
-типов не создала проводку в расходы или доходы (единственное исключение —
-комиссия внутри перевода, и оно прописано в инварианте явно).
-
-## Что снижает оценку по кейсу и как это закрыто
-
-| Пункт кейса | Как закрыт |
-|---|---|
-| «Добавление операции требует нескольких шагов там, где можно обойтись одним» | Выписка, скриншот и голосовое — это одно действие: отправить в чат. Полей для заполнения нет. Ответ на спорную операцию — один тап по инлайн-кнопке, без подменю и без ввода: раскладка кнопок подстраивается под длину подписей, но тап всегда один (`app/bot/keyboards.py`) |
-| «Инструмент требует ручного занесения каждой операции» | Руками вводятся только наличные, которых нет ни в одной выписке. Все 104 операции демонстрационного набора приехали из четырёх файлов; вопросов к человеку по ним — два |
-| «Возврат долга или перевод между своими счетами отражается доходом или расходом» | Типы из множества `_NEUTRAL` (`transfer`, `wallet_topup`, `cash_withdrawal`, четыре долговых, `reimbursement_in`) по построению не создают проводок в расходные и доходные счета. Это не соглашение, а проверяемый инвариант `check_neutral_kinds_have_no_expense`, который гоняется в тестах и по команде `/checkup` |
-| «Суммы недельных срезов не складываются в месячный» | Аналитика считает по проводкам, периоды — полуинтервалы без дыр и нахлёстов. Проверено на четырёх уровнях в `tests/test_additivity.py`, выведено в продукт командой `/checkup` и эндпоинтом `GET /api/v1/me/checkup` |
-| «Механика привычки описана в презентации, но отсутствует в продукте» | В продукте: очередь спорных операций с приоритетом по влиянию на цифры; вечерний дайджест, который приходит только когда есть что сказать (`app/bot/scheduler.py`); недельная сводка в понедельник и итоги месяца первого числа; серия дней и счётчик действий в `daily_activity`, видимые по `/streak` и на экране итогов |
-| «Демонстрация на наборе без сценариев из списка» | `scripts/gen_dataset.py` — детерминированный набор на 104 операции, июль–сентябрь 2026, три банка плюс кошелёк маркетплейса и наличные. Все семь сценариев — в сентябре. Тот же набор служит тестовыми данными, так что «работает на демо» и «проходит тесты» — это одно и то же утверждение |
-
-## Стек
-
-Python 3.11, FastAPI + uvicorn, aiogram 3 (long polling), SQLAlchemy 2 на
-SQLite, pydantic-settings, APScheduler. Mini App — один HTML-файл без сборки,
-который отдаёт тот же процесс. LLM и распознавание речи — любой
-OpenAI-совместимый провайдер, обе функции необязательны.
-
-## Структура каталогов
-
-```
-app/
-  models/      таблицы и словарь предметной области (enums.py — модель событий)
-  ingest/      выписки (base.py), загрузка с дедупликацией (service.py), скриншоты (vision.py)
-  classify/    enrich.py — признаки, pipeline.py — правила, categories.py — справочник
-  ledger/      accounts.py — счета, build.py — проводки по типам, writer.py — запись,
-               invariants.py — проверки целостности
-  analytics/   periods.py — периоды, reports.py — отчёты, insights.py — наблюдения
-  api/         routes.py, schemas.py, auth.py (подпись Telegram и служебный ключ)
-  bot/         main.py — хендлеры, texts.py, keyboards.py, scheduler.py — напоминания
-  service.py   сценарии использования: один слой на бота и на Mini App
-  main.py      точка запуска: бот и API в одном процессе
-scripts/       gen_dataset.py, seed.py, dump.py, bench_vision.py, make_screenshot.py,
-               build_miniapp.py, demo_dm.py
-tests/         test_scenarios.py, test_additivity.py, test_api.py
-miniapp/dist/  экран итогов (index.html)
-deploy/        docker + systemd, README.md
-data/demo/     демонстрационный набор (генерируется gen_dataset)
-```
-
-## Документация
-
-- [ARCHITECTURE.md](ARCHITECTURE.md) — модель событий, проводки, конвейер
-  правил, дедупликация, ограничения
-- [docs/API.md](docs/API.md) — справочник HTTP API, в том числе заливка
-  скриншотов сторонним сервисом
-- [docs/DEMO.md](docs/DEMO.md) — сценарий показа на защите
-- [deploy/README.md](deploy/README.md) — развёртывание
+Direct bank API integrations and native mobile apps are next-step ideas from the presentation. The current prototype uses imported files, screenshots, voice and text.
