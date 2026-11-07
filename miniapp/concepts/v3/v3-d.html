@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="ru" data-variant="d">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Честный месяц — Карта месяца</title>
+<link rel="icon" href="data:,">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+
+/* ============================================================
+   ВАРИАНТ D — «КАРТА МЕСЯЦА». Самый игровой: экран это тропа из
+   станций, Грош стоит на текущей. Прогноз — финиш в конце тропы.
+   ============================================================ */
+:root{
+  --bg:   #FDF4E1;
+  --bg-2: #DFF3E2;
+  --card: #FFFDF6;
+  --card-2:#F7EFDD;
+  --ink:  #1B2430;
+  --hint: #8A8574;
+  --stroke:#1B2430; --chip:#FBF0D9;
+  --gold:#F5B93A; --gold-d:#DFA226; --gold-soft:#FCEFD0;
+  --green:#4CC86A; --green-d:#2E9E55; --green-soft:#DFF6E5;
+  --coral:#FF7A59; --coral-d:#DF5638; --coral-soft:#FFE7E0;
+  --hill-1:#8FDCA0; --hill-2:#5FC97C; --sky-1:#FDF4E1; --sky-2:#E8F7E7;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);overflow-x:hidden;
+  font-family:'Baloo 2','Nunito',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-size:15px;font-weight:600;line-height:1.35;-webkit-font-smoothing:antialiased}
+/* небо, облака, холмы */
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(130px 52px at 14% 12%, rgba(255,255,255,.55), transparent 70%),
+    radial-gradient(90px 38px at 26% 17%, rgba(255,255,255,.45), transparent 70%),
+    radial-gradient(150px 56px at 84% 26%, rgba(255,255,255,.42), transparent 70%),
+    radial-gradient(110px 44px at 70% 8%, rgba(255,255,255,.38), transparent 70%),
+    linear-gradient(180deg, var(--sky-1) 0%, var(--sky-2) 68%, var(--bg-2) 100%)}
+body::after{content:"";position:fixed;left:-8%;right:-8%;bottom:-2px;height:230px;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(64% 100% at 18% 108%, var(--hill-1) 0 99%, transparent 100%),
+    radial-gradient(70% 100% at 82% 116%, var(--hill-2) 0 99%, transparent 100%);
+  opacity:.75}
+.phone{position:relative;z-index:1;max-width:430px;margin:0 auto;min-height:100vh;
+  padding:0 16px 14px;overflow-x:hidden}
+
+/* ================= HUD ================= */
+.hud{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:8px;margin:0 -16px;
+  padding:10px 16px;background:linear-gradient(180deg, var(--sky-1) 65%, transparent)}
+.hud .mini{position:relative;width:46px;height:46px;flex:0 0 46px}
+.hud .mini svg{display:block}
+.hud .mini b{position:absolute;inset:0;display:grid;place-items:center;font-size:13px;font-weight:800;
+  letter-spacing:-.03em}
+.hud .lv{flex:1;min-width:0}
+.hud .lv .a{font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--hint)}
+.hud .lv .b{font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{display:flex;align-items:center;gap:5px;background:var(--chip);border:2.5px solid var(--stroke);
+  border-radius:999px;padding:3px 10px 3px 7px;font-size:13px;font-weight:800;color:#1B2430;
+  box-shadow:0 3px 0 var(--stroke);flex:0 0 auto}
+.chip .icbox{width:18px;height:18px}
+.tbtn{border:2.5px solid var(--stroke);background:var(--chip);border-radius:999px;width:32px;height:32px;
+  font-size:13px;cursor:pointer;color:#1B2430;font-family:inherit;box-shadow:0 3px 0 var(--stroke);
+  flex:0 0 32px;font-weight:800;padding:0}
+.tbtn:active{transform:translateY(3px);box-shadow:none}
+
+/* ================= ТРОПА ================= */
+.route{position:relative;padding:14px 0 6px;margin-bottom:6px}
+.route .line{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:visible}
+.route .line path{fill:none;stroke:var(--stroke);stroke-width:7;stroke-linecap:round;
+  stroke-dasharray:3 13;opacity:.42}
+.node{position:relative;z-index:1;display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.node:last-child{margin-bottom:0}
+.node .dot{width:62px;height:62px;flex:0 0 62px;border-radius:50%;border:3.5px solid var(--stroke);
+  background:#fff;overflow:hidden;display:grid;place-items:center;box-shadow:0 5px 0 var(--stroke);
+  padding:11px;position:relative}
+.node .dot .icbox{width:100%;height:100%}
+.node.done .dot{background:var(--green)}
+.node.chest .dot{background:#fff}
+.node.finish .dot{background:#fff}
+.node.now .dot{background:#fff;box-shadow:0 5px 0 var(--stroke), 0 0 0 5px rgba(76,200,106,.4);
+  animation:node-pulse 2.2s ease-in-out infinite}
+@keyframes node-pulse{0%,100%{box-shadow:0 5px 0 var(--stroke), 0 0 0 5px rgba(76,200,106,.38)}
+  50%{box-shadow:0 5px 0 var(--stroke), 0 0 0 11px rgba(76,200,106,.14)}}
+.node .lbl{background:var(--card);border:3px solid var(--stroke);border-radius:16px;padding:8px 12px;
+  box-shadow:0 4px 0 var(--stroke);min-width:0;flex:1}
+.node .lbl .t{font-size:13px;font-weight:800;line-height:1.25}
+.node .lbl .s{font-size:11px;font-weight:700;color:var(--hint);margin-top:2px}
+.node .lbl .a{font-size:14px;font-weight:800;color:var(--coral-d);white-space:nowrap}
+.node.done .lbl{background:var(--green-soft)}
+.node.done .lbl .t{opacity:.62}
+.node .who{position:absolute;left:-16px;bottom:-8px;width:94px;height:94px;z-index:3;pointer-events:auto;
+  background:none;border:0;padding:0;cursor:pointer}
+.node.now{margin:24px 0 26px}
+.node.now .dot{opacity:.001}
+.node:not(.now) .who + .dot{opacity:.001}
+.route .flagline{display:flex;align-items:center;gap:9px;margin-top:4px;padding-left:2px;
+  font-size:11px;font-weight:800;color:var(--hint)}
+
+/* «облачко» реплики над Грошем */
+.saybox{position:relative;z-index:4;margin:0 0 10px 62px}
+.bubble{display:inline-block;background:var(--chip);color:#1B2430;border:3px solid var(--stroke);
+  border-radius:16px 16px 16px 5px;padding:7px 11px;font-size:12px;font-weight:800;line-height:1.35;
+  box-shadow:0 3px 0 var(--stroke);max-width:100%;
+  transform-origin:0 100%;animation:bub-in .5s cubic-bezier(.3,1.5,.5,1) both}
+.bubble b{color:var(--coral-d);white-space:nowrap}
+@keyframes bub-in{0%{opacity:0;transform:scale(.72) translateY(8px)}100%{opacity:1;transform:none}}
+
+/* ================= КАРТОЧКИ ================= */
+.card{background:var(--card);border:3px solid var(--stroke);border-radius:22px;padding:15px;
+  margin-bottom:14px;box-shadow:0 5px 0 var(--stroke)}
+.h{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.h h2{margin:0;font-size:15.5px;font-weight:800;letter-spacing:-.01em}
+.h .sp{flex:1}
+.h .tag{font-size:11px;font-weight:800;color:#1B2430;background:var(--gold-soft);
+  border:2px solid var(--stroke);padding:2px 9px;border-radius:999px;white-space:nowrap}
+
+/* ================= ВОПРОСЫ ================= */
+.qwrap{display:grid;grid-template-rows:1fr;transition:grid-template-rows .45s cubic-bezier(.4,0,.2,1)}
+.qwrap>.qin{overflow:hidden;min-height:0}
+.qwrap.gone{grid-template-rows:0fr}
+.quiz{background:var(--card);border:3px solid var(--stroke);border-radius:22px;padding:15px;margin-bottom:14px;
+  box-shadow:0 5px 0 var(--stroke);
+  transition:transform .42s cubic-bezier(.5,-.2,.7,.4), opacity .34s ease}
+.qwrap.gone .quiz{transform:translateX(120%) rotate(8deg) scale(.93);opacity:0;pointer-events:none}
+.quiz.pop{animation:q-pop .5s cubic-bezier(.3,1.4,.5,1) both}
+@keyframes q-pop{0%{opacity:0;transform:translateY(16px) scale(.96)}100%{opacity:1;transform:none}}
+.asker{display:flex;align-items:flex-start;gap:9px;margin-bottom:11px}
+.asker .head{width:44px;height:44px;flex:0 0 44px}
+.asker .head .coin{width:100%;height:100%;display:block}
+.asker .say{background:var(--green-soft);border:2.5px solid var(--stroke);border-radius:14px 14px 14px 4px;
+  padding:7px 11px;font-size:14.5px;font-weight:800;line-height:1.3}
+.who{display:flex;align-items:center;gap:10px;background:var(--card-2);border:2.5px solid var(--stroke);
+  border-radius:15px;padding:8px 11px;margin-bottom:11px}
+.who .av{width:36px;height:36px;border-radius:50%;background:#fff;border:2.5px solid var(--stroke);
+  display:grid;place-items:center;font-weight:800;font-size:15px;flex:0 0 36px;color:#1B2430;padding:0;overflow:hidden}
+.who .nm{font-size:12.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who .dt{font-size:10.5px;font-weight:700;color:var(--hint)}
+.who .am{margin-left:auto;font-size:15px;font-weight:800;white-space:nowrap}
+.who .am.in{color:var(--green-d)}
+.qn{font-size:11.5px;font-weight:700;color:var(--hint);margin:-2px 0 11px;line-height:1.4}
+.ans{width:100%;display:flex;align-items:center;gap:10px;background:var(--card);border:2.5px solid var(--stroke);
+  border-radius:15px;padding:11px 13px;margin-bottom:9px;font:inherit;font-size:14px;font-weight:800;
+  color:var(--ink);cursor:pointer;text-align:left;box-shadow:0 3px 0 var(--stroke);
+  transition:background .14s,transform .08s,box-shadow .08s}
+.ans:last-child{margin-bottom:0}
+.ans:hover{background:var(--gold-soft)}
+.ans:active{transform:translateY(3px);box-shadow:none}
+.ans.picked{background:var(--green-soft);animation:ans-pick .4s cubic-bezier(.3,1.5,.4,1)}
+@keyframes ans-pick{0%{transform:scale(1)}40%{transform:scale(1.035)}100%{transform:scale(1)}}
+.numrow{display:flex;gap:7px}
+.numrow .ans{justify-content:center;font-size:18px;padding:12px 0;margin-bottom:0}
+.numrow .ans.sugg{background:var(--green-soft)}
+.wide{margin-top:9px;justify-content:center;font-size:13.5px}
+.alldone{text-align:center;padding:22px 16px;background:var(--green-soft);border:3px dashed var(--green-d);
+  border-radius:22px;margin-bottom:14px;font-size:14px;font-weight:800;line-height:1.5;
+  animation:q-pop .5s cubic-bezier(.3,1.4,.5,1) both}
+.alldone .icbox{width:46px;height:46px;margin:0 auto 8px}
+
+/* ================= ИТОГИ ================= */
+.sum-row{display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap}
+.big-sum{font-size:31px;font-weight:800;letter-spacing:-.035em;line-height:1;white-space:nowrap}
+.sum-row .badge{font-size:11px;font-weight:800;background:var(--coral-soft);border:2px solid var(--stroke);
+  padding:2px 8px;border-radius:999px;white-space:nowrap}
+.sum-row .sub{font-size:11.5px;font-weight:700;color:var(--hint);margin-left:auto;white-space:nowrap}
+.need{display:flex;gap:8px;margin-top:12px}
+.need>div{flex:1;min-width:0;border:2.5px solid var(--stroke);border-radius:14px;padding:9px 10px}
+.need .a{background:var(--green-soft)} .need .b{background:var(--coral-soft)}
+.need .k{font-size:10px;font-weight:800;color:var(--hint)}
+.need .v{font-size:15px;font-weight:800;margin-top:3px;white-space:nowrap}
+
+.catrow{display:flex;align-items:center;gap:10px;padding:6px 0}
+.catrow .icbox{width:32px;height:32px;flex:0 0 32px;border-radius:10px;background:#fff;
+  border:2.5px solid var(--stroke);padding:3px}
+.catrow .n{font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.catrow .n span{color:var(--hint);font-size:11px;font-weight:700}
+.catrow .tr{height:9px;border-radius:5px;background:var(--chip);border:2px solid var(--stroke);
+  margin-top:5px;overflow:hidden}
+.catrow .tr i{display:block;height:100%;width:0;transition:width .9s cubic-bezier(.2,1,.3,1)}
+.catrow .r{text-align:right;white-space:nowrap}
+.catrow .v{font-size:13px;font-weight:800}
+.catrow .d{font-size:10px;font-weight:700;margin-top:2px;color:var(--hint)}
+.catrow .d.up{color:var(--coral-d)} .catrow .d.down{color:var(--green-d)}
+
+.tipcard{display:flex;gap:11px;background:var(--card-2);border:2.5px solid var(--stroke);border-radius:16px;
+  padding:10px;margin-bottom:9px}
+.tipcard:last-child{margin-bottom:0}
+.tipcard.lead{background:var(--green-soft)}
+.tipcard .icbox{width:40px;height:40px;flex:0 0 40px;border-radius:13px;background:#fff;
+  border:2.5px solid var(--stroke);padding:4px}
+.tipcard .t{font-size:13px;font-weight:800}
+.tipcard .d{font-size:11.5px;font-weight:700;color:var(--hint);margin-top:4px;line-height:1.42}
+.tipcard .g{display:inline-block;margin-top:7px;background:var(--green);border:2px solid var(--stroke);
+  color:#0F2417;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:999px;white-space:nowrap}
+
+.nav{position:sticky;bottom:8px;display:flex;gap:4px;background:var(--card);border:3px solid var(--stroke);
+  border-radius:18px;padding:6px;margin-top:10px;box-shadow:0 5px 0 var(--stroke)}
+.nav button{flex:1;background:none;border:0;border-radius:12px;padding:6px 0;font:inherit;font-size:9.5px;
+  font-weight:800;color:var(--hint);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+.nav button .icbox{width:21px;height:21px;opacity:.6}
+.nav button.on{background:var(--green-soft);color:var(--ink)}
+.nav button.on .icbox{opacity:1}
+
+/* ===== БЛОК «ДОБАВИТЬ ОПЕРАЦИИ» ================================= */
+.intake .ways{display:flex;flex-direction:column;gap:9px}
+.way{display:flex;align-items:center;gap:11px;width:100%;text-align:left;font:inherit;color:var(--ink);
+  cursor:pointer;background:var(--card-2);padding:11px 12px;position:relative;
+  transition:background .16s, transform .08s, box-shadow .08s}
+.way .icbox{width:40px;height:40px;flex:0 0 40px;background:#fff;padding:5px}
+.way .tx{flex:1;min-width:0}
+.way .tx b{display:block;font-size:14px;font-weight:800;line-height:1.25}
+.way .tx i{display:block;font-style:normal;font-size:11.5px;font-weight:600;color:var(--hint);margin-top:2px;
+  line-height:1.35}
+.way .go{font-size:20px;font-weight:900;color:var(--hint);flex:0 0 auto;line-height:1}
+.way.cash{align-items:flex-start;cursor:default}
+.cashrow{display:flex;gap:7px;margin-top:9px}
+.cashrow input{flex:1;min-width:0;width:100%;font:inherit;font-size:14px;font-weight:700;color:var(--ink);
+  background:var(--card);padding:9px 11px;outline:none;-webkit-appearance:none}
+.cashrow input::placeholder{color:var(--hint);font-weight:600}
+.cashrow button{font:inherit;font-size:13px;font-weight:800;cursor:pointer;padding:9px 15px;
+  background:var(--green);color:#0F2417;white-space:nowrap;border:0}
+.cashhint{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--hint);margin-top:8px}
+.cashhint .icbox{width:15px;height:15px;background:none;padding:0;flex:0 0 15px;border:0}
+
+.istatus{display:flex;align-items:center;gap:10px;margin-top:11px;padding:10px 12px;font-size:12.5px;
+  font-weight:700;line-height:1.4;animation:ist-in .32s cubic-bezier(.3,1.3,.5,1) both}
+.istatus b{font-weight:900;white-space:nowrap}
+@keyframes ist-in{0%{opacity:0;transform:translateY(-6px)}100%{opacity:1;transform:none}}
+.istatus .icbox{width:26px;height:26px;flex:0 0 26px;background:none;padding:0;border:0}
+.istatus.wait{background:var(--gold-soft)}
+.istatus.ok{background:var(--green-soft)}
+.istatus.err{background:var(--coral-soft)}
+.retry{font:inherit;font-size:11.5px;font-weight:800;background:none;border:0;cursor:pointer;
+  color:var(--coral-d);text-decoration:underline;padding:0;white-space:nowrap}
+.spin{width:22px;height:22px;flex:0 0 22px;border-radius:50%;border:3px solid rgba(27,36,48,.16);
+  border-top-color:var(--gold);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.iprog{height:7px;margin-top:9px;overflow:hidden;background:var(--card-2)}
+.iprog i{display:block;height:100%;width:0;background:var(--gold);transition:width .22s linear}
+
+/* «наклеечный» вариант (A, D) */
+.intake.sticker .way{border:2.5px solid var(--stroke);border-radius:15px;box-shadow:0 3px 0 var(--stroke)}
+.intake.sticker .way:not(.cash):hover{background:var(--gold-soft)}
+.intake.sticker .way:not(.cash):active{transform:translateY(3px);box-shadow:none}
+.intake.sticker .way .icbox{border:2.5px solid var(--stroke);border-radius:12px}
+.intake.sticker .cashrow input{border:2.5px solid var(--stroke);border-radius:12px}
+.intake.sticker .cashrow button{border:2.5px solid var(--stroke);border-radius:12px;box-shadow:0 3px 0 var(--stroke)}
+.intake.sticker .cashrow button:active{transform:translateY(3px);box-shadow:none}
+.intake.sticker .istatus{border:2.5px solid var(--stroke);border-radius:14px}
+.intake.sticker .iprog{border:2px solid var(--stroke);border-radius:6px}
+
+/* мягкий вариант (B, C) */
+.intake.soft .way{border:2px solid transparent;border-radius:18px}
+.intake.soft .way:not(.cash):hover{background:var(--green-soft);border-color:var(--green)}
+.intake.soft .way:not(.cash):active{transform:scale(.985)}
+.intake.soft .way .icbox{border-radius:13px}
+.intake.soft .cashrow input{border:2px solid var(--card-2);border-radius:14px}
+.intake.soft .cashrow input:focus{border-color:var(--green)}
+.intake.soft .cashrow button{border-radius:14px}
+.intake.soft .istatus{border-radius:15px}
+.intake.soft .iprog{border-radius:4px}
+
+/* Готовые PNG-иконки нарисованы на белом фоне, поэтому плитка под ними
+   тоже белая в обеих темах — тогда шва не видно. */
+.ic{width:100%;height:100%;display:block;object-fit:contain}
+.icbox{display:grid;place-items:center;flex:0 0 auto;overflow:hidden}
+/* PNG заливает плитку целиком — её белый фон становится фоном плитки,
+   а форму (круг или скруглённый квадрат) задаёт сама плитка */
+.icbox:has(img.ic){padding:0;background:#FFFFFF}
+img.ic{object-fit:cover}
+
+/* ===== ДВИЖОК МАСКОТА =================================================
+   Состояния задаются классом на <svg>: s-proud s-curious s-hype s-sad
+   s-think s-party. Каждый «слой» группы отвечает за свою трансформацию,
+   чтобы анимации не перетирали друг друга.                             */
+.mas{display:block;width:100%;height:100%}
+.mas .v{display:none}
+.mas .mo{fill:none;stroke:#1B2430;stroke-width:4.6;stroke-linecap:round;stroke-linejoin:round}
+
+.m-lean,.m-bounce,.m-breath,.m-squash{transform-box:view-box;transform-origin:100px 176px}
+.m-breath{animation:m-breath 3.6s ease-in-out infinite}
+@keyframes m-breath{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-2.5px) scale(1.018)}}
+.m-lean{transition:transform .55s cubic-bezier(.34,1.5,.5,1)}
+.s-curious .m-lean{transform:rotate(-7deg)}
+.s-think   .m-lean{transform:rotate(5deg)}
+.s-sad     .m-lean{transform:translateY(8px) scale(.955)}
+.s-sad     .m-breath{animation-duration:5.4s}
+.s-hype  .m-bounce{animation:m-hop .58s cubic-bezier(.35,.9,.35,1) infinite}
+.s-party .m-bounce{animation:m-jump .78s cubic-bezier(.25,1.1,.4,1) infinite}
+.s-proud .m-bounce{animation:m-sway 4.6s ease-in-out infinite}
+@keyframes m-hop{0%,100%{transform:translateY(0)}45%{transform:translateY(-10px)}}
+@keyframes m-jump{0%,100%{transform:translateY(0) rotate(0)}28%{transform:translateY(-18px) rotate(-6deg)}
+  58%{transform:translateY(-3px) rotate(5deg)}80%{transform:translateY(-7px) rotate(-2deg)}}
+@keyframes m-sway{0%,100%{transform:rotate(-1.6deg)}50%{transform:rotate(1.6deg)}}
+
+/* реакция на тап */
+.m-squash{transform-origin:100px 178px}
+.mas.tap .m-squash{animation:m-tap .55s cubic-bezier(.3,1.4,.4,1)}
+@keyframes m-tap{0%{transform:scale(1,1)}20%{transform:scale(1.16,.84)}46%{transform:scale(.92,1.09)}
+  70%{transform:scale(1.05,.96)}100%{transform:scale(1,1)}}
+.tapring{transform-box:fill-box;transform-origin:center;opacity:0}
+.mas.tap .tapring{animation:m-ring .6s ease-out}
+@keyframes m-ring{0%{opacity:.7;transform:scale(.55)}100%{opacity:0;transform:scale(1.45)}}
+
+/* моргание */
+.eye{transform-box:fill-box;transform-origin:center;animation:m-blink 5.6s infinite}
+@keyframes m-blink{0%,92.5%,100%{transform:scaleY(1)}94%{transform:scaleY(.06)}95.6%{transform:scaleY(1)}
+  97%{transform:scaleY(.06)}98.4%{transform:scaleY(1)}}
+.pupils{transform-box:view-box;transition:transform .45s cubic-bezier(.34,1.4,.5,1)}
+.s-curious .pupils{transform:translate(4px,-2px)}
+.s-think   .pupils{transform:translate(-4.5px,-4px)}
+
+/* мимика по состояниям */
+.s-proud .e-happy,.s-party .e-happy,.s-hype .e-star,.s-sad .e-sad,
+.s-curious .e-open,.s-think .e-open{display:block}
+.s-proud .mo-grin,.s-party .mo-open,.s-hype .mo-open,.s-sad .mo-frown,
+.s-curious .mo-wave,.s-think .mo-flat{display:block}
+
+/* руки */
+.arm{transform-box:view-box;transition:transform .5s cubic-bezier(.34,1.5,.5,1)}
+.arm-l{transform-origin:50px 102px}
+.arm-r{transform-origin:150px 102px}
+.s-proud   .arm-l{transform:rotate(14deg)}  .s-proud   .arm-r{transform:rotate(-14deg)}
+.s-hype    .arm-l{transform:rotate(46deg)}  .s-hype    .arm-r{transform:rotate(-46deg)}
+.s-party   .arm-l{transform:rotate(62deg)}  .s-party   .arm-r{transform:rotate(-62deg)}
+.s-sad     .arm-l{transform:rotate(-14deg)} .s-sad     .arm-r{transform:rotate(14deg)}
+.s-curious .arm-l{transform:rotate(0deg)}   .s-curious .arm-r{transform:rotate(-14deg)}
+.s-think   .arm-l{transform:rotate(-8deg)}
+.s-curious .a-point,.s-curious .a-glass,.s-curious .a-hold,.s-think .a-chin{display:block}
+.s-curious .a-idle-r,.s-think .a-idle-r,.s-curious .a-idle-l{display:none}
+.s-think .arm-r{display:none}
+
+/* реквизит */
+.s-hype .p-flame,.s-hype .p-spark,.s-sad .p-tear,.s-party .p-conf,
+.s-curious .p-ask,.s-think .p-dots,.s-proud .p-spark{display:block}
+.p-flame .fl{transform-box:fill-box;transform-origin:50% 100%;animation:fl-flick 1.1s ease-in-out infinite}
+@keyframes fl-flick{0%,100%{transform:scaleY(1) scaleX(1)}35%{transform:scaleY(1.1) scaleX(.94)}
+  65%{transform:scaleY(.94) scaleX(1.05)}}
+.spark{transform-box:fill-box;transform-origin:center;animation:sp-twinkle 2.2s ease-in-out infinite}
+.p-spark g:nth-of-type(2) .spark{animation-delay:.6s}
+.p-spark g:nth-of-type(3) .spark{animation-delay:1.2s}
+@keyframes sp-twinkle{0%,100%{transform:scale(.15) rotate(0);opacity:0}
+  40%{transform:scale(1) rotate(40deg);opacity:1}70%{transform:scale(.55) rotate(70deg);opacity:.45}}
+.tear{transform-box:fill-box;transform-origin:center;animation:tr-drop 2.8s ease-in infinite}
+@keyframes tr-drop{0%{transform:translateY(0) scale(.25);opacity:0}16%{transform:translateY(0) scale(1);opacity:1}
+  70%{transform:translateY(28px) scale(.95);opacity:.9}86%,100%{transform:translateY(36px) scale(.2);opacity:0}}
+.conf{transform-box:fill-box;transform-origin:center;animation:cf-fall 1.6s linear infinite}
+.p-conf .conf:nth-of-type(2){animation-delay:.22s}.p-conf .conf:nth-of-type(3){animation-delay:.45s}
+.p-conf .conf:nth-of-type(4){animation-delay:.68s}.p-conf .conf:nth-of-type(5){animation-delay:.9s}
+.p-conf .conf:nth-of-type(6){animation-delay:1.1s}.p-conf .conf:nth-of-type(7){animation-delay:1.3s}
+@keyframes cf-fall{0%{transform:translateY(-8px) rotate(0);opacity:0}12%{opacity:1}
+  100%{transform:translateY(78px) rotate(320deg);opacity:0}}
+.qm{transform-box:fill-box;transform-origin:50% 100%;animation:qm-bob 1.8s ease-in-out infinite}
+@keyframes qm-bob{0%,100%{transform:translateY(0) rotate(-7deg)}50%{transform:translateY(-6px) rotate(7deg)}}
+.p-dots circle{animation:dt 1.5s ease-in-out infinite}
+.p-dots circle:nth-child(2){animation-delay:.22s}.p-dots circle:nth-child(3){animation-delay:.44s}
+@keyframes dt{0%,100%{opacity:.25}50%{opacity:1}}
+.m-shadow{transition:opacity .4s}
+.s-sad .m-shadow{opacity:.07}
+
+/* ===== уважение к prefers-reduced-motion ===== */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    animation-duration:.001ms !important; animation-iteration-count:1 !important;
+    transition-duration:.001ms !important; scroll-behavior:auto !important;
+  }
+  .p-flame .fl,.spark,.tear,.conf,.qm,.p-dots circle{opacity:1 !important}
+}
+</style>
+</head>
+<body>
+<div class="phone" id="app"></div>
+<script>
+
+const DATA = {
+  period:{ title:"Сентябрь", year:2026, daysPassed:20, daysTotal:30 },
+  money:{ spent:125618, income:301240, deltaPrev:9620, turnover:426858, unclear:4700 },
+  forecast:{ show:true, projected:{ text:"149 083,30 ₽" }, remaining:{ text:"23 465,10 ₽" },
+             daily_rate:{ text:"2 346,51 ₽" }, days_passed:20, days_total:30 },
+  awareness:{ percent:99, prev:94, level:4, levelName:"Знаток своих денег", gems:1240, gaps:[
+    { id:"g-in",   icon:"inbox", svg:true,  title:"Разобрать поступления",        amount:500,  xp:"+10 XP", prog:70 },
+    { id:"g-cat",  icon:"other", svg:false, title:"Раскидать траты по категориям", amount:1200, xp:"+15 XP", prog:45 },
+    { id:"g-cash", icon:"cash",  svg:true,  title:"Объяснить наличные",           amount:3000, xp:"+25 XP", prog:20 }
+  ]},
+  streak:{ current:12, record:18, nextReward:14, rewardName:"Сундук «Две недели правды»",
+    week:[{n:"пн",on:true},{n:"вт",on:true},{n:"ср",on:true},{n:"чт",on:true},
+          {n:"пт",on:true},{n:"сб",on:true},{n:"вс",on:true,today:true}] },
+  disputes:[
+    { id:"d1", av:"К", avKind:"letter", who:"Катя Н.", date:"18 сентября · СБП", amount:500, dir:"in",
+      q:"Пришло 500 ₽ от Катя Н. — что это?", note:"Назначение платежа: «за обед»",
+      options:[{t:"Вернули долю",xp:"+10 XP"},{t:"Вернули долг",xp:"+10 XP"},
+               {t:"Подарок",xp:"+10 XP"},{t:"Это доход",xp:"+10 XP"}], clears:500 },
+    { id:"d2", av:"cafe", avKind:"icon", who:"WHITE RABBIT RESTORAN", date:"14 сентября · ресторан",
+      amount:8000, dir:"out", q:"На скольких человек делили счёт?",
+      note:"Пока считаю, что на 5 — ваша доля 1 600 ₽",
+      numeric:true, options:[{t:"2"},{t:"3"},{t:"4"},{t:"5",sugg:true}], more:"Больше", clears:0 }
+  ],
+  categories:[
+    { ic:"housing",       n:"Жильё и ЖКХ",     a:76800, s:61, d:0,     c:"#FF7A59" },
+    { ic:"groceries",     n:"Продукты",         a:22725, s:18, d:1240,  c:"#4CC86A" },
+    { ic:"taxi",          n:"Такси",            a:6967,  s:6,  d:1980,  c:"#F5B93A" },
+    { ic:"cafe",          n:"Кафе и рестораны", a:6360,  s:5,  d:-2100, c:"#E88A4A" },
+    { ic:"delivery",      n:"Доставка еды",     a:5287,  s:4,  d:640,   c:"#FF7A59", svg:true },
+    { ic:"home",          n:"Товары для дома",  a:3100,  s:2,  d:1500,  c:"#4CC86A" },
+    { ic:"subscriptions", n:"Подписки",         a:1888,  s:2,  d:0,     c:"#2FA854" },
+    { ic:"other",         n:"Прочее",           a:1200,  s:1,  d:-420,  c:"#9AA6AE" },
+    { ic:"connection",    n:"Связь",            a:900,   s:1,  d:0,     c:"#F5B93A" }
+  ],
+  split:{ mandatory:100425, optional:25193, optionalShare:20 },
+  tips:[
+    { ic:"transport", t:"Проездной выгоднее такси", lead:true,
+      d:"8 поездок на 6 967 ₽, из них 5 коротких на 3 603 ₽. Проездной на месяц — 3 070 ₽.", gain:533 },
+    { ic:"subscriptions", t:"Две подписки спят",
+      d:"749 ₽ из 1 888 ₽ ушли за сервисы, которые вы не открывали.", gain:749 },
+    { ic:"delivery", svg:true, t:"Доставка вместо магазина",
+      d:"11 заказов, средний чек 481 ₽ — почти вдвое дороже продуктов.", gain:2100 }
+  ],
+  facts:{ actionsPerDay:1.4, owed:0, cash:3000 }
+};
+
+/* ---------- формат денег: узкий пробел U+2009 + word joiner ---------- */
+const NB = " ⁠";
+const num    = n => Math.round(n).toLocaleString("ru-RU").replace(/[\s  ]/g, NB);
+const money  = n => num(n) + NB + "₽";
+const signed = n => (n > 0 ? "+" : "−") + num(Math.abs(n)) + NB + "₽";
+const fixed  = t => String(t).replace(/[\s  ]/g, NB);   /* готовые строки из бэкенда */
+const el = h => { const t = document.createElement("template"); t.innerHTML = h.trim(); return t.content.firstElementChild; };
+
+/* ---------- иконки ---------- */
+const ART = "../../dist/art/";
+const SVG_IC = {"delivery": "<path d=\"M16 24 h32 l-3 30 a6 6 0 0 1 -6 5 H25 a6 6 0 0 1 -6 -5 z\" fill=\"#FF7A59\"/><path d=\"M25 24 v-4 a7 7 0 0 1 14 0 v4\" fill=\"none\"/><path d=\"M20 34 h24\" stroke-width=\"4\"/>", "inbox": "<path d=\"M12 34 h11 l4 7 h10 l4 -7 h11 v14 a5 5 0 0 1 -5 5 H17 a5 5 0 0 1 -5 -5 z\" fill=\"#4CC86A\"/><path d=\"M32 9 v17\" /><path d=\"M24 19 l8 8 8 -8\" fill=\"none\"/>", "cash": "<rect x=\"8\" y=\"19\" width=\"48\" height=\"27\" rx=\"5\" fill=\"#4CC86A\"/><circle cx=\"32\" cy=\"32.5\" r=\"8\" fill=\"#FBF0D9\"/><path d=\"M16 26 h4\"/><path d=\"M44 39 h4\"/>", "chest": "<path d=\"M10 30 a22 14 0 0 1 44 0 z\" fill=\"#FF7A59\"/><rect x=\"10\" y=\"30\" width=\"44\" height=\"22\" rx=\"4\" fill=\"#F5B93A\"/><rect x=\"27\" y=\"26\" width=\"10\" height=\"14\" rx=\"3\" fill=\"#FBF0D9\"/>", "flag": "<path d=\"M18 56 V10\"/><path d=\"M18 12 h30 l-6 9 6 9 H18 z\" fill=\"#4CC86A\"/>", "check": "<circle cx=\"32\" cy=\"32\" r=\"22\" fill=\"#4CC86A\"/><path d=\"M22 33 l7 8 14 -16\" fill=\"none\" stroke=\"#FBF0D9\" stroke-width=\"6\"/>", "flame": "<path d=\"M32 58 C 12 58, 8 42, 16 30 C 21 22, 30 20, 27 6 C 44 15, 50 26, 49 33 C 53 29, 54 24, 53 20 C 61 32, 58 58, 32 58 Z\" fill=\"#FF7A59\"/><path d=\"M32 54 C 22 54, 19 45, 24 38 C 27 33, 33 31, 32 23 C 42 29, 45 37, 44 42 C 47 39, 47 36, 47 33 C 51 42, 47 54, 32 54 Z\" fill=\"#F5B93A\" stroke=\"none\"/>", "gem": "<path d=\"M20 12 h24 l12 15 -24 26 -24 -26 z\" fill=\"#4CC86A\"/><path d=\"M8 27 h48\" /><path d=\"M20 12 l12 15 12 -15\" fill=\"none\"/>", "nhome": "<path d=\"M10 30 L32 10 L54 30\" fill=\"none\"/><path d=\"M17 28 v24 h30 V28\" fill=\"#F5B93A\"/><rect x=\"26\" y=\"36\" width=\"12\" height=\"16\" rx=\"2\" fill=\"#FBF0D9\"/>", "nchart": "<rect x=\"9\" y=\"34\" width=\"11\" height=\"20\" rx=\"3\" fill=\"#F5B93A\"/><rect x=\"26\" y=\"22\" width=\"11\" height=\"32\" rx=\"3\" fill=\"#4CC86A\"/><rect x=\"43\" y=\"12\" width=\"11\" height=\"42\" rx=\"3\" fill=\"#FF7A59\"/>", "nask": "<circle cx=\"32\" cy=\"32\" r=\"22\" fill=\"#FF7A59\"/><path d=\"M25 26 a7.5 7.5 0 1 1 8.4 11.2 q-2.2 1.6 -2.2 4.5\" fill=\"none\" stroke=\"#FBF0D9\" stroke-width=\"5\"/><circle cx=\"31.4\" cy=\"47\" r=\"3.2\" fill=\"#FBF0D9\" stroke=\"none\"/>", "ncup": "<path d=\"M20 10 h24 v14 a12 12 0 0 1 -24 0 z\" fill=\"#F5B93A\"/><path d=\"M20 14 h-7 a7 7 0 0 0 7 10\"/><path d=\"M44 14 h7 a7 7 0 0 1 -7 10\"/><path d=\"M32 36 v10\"/><path d=\"M22 52 h20\" stroke-width=\"7\"/>", "clock": "<circle cx=\"32\" cy=\"32\" r=\"22\" fill=\"#4CC86A\"/><path d=\"M32 18 v15 l10 7\" fill=\"none\" stroke=\"#FBF0D9\" stroke-width=\"5\"/>", "sheet": "<path d=\"M14 8 h26 l12 12 v36 a4 4 0 0 1 -4 4 H14 a4 4 0 0 1 -4 -4 V12 a4 4 0 0 1 4 -4 z\" fill=\"#4CC86A\"/><path d=\"M40 8 v12 h12\" fill=\"none\"/><path d=\"M20 34 h17\"/><path d=\"M20 43 h21\"/><path d=\"M20 52 h12\"/>", "cam": "<path d=\"M7 22 h13 l5 -7 h14 l5 7 h13 a4 4 0 0 1 4 4 v24 a4 4 0 0 1 -4 4 H7 a4 4 0 0 1 -4 -4 V26 a4 4 0 0 1 4 -4 z\" fill=\"#FF7A59\"/><circle cx=\"32\" cy=\"38\" r=\"11\" fill=\"#FBF0D9\"/>", "coins": "<path d=\"M12 18 v24 a20 8 0 0 0 40 0 V18 z\" fill=\"#F5B93A\"/><ellipse cx=\"32\" cy=\"18\" rx=\"20\" ry=\"8\" fill=\"#FFD37A\"/><path d=\"M12 30 a20 8 0 0 0 40 0\" fill=\"none\"/>", "mic": "<rect x=\"24\" y=\"7\" width=\"16\" height=\"30\" rx=\"8\" fill=\"#4CC86A\"/><path d=\"M15 32 a17 17 0 0 0 34 0\" fill=\"none\"/><path d=\"M32 49 v8\"/><path d=\"M23 57 h18\"/>", "warn": "<circle cx=\"32\" cy=\"32\" r=\"22\" fill=\"#FF7A59\"/><path d=\"M32 19 v15\" stroke=\"#FBF0D9\" stroke-width=\"6\"/><circle cx=\"32\" cy=\"44.5\" r=\"3.4\" fill=\"#FBF0D9\" stroke=\"none\"/>"};
+const icon = (name, isSvg) => isSvg
+  ? '<svg class="ic" viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke="#1B2430" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">' + SVG_IC[name] + '</svg>'
+  : '<img class="ic" src="' + ART + 'icon-' + name + '.png" alt="" loading="lazy" decoding="async">';
+
+/* Тема всегда светлая: цветовую схему клиента Telegram намеренно не подхватываем. */
+function haptic(k){
+  try{ if (window.Telegram && Telegram.WebApp && Telegram.WebApp.HapticFeedback)
+    Telegram.WebApp.HapticFeedback.impactOccurred(k); }catch(e){}
+}
+
+function MASCOT(uid){ return `
+<svg class="mas s-proud" viewBox="0 0 200 200" role="img" aria-label="Грош — маскот приложения">
+ <defs>
+   <clipPath id="MID-eL"><ellipse cx="86" cy="86" rx="11.2" ry="15.2"/></clipPath>
+   <clipPath id="MID-eR"><ellipse cx="114" cy="86" rx="11.2" ry="15.2"/></clipPath>
+   <clipPath id="MID-sL"><ellipse cx="86" cy="88" rx="10.2" ry="13.2"/></clipPath>
+   <clipPath id="MID-sR"><ellipse cx="114" cy="88" rx="10.2" ry="13.2"/></clipPath>
+   <clipPath id="MID-mo"><path d="M85 106 Q100 132 115 106 Q100 114 85 106 Z"/></clipPath>
+ </defs>
+
+ <ellipse class="m-shadow" cx="100" cy="184" rx="42" ry="7.5" fill="#1B2430" opacity=".15"/>
+
+ <!-- ===== реквизит позади ===== -->
+ <g class="v p-ask">
+   <g transform="translate(168,50)"><g class="qm">
+     <circle cx="0" cy="0" r="17" fill="#FF7A59" stroke="#1B2430" stroke-width="4"/>
+     <path d="M-5.6 -6 a5.9 5.9 0 1 1 6.6 8.8 q-1.7 1.2 -1.7 3.5" fill="none" stroke="#FBF0D9" stroke-width="3.8" stroke-linecap="round"/>
+     <circle cx="-0.5" cy="10.4" r="2.5" fill="#FBF0D9"/>
+   </g></g>
+ </g>
+ <g class="v p-dots" fill="#FBF0D9" stroke="#1B2430" stroke-width="3">
+   <circle cx="152" cy="46" r="4"/><circle cx="166" cy="34" r="4.4"/><circle cx="181" cy="21" r="4.8"/>
+ </g>
+ <g class="v p-spark" fill="#F5B93A" stroke="#1B2430" stroke-width="3.4" stroke-linejoin="round">
+   <g transform="translate(30,54) scale(1.5)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+   <g transform="translate(172,52) scale(1.2)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+   <g transform="translate(158,20) scale(.95)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+ </g>
+
+ <g class="m-lean"><g class="m-bounce"><g class="m-breath"><g class="m-squash">
+
+   <!-- ===== ноги и ботинки ===== -->
+   <g class="m-legs">
+     <path d="M86 130 V160" stroke="#1B2430" stroke-width="14" stroke-linecap="round"/>
+     <path d="M114 130 V160" stroke="#1B2430" stroke-width="14" stroke-linecap="round"/>
+     <rect x="64" y="155" width="34" height="21" rx="10.5" fill="#1B2430"/>
+     <rect x="102" y="155" width="34" height="21" rx="10.5" fill="#1B2430"/>
+     <path d="M86 130 V158" stroke="#F5B93A" stroke-width="7.6" stroke-linecap="round"/>
+     <path d="M114 130 V158" stroke="#F5B93A" stroke-width="7.6" stroke-linecap="round"/>
+     <rect x="67.4" y="158.4" width="27.2" height="14.2" rx="7.1" fill="#F5B93A"/>
+     <rect x="105.4" y="158.4" width="27.2" height="14.2" rx="7.1" fill="#F5B93A"/>
+   </g>
+
+   <!-- ===== руки-шланги с варежками ===== -->
+   <g class="arm arm-l">
+     <g class="a-idle-l">
+       <path d="M50 102 C 30 108, 24 128, 38 138" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M38 138 L27 130" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="38" cy="138" r="11.5" fill="#1B2430"/>
+       <path d="M50 102 C 30 108, 24 128, 38 138" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M38 138 L27 130" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="38" cy="138" r="8.2" fill="#F5B93A"/>
+     </g>
+     <g class="v a-hold">
+       <path d="M50 104 C 32 110, 30 124, 47 128" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M47 128 L37 121" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="47" cy="128" r="11.5" fill="#1B2430"/>
+       <path d="M50 104 C 32 110, 30 124, 47 128" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M47 128 L37 121" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="47" cy="128" r="8.2" fill="#F5B93A"/>
+     </g>
+   </g>
+   <g class="arm arm-r">
+     <g class="a-idle-r">
+       <path d="M150 102 C 168 108, 173 126, 160 134" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M160 134 L170 126" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="160" cy="134" r="11.5" fill="#1B2430"/>
+       <path d="M150 102 C 168 108, 173 126, 160 134" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M160 134 L170 126" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="160" cy="134" r="8.2" fill="#F5B93A"/>
+     </g>
+     <g class="v a-point">
+       <path d="M150 102 C 164 106, 170 114, 170 122" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <circle cx="170" cy="122" r="11.5" fill="#1B2430"/>
+       <path d="M179 118 h11" stroke="#1B2430" stroke-width="12" stroke-linecap="round"/>
+       <path d="M150 102 C 164 106, 170 114, 170 122" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <circle cx="170" cy="122" r="8.2" fill="#F5B93A"/>
+       <path d="M179 118 h10" stroke="#F5B93A" stroke-width="6" stroke-linecap="round"/>
+     </g>
+   </g>
+
+   <!-- ===== монета: гурт слева + лицевая сторона ===== -->
+   <circle cx="89" cy="90" r="52" fill="#E3A526" stroke="#1B2430" stroke-width="4.4"/>
+   <path d="M47 79 A 44 44 0 0 0 47 101" fill="none" stroke="#C98E1C" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+   <circle cx="100" cy="92" r="52" fill="#F5B93A" stroke="#1B2430" stroke-width="4.4"/>
+   <circle cx="100" cy="92" r="43" fill="none" stroke="#E0A32A" stroke-width="3.4"/>
+   <circle cx="100" cy="92" r="37.5" fill="none" stroke="#E0A32A" stroke-width="2"/>
+   <circle class="tapring" cx="100" cy="92" r="52" fill="none" stroke="#FBF0D9" stroke-width="6"/>
+
+   <!-- ===== глаза ===== -->
+   <g class="v e-open">
+     <g class="eye">
+       <ellipse cx="86" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g class="pupils" clip-path="url(#MID-eL)">
+         <ellipse cx="87" cy="89" rx="8" ry="10.6" fill="#1B2430"/>
+         <circle cx="84" cy="83.6" r="3.2" fill="#FFFDF5"/><circle cx="90.4" cy="94.6" r="1.7" fill="#FFFDF5" opacity=".8"/>
+       </g>
+     </g>
+     <g class="eye">
+       <ellipse cx="114" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g class="pupils" clip-path="url(#MID-eR)">
+         <ellipse cx="115" cy="89" rx="8" ry="10.6" fill="#1B2430"/>
+         <circle cx="112" cy="83.6" r="3.2" fill="#FFFDF5"/><circle cx="118.4" cy="94.6" r="1.7" fill="#FFFDF5" opacity=".8"/>
+       </g>
+     </g>
+   </g>
+
+   <g class="v e-happy" fill="none" stroke="#1B2430" stroke-width="5.6" stroke-linecap="round">
+     <path d="M74 94 q12 -18 24 0"/><path d="M102 94 q12 -18 24 0"/>
+   </g>
+
+   <g class="v e-star">
+     <ellipse cx="86" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+     <ellipse cx="114" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+     <g fill="none" stroke="#1B2430" stroke-width="3.6" stroke-linecap="round">
+       <path d="M83 78 v16"/><path d="M83 78 h4.8 a4.4 4.4 0 0 1 0 8.8 H83"/><path d="M79.2 90.4 h9"/>
+       <path d="M111 78 v16"/><path d="M111 78 h4.8 a4.4 4.4 0 0 1 0 8.8 H111"/><path d="M107.2 90.4 h9"/>
+     </g>
+   </g>
+
+   <g class="v e-sad">
+     <g class="eye">
+       <ellipse cx="86" cy="88" rx="12" ry="15" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g clip-path="url(#MID-sL)">
+         <ellipse cx="86" cy="94" rx="7.4" ry="9.4" fill="#1B2430"/>
+         <circle cx="83.4" cy="90" r="2.8" fill="#FFFDF5"/>
+         <rect x="66" y="56" width="42" height="24" fill="#1B2430" transform="rotate(-14 86 88)"/>
+       </g>
+     </g>
+     <g class="eye">
+       <ellipse cx="114" cy="88" rx="12" ry="15" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g clip-path="url(#MID-sR)">
+         <ellipse cx="114" cy="94" rx="7.4" ry="9.4" fill="#1B2430"/>
+         <circle cx="111.4" cy="90" r="2.8" fill="#FFFDF5"/>
+         <rect x="92" y="56" width="42" height="24" fill="#1B2430" transform="rotate(14 114 88)"/>
+       </g>
+     </g>
+   </g>
+
+   <!-- ===== рот ===== -->
+   <g class="mouth">
+     <path class="v mo mo-grin" d="M91 111 q9 9 18 0"/>
+     <g class="v mo-open">
+       <path d="M85 106 Q100 132 115 106 Q100 114 85 106 Z" fill="#1B2430"/>
+       <g clip-path="url(#MID-mo)"><ellipse cx="100" cy="124" rx="7.5" ry="6" fill="#FF7A59"/></g>
+     </g>
+     <path class="v mo mo-frown" d="M91 119 q9 -9 18 0"/>
+     <path class="v mo mo-wave" d="M90 113 q5 -6 10 0 q5 6 10 0" stroke-width="4"/>
+     <path class="v mo mo-flat" d="M92 114 q8 4 16 -1" stroke-width="4"/>
+   </g>
+
+   <!-- рука у подбородка (поверх монеты) -->
+   <g class="v a-chin">
+     <path d="M156 116 C 158 136, 140 146, 124 140" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+     <circle cx="122" cy="138" r="11.5" fill="#1B2430"/>
+     <path d="M156 116 C 158 136, 140 146, 124 140" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+     <circle cx="122" cy="138" r="8.2" fill="#F5B93A"/>
+   </g>
+
+   <!-- лупа (поверх монеты, в руке) -->
+   <g class="v a-glass">
+     <path d="M46 124 L38 104" stroke="#1B2430" stroke-width="11.5" stroke-linecap="round"/>
+     <path d="M46 124 L38 104" stroke="#C98E1C" stroke-width="5.6" stroke-linecap="round"/>
+     <circle cx="33" cy="88" r="18.5" fill="#FBF0D9" stroke="#1B2430" stroke-width="4.6"/>
+     <path d="M24 80 a12.5 12.5 0 0 1 9 -5" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+   </g>
+
+   <!-- слеза -->
+   <g class="v p-tear">
+     <path class="tear" d="M126 100 c 0 0 7 8 7 12.5 a7 7 0 0 1 -14 0 c 0 -4.5 7 -12.5 7 -12.5 Z"
+       fill="#FBF0D9" stroke="#1B2430" stroke-width="3.4" stroke-linejoin="round"/>
+   </g>
+
+   <!-- огонёк над головой -->
+   <g class="v p-flame">
+     <path class="fl" d="M100 46 C 76 34, 100 24, 90 3 C 122 12, 126 36, 100 46 Z" fill="#FF7A59" stroke="#1B2430" stroke-width="4" stroke-linejoin="round"/>
+     <path class="fl" d="M100 42 C 88 35, 99 29, 95 16 C 112 23, 113 36, 100 42 Z" fill="#F5B93A"/>
+   </g>
+
+ </g></g></g></g>
+
+ <g class="v p-conf" stroke="#1B2430" stroke-width="2.6">
+   <rect class="conf" x="22"  y="44" width="10" height="13" rx="3" fill="#4CC86A"/>
+   <rect class="conf" x="52"  y="18" width="9"  height="12" rx="3" fill="#FF7A59"/>
+   <rect class="conf" x="92"  y="4"  width="10" height="13" rx="3" fill="#F5B93A"/>
+   <rect class="conf" x="132" y="12" width="9"  height="12" rx="3" fill="#4CC86A"/>
+   <rect class="conf" x="168" y="34" width="10" height="13" rx="3" fill="#FF7A59"/>
+   <rect class="conf" x="182" y="70" width="9"  height="12" rx="3" fill="#F5B93A"/>
+   <rect class="conf" x="8"   y="84" width="9"  height="12" rx="3" fill="#4CC86A"/>
+ </g>
+</svg>`.replace(/MID-/g, uid + "-"); }
+const COIN = `<svg class="coin" viewBox="0 0 100 100" aria-hidden="true">
+  <circle cx="44" cy="49" r="43" fill="#E3A526" stroke="#1B2430" stroke-width="6"/>
+  <circle cx="52" cy="50" r="43" fill="#F5B93A" stroke="#1B2430" stroke-width="6"/>
+  <circle cx="52" cy="50" r="34" fill="none" stroke="#E0A32A" stroke-width="4"/>
+  <ellipse cx="41" cy="45" rx="8.5" ry="11" fill="#FFFDF5" stroke="#1B2430" stroke-width="4"/>
+  <ellipse cx="63" cy="45" rx="8.5" ry="11" fill="#FFFDF5" stroke="#1B2430" stroke-width="4"/>
+  <ellipse cx="42" cy="47" rx="5" ry="6.6" fill="#1B2430"/><ellipse cx="64" cy="47" rx="5" ry="6.6" fill="#1B2430"/>
+  <circle cx="40" cy="43.5" r="2" fill="#FFFDF5"/><circle cx="62" cy="43.5" r="2" fill="#FFFDF5"/>
+  <path d="M45 66 q7 7 14 0" fill="none" stroke="#1B2430" stroke-width="4.4" stroke-linecap="round"/>
+</svg>`;
+
+
+/* ---------- состояние маскота ---------- */
+const mstate = { forced:null, cur:null };
+function setMascot(s){
+  mstate.cur = s;
+  document.querySelectorAll(".mas").forEach(m => m.setAttribute("class", "mas s-" + s));
+}
+/* после перерисовки разметки состояние надо вернуть на место */
+function reapplyMascot(){ setMascot(mstate.cur || autoMascot()); }
+function autoMascot(){
+  if (mstate.forced) return mstate.forced;
+  if (state.unclear > 0) return "curious";
+  return "proud";
+}
+let tapT = null;
+function tapMascot(){
+  haptic("light");
+  document.querySelectorAll(".mas").forEach(svg => {
+    svg.classList.remove("tap"); void svg.getBoundingClientRect(); svg.classList.add("tap");
+  });
+  clearTimeout(tapT);
+  tapT = setTimeout(() => document.querySelectorAll(".mas").forEach(s => s.classList.remove("tap")), 620);
+  say(state.unclear > 0 ? TAP_LINES.work : TAP_LINES.done);
+}
+const TAP_LINES = {
+  work: ["Щекотно! Но 4 700 ₽ сами себя не объяснят.",
+         "Я не коплю — я запоминаю.",
+         "Один тап — и вопросов меньше."],
+  done: ["Месяц честный. Можно выдохнуть.",
+         "99% — почти идеально.",
+         "Спроси что угодно, я всё помню."]
+};
+function say(lines, forced){
+  const b = document.getElementById("bubble");
+  if (!b) return;
+  b.innerHTML = forced || lines[Math.floor(Math.random() * lines.length)];
+  b.style.animation = "none"; void b.offsetWidth; b.style.animation = "";
+}
+
+/* витрина умеет переключать состояние маскота */
+window.addEventListener("message", ev => {
+  const m = ev.data;
+  if (!m || m.type !== "mascot") return;
+  mstate.forced = m.state === "auto" ? null : m.state;
+  setMascot(autoMascot());
+});
+
+/* ===================== СОСТОЯНИЕ ===================== */
+const state = { awareness:0, unclear:DATA.money.unclear, open:DATA.disputes.map(d => d.id), done:[] };
+const app = document.getElementById("app");
+const targetAwareness = () => Math.min(100, Math.round((1 - state.unclear / DATA.money.turnover) * 100));
+const growBars = () => requestAnimationFrame(() =>
+  document.querySelectorAll("[data-w]").forEach(i => { i.style.width = i.dataset.w; }));
+
+function countTo(node, p, first, dur){
+  if (!node) return;
+  const from = first ? 0 : parseInt(node.textContent, 10) || 0;
+  const t0 = performance.now(); dur = dur || (first ? 1200 : 700);
+  (function step(t){
+    const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    node.textContent = Math.round(from + (p - from) * e);
+    if (k < 1) requestAnimationFrame(step);
+  })(t0);
+}
+
+/* ===================== ОТВЕТ НА ВОПРОС ===================== */
+let busy = false;
+function answer(d, wrap, btn){
+  if (busy) return; busy = true;
+  haptic("medium");
+  btn.classList.add("picked");
+  setMascot("party");
+  if (typeof flashStreak === "function") flashStreak();
+  setTimeout(() => {
+    wrap.classList.add("gone");
+    setTimeout(() => {
+      state.open = state.open.filter(x => x !== d.id);
+      if (d.clears) clearAmount(d.clears, "g-in");
+      renderQueue();
+      if (typeof renderTodos === "function") renderTodos();
+      if (typeof renderQuests === "function") renderQuests();
+      if (typeof renderPath === "function") renderPath();
+      growBars();
+      say(null, state.open.length
+        ? "Записал! Остался ещё <b>" + state.open.length + " вопрос</b>."
+        : "Красота — всё объяснили. Оборот понятен на <b>" + targetAwareness() + "%</b>.");
+      busy = false;
+      setTimeout(() => setMascot(autoMascot()), 1500);
+    }, 460);
+  }, 300);
+}
+function clearAmount(v, questId){
+  state.unclear = Math.max(0, state.unclear - v);
+  if (state.done.indexOf(questId) < 0) state.done.push(questId);
+  document.querySelectorAll("[data-unclear]").forEach(n => { n.textContent = money(state.unclear); });
+  document.querySelectorAll("[data-clear]").forEach(n => { n.textContent = money(DATA.money.turnover - state.unclear); });
+  setAwareness(targetAwareness());
+}
+
+/* ===================== ДОБАВЛЕНИЕ ОПЕРАЦИЙ =====================
+   В макете загрузка имитируется: разметка, состояния и реакция экрана
+   настоящие, адреса подключит бэкенд.                               */
+const NEW_OPS = [
+  { id:"d3", av:"О", avKind:"letter", who:"OZON", date:"19 сентября · карта", amount:2450, dir:"out",
+    q:"Покупка в OZON на 2 450 ₽ — что это было?", note:"Из свежей выписки",
+    options:[{t:"Товары для дома",xp:"+10 XP"},{t:"Продукты",xp:"+10 XP"},
+             {t:"Подарок",xp:"+10 XP"},{t:"Другое",xp:"+10 XP"}], clears:0 },
+  { id:"d4", av:"М", avKind:"letter", who:"Михаил С.", date:"19 сентября · СБП", amount:1500, dir:"in",
+    q:"Пришло 1 500 ₽ от Михаил С. — что это?", note:"Из свежей выписки, назначения нет",
+    options:[{t:"Вернули долг",xp:"+10 XP"},{t:"Вернули долю",xp:"+10 XP"},
+             {t:"Подарок",xp:"+10 XP"},{t:"Это доход",xp:"+10 XP"}], clears:1500 }
+];
+let intakeBusy = false, opsAdded = false;
+
+function istatus(kind, html){
+  const box = document.getElementById("istatus");
+  if (!box) return;
+  if (!kind){ box.innerHTML = ""; return; }
+  const ic = kind === "wait" ? '<span class="spin"></span>'
+           : kind === "ok"   ? '<span class="icbox">' + icon("check", true) + "</span>"
+                             : '<span class="icbox">' + icon("warn", true) + "</span>";
+  box.innerHTML = '<div class="istatus ' + kind + '">' + ic + "<span>" + html + "</span></div>"
+    + (kind === "wait" ? '<div class="iprog"><i id="iprog"></i></div>' : "");
+  const r = box.querySelector(".retry");
+  if (r) r.onclick = () => { istatus(null); document.getElementById("csvFile").click(); };
+}
+
+function fakeUpload(label, onDone){
+  intakeBusy = true;
+  setMascot("think");
+  istatus("wait", label);
+  let p = 0;
+  const bar = document.getElementById("iprog");
+  const t = setInterval(() => {
+    p = Math.min(100, p + 9 + Math.random() * 14);
+    if (bar) bar.style.width = p + "%";
+    if (p >= 100){ clearInterval(t); setTimeout(() => { intakeBusy = false; onDone(); }, 240); }
+  }, 110);
+}
+
+function syncUnclear(){
+  document.querySelectorAll("[data-unclear]").forEach(n => { n.textContent = money(state.unclear); });
+  document.querySelectorAll("[data-clear]").forEach(n => { n.textContent = money(DATA.money.turnover - state.unclear); });
+  setAwareness(targetAwareness());
+  if (typeof renderTodos === "function") renderTodos();
+  if (typeof renderQuests === "function") renderQuests();
+  if (typeof renderPath === "function") renderPath();
+  growBars();
+}
+
+function addNewOps(){
+  if (opsAdded) return 0;
+  opsAdded = true;
+  NEW_OPS.forEach(o => { DATA.disputes.push(o); state.open.push(o.id); });
+  state.unclear += 1500;                       /* новое непонятное поступление */
+  renderQueue();
+  syncUnclear();
+  return NEW_OPS.length;
+}
+
+function bindIntake(){
+  const csv = document.getElementById("csvFile");
+  const shot = document.getElementById("shotFile");
+  const cashBtn = document.getElementById("cashBtn");
+  const cashText = document.getElementById("cashText");
+
+  if (csv) csv.onchange = () => {
+    const f = csv.files && csv.files[0];
+    if (!f || intakeBusy) return;
+    if (!/\.csv$/i.test(f.name)){
+      haptic("heavy"); setMascot("sad");
+      istatus("err", 'Это не похоже на выписку — нужен файл <b>.csv</b> из интернет-банка. ' +
+                     '<button class="retry" type="button">Выбрать другой</button>');
+      setTimeout(() => setMascot(autoMascot()), 2400);
+      csv.value = ""; return;
+    }
+    fakeUpload("Читаю «" + f.name + "»…", () => {
+      const n = addNewOps();
+      haptic("medium"); setMascot(n ? "curious" : "party");
+      istatus("ok", n
+        ? "Выписка разобрана: <b>128 операций</b>. Новых вопросов: <b>" + n + "</b> — уже в очереди."
+        : "Выписка разобрана: <b>128 операций</b>. Новых вопросов нет.");
+      say(null, n ? "Нашёл <b>" + n + " непонятные операции</b>. Глянем?" : "Всё сошлось, вопросов нет.");
+    });
+    csv.value = "";
+  };
+
+  if (shot) shot.onchange = () => {
+    const f = shot.files && shot.files[0];
+    if (!f || intakeBusy) return;
+    fakeUpload("Распознаю чек…", () => {
+      haptic("medium"); setMascot("party");
+      istatus("ok", "С чека считал: <b>Пятёрочка</b>, <b>1 284 ₽</b>, 19 сентября. Записал в «Продукты».");
+      say(null, "Чек прочитал: <b>1 284 ₽</b> в продукты.");
+      setTimeout(() => setMascot(autoMascot()), 2000);
+    });
+    shot.value = "";
+  };
+
+  function submitCash(){
+    if (intakeBusy) return;
+    const v = (cashText.value || "").trim();
+    if (!v){
+      haptic("heavy");
+      istatus("err", "Напишите, что и на сколько. Например: <b>кофе 300</b>.");
+      cashText.focus(); return;
+    }
+    const m = v.match(/(\d[\d\s.,]*)\s*(?:р|₽|руб\w*)?\s*$/i);
+    if (!m){
+      haptic("heavy"); setMascot("think");
+      istatus("err", "Не вижу суммы. Напишите так: <b>кофе 300</b>.");
+      setTimeout(() => setMascot(autoMascot()), 2000);
+      return;
+    }
+    const sum = Math.round(parseFloat(m[1].replace(/\s/g, "").replace(",", ".")));
+    const what = v.slice(0, m.index).trim() || "наличные";
+    fakeUpload("Записываю…", () => {
+      state.unclear = Math.max(0, state.unclear - Math.min(sum, state.unclear));
+      syncUnclear();
+      haptic("medium"); setMascot("party");
+      istatus("ok", "Записал: <b>" + what + "</b> — <b>" + money(sum) + "</b>. " +
+                    "Непонятного осталось " + money(state.unclear) + ".");
+      say(null, "Записал «" + what + "» на " + money(sum) + ".");
+      cashText.value = "";
+      setTimeout(() => setMascot(autoMascot()), 2000);
+    });
+  }
+  if (cashBtn) cashBtn.onclick = submitCash;
+  if (cashText) cashText.onkeydown = e => { if (e.key === "Enter") submitCash(); };
+}
+
+/* ===================== МИНИ-КОЛЬЦО В HUD ===================== */
+const RR = 19, RC = 2 * Math.PI * RR;
+function miniRing(){
+  return `<svg width="46" height="46" viewBox="0 0 46 46" aria-hidden="true">
+    <circle cx="23" cy="23" r="21" fill="var(--chip)" stroke="var(--stroke)" stroke-width="3"/>
+    <g transform="rotate(-90 23 23)">
+      <circle id="arc" cx="23" cy="23" r="${RR}" fill="none" stroke="var(--green)" stroke-width="5" stroke-linecap="round"
+        stroke-dasharray="${RC.toFixed(1)}" stroke-dashoffset="${RC.toFixed(1)}"
+        style="transition:stroke-dashoffset 1.2s cubic-bezier(.22,1.42,.36,1)"/>
+    </g>
+  </svg>`;
+}
+function setAwareness(p, first){
+  state.awareness = p;
+  const arc = document.getElementById("arc");
+  if (arc) arc.setAttribute("stroke-dashoffset", (RC * (1 - p / 100)).toFixed(1));
+  countTo(document.getElementById("pctVal"), p, first);
+}
+
+/* ===================== РЕНДЕР ===================== */
+function render(){
+  const d = DATA, f = d.forecast;
+  const maxCat = d.categories[0].a;
+  app.innerHTML = `
+  <div class="hud">
+    <div class="mini">${miniRing()}<b><span id="pctVal">0</span>%</b></div>
+    <div class="lv"><div class="a">Уровень ${d.awareness.level}</div><div class="b">${d.awareness.levelName}</div></div>
+    <div class="chip" id="streakChip"><span class="icbox">${icon("flame", true)}</span>${d.streak.current}</div>
+  </div>
+
+  <div class="saybox"><div class="bubble" id="bubble">Не понимаю <b data-unclear>${money(state.unclear)}</b>. Пойдём по тропе?</div></div>
+
+  <div class="route" id="route"><svg class="line" id="routeLine" aria-hidden="true"></svg><div id="nodes"></div>
+    <div class="flagline">Тропа сентября · день ${f.days_passed} из ${f.days_total}</div>
+  </div>
+
+  <div id="queue"></div>
+
+  
+  <div class="card intake sticker" id="intake">
+    <div class="h"><h2>Добавить операции</h2><span class="sp"></span><span class="tag">три способа</span></div>
+    <div class="ways">
+      <label class="way" data-way="csv">
+        <input type="file" accept=".csv,text/csv" id="csvFile" hidden>
+        <span class="icbox">${icon("sheet", true)}</span>
+        <span class="tx"><b>Загрузить выписку</b><i>CSV из интернет-банка — разберу все операции сразу</i></span>
+        <span class="go">&rsaquo;</span>
+      </label>
+      <label class="way" data-way="shot">
+        <input type="file" accept="image/*" capture="environment" id="shotFile" hidden>
+        <span class="icbox">${icon("cam", true)}</span>
+        <span class="tx"><b>Прислать скриншот или чек</b><i>Сфотографируйте чек или пришлите скрин из банка</i></span>
+        <span class="go">&rsaquo;</span>
+      </label>
+      <div class="way cash">
+        <span class="icbox">${icon("coins", true)}</span>
+        <span class="tx"><b>Записать наличные</b>
+          <span class="cashrow">
+            <input type="text" id="cashText" inputmode="text" autocomplete="off"
+                   placeholder="кофе 300" aria-label="Что и на сколько потратили">
+            <button type="button" id="cashBtn">Записать</button>
+          </span>
+          <span class="cashhint"><span class="icbox">${icon("mic", true)}</span>
+            То же самое можно надиктовать голосом в чат бота</span>
+        </span>
+      </div>
+    </div>
+    <div id="istatus"></div>
+  </div>
+
+  <div class="card">
+    <div class="h"><h2>Потрачено в сентябре</h2></div>
+    <div class="sum-row">
+      <div class="big-sum">${money(d.money.spent)}</div>
+      <div class="badge">${signed(d.money.deltaPrev)} к августу</div>
+      <div class="sub">получено ${money(d.money.income)}</div>
+    </div>
+    <div class="need">
+      <div class="a"><div class="k">Так было надо</div><div class="v">${money(d.split.mandatory)}</div></div>
+      <div class="b"><div class="k">Можно было не (${d.split.optionalShare}%)</div><div class="v">${money(d.split.optional)}</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="h"><h2>Куда ушли деньги</h2><span class="sp"></span><span class="tag">9 категорий</span></div>
+    <div id="cats"></div>
+  </div>
+
+  <div class="card">
+    <div class="h"><h2>Подсказки Гроша</h2><span class="sp"></span>
+      <span class="tag">до −${money(d.tips.reduce((s, t) => s + t.gain, 0))}</span></div>
+    <div id="tips"></div>
+  </div>
+
+  <div class="nav">
+    <button class="on"><span class="icbox">${icon("nhome", true)}</span>Тропа</button>
+    <button><span class="icbox">${icon("nchart", true)}</span>Отчёты</button>
+    <button><span class="icbox">${icon("nask", true)}</span>Вопросы</button>
+    <button><span class="icbox">${icon("ncup", true)}</span>Награды</button>
+  </div>`;
+
+  document.getElementById("cats").innerHTML = d.categories.map(c => `
+    <div class="catrow">
+      <div class="icbox">${icon(c.ic, !!c.svg)}</div>
+      <div style="flex:1;min-width:0"><div class="n">${c.n} <span>${c.s}%</span></div>
+        <div class="tr"><i data-w="${Math.max(6, Math.round(c.a / maxCat * 100))}%" style="background:${c.c}"></i></div></div>
+      <div class="r"><div class="v">${money(c.a)}</div>
+        <div class="d ${c.d > 0 ? "up" : c.d < 0 ? "down" : ""}">${c.d === 0 ? "как в августе" : signed(c.d)}</div></div>
+    </div>`).join("");
+  document.getElementById("tips").innerHTML = d.tips.map(t => `
+    <div class="tipcard ${t.lead ? "lead" : ""}"><div class="icbox">${icon(t.ic, !!t.svg)}</div>
+      <div><div class="t">${t.t}</div><div class="d">${t.d}</div>
+      <span class="g">экономия ${money(t.gain)}</span></div></div>`).join("");
+
+  renderPath(); renderQueue(); bindIntake();
+  requestAnimationFrame(() => { setAwareness(targetAwareness(), true); growBars(); setMascot(autoMascot()); });
+}
+
+/* ---------- станции тропы ---------- */
+function pathNodes(){
+  const d = DATA, f = d.forecast, done = state.done, open = state.open;
+  const list = [
+    { id:"n0", kind:"done", icon:"check", svg:true, t:"Неделя 1–2 разобрана", s:"12 дней подряд без пропусков" },
+    { id:"n1", kind:open.indexOf("d1") >= 0 ? "now" : "done",
+      icon:open.indexOf("d1") >= 0 ? "inbox" : "check", svg:true,
+      t:"500 ₽ от Кати Н.", s:open.indexOf("d1") >= 0 ? "надо решить, что это" : "разобрано", a:"500 ₽" },
+    { id:"n2", kind:open.indexOf("d2") >= 0 ? (open.indexOf("d1") >= 0 ? "wait" : "now") : "done",
+      icon:open.indexOf("d2") >= 0 ? "cafe" : "check", svg:open.indexOf("d2") < 0,
+      t:"Счёт в White Rabbit", s:"на скольких делили", a:"8 000 ₽" },
+    { id:"n3", kind:done.indexOf("g-cat") >= 0 ? "done" : "wait", icon:"other", svg:false,
+      t:"Траты без категории", s:"раскидать по полкам", a:"1 200 ₽" },
+    { id:"n4", kind:done.indexOf("g-cash") >= 0 ? "done" : "wait", icon:"cash", svg:true,
+      t:"Наличные без назначения", s:"вспомнить, куда ушли", a:"3 000 ₽" },
+    { id:"n5", kind:"chest", icon:"chest", svg:true, t:DATA.streak.rewardName,
+      s:"откроется на 14-й день · сейчас " + DATA.streak.current },
+    { id:"n6", kind:"finish", icon:"flag", svg:true, t:"Финиш месяца",
+      s:"прогноз " + fixed(f.projected.text) + " · осталось " + fixed(f.remaining.text) }
+  ];
+  return list;
+}
+function renderPath(){
+  const nodes = pathNodes();
+  /* Грош всегда на карте: на текущей станции, иначе на ближайшей нерешённой, иначе на финише */
+  let nowIdx = nodes.findIndex(n => n.kind === "now");
+  if (nowIdx < 0) nowIdx = nodes.findIndex(n => n.kind === "wait");
+  if (nowIdx < 0) nowIdx = nodes.length - 1;
+  document.getElementById("nodes").innerHTML = nodes.map((n, i) => {
+    const off = [0, 10, 2, 14, 4, 12, 0][i] || 0;
+    return `<div class="node ${n.kind}" style="margin-left:${off}px">
+      ${i === nowIdx ? '<button class="who" id="masTap" aria-label="Потрогать Гроша">' + MASCOT("d") + "</button>" : ""}
+      <div class="dot"><span class="icbox">${icon(n.icon, !!n.svg)}</span></div>
+      <div class="lbl"><div class="t">${n.t}</div><div class="s">${n.s}</div></div>
+      ${n.a ? '<div class="lbl" style="flex:0 0 auto;padding:6px 10px"><div class="a">' + n.a + "</div></div>" : ""}
+    </div>`;
+  }).join("");
+  const mt = document.getElementById("masTap");
+  if (mt) mt.onclick = tapMascot;
+  reapplyMascot();
+  requestAnimationFrame(drawLine);
+}
+function drawLine(){
+  const route = document.getElementById("route"), svg = document.getElementById("routeLine");
+  if (!route || !svg) return;
+  const rb = route.getBoundingClientRect();
+  const pts = [...route.querySelectorAll(".node .dot")].map(el => {
+    const b = el.getBoundingClientRect();
+    return [b.left - rb.left + b.width / 2, b.top - rb.top + b.height / 2];
+  });
+  if (pts.length < 2) return;
+  svg.setAttribute("viewBox", "0 0 " + Math.round(rb.width) + " " + Math.round(rb.height));
+  svg.setAttribute("width", Math.round(rb.width));
+  svg.setAttribute("height", Math.round(rb.height));
+  let dstr = "M" + pts[0][0] + " " + pts[0][1];
+  for (let i = 1; i < pts.length; i++){
+    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i], my = (y0 + y1) / 2;
+    dstr += " C " + x0 + " " + my + ", " + x1 + " " + my + ", " + x1 + " " + y1;
+  }
+  svg.innerHTML = '<path d="' + dstr + '"/>';
+}
+window.addEventListener("resize", () => requestAnimationFrame(drawLine));
+
+function renderQueue(){
+  const q = document.getElementById("queue"); q.innerHTML = "";
+  const list = DATA.disputes.filter(d => state.open.indexOf(d.id) >= 0);
+  if (!list.length){
+    q.appendChild(el(`<div class="alldone"><div class="icbox">${icon("check", true)}</div>
+      Тропа пройдена!<br>Оборот понятен на ${targetAwareness()}%.</div>`));
+    return;
+  }
+  list.forEach(d => {
+    const opts = d.numeric
+      ? '<div class="numrow">' + d.options.map((o, i) =>
+          '<button class="ans ' + (o.sugg ? "sugg" : "") + '" data-i="' + i + '">' + o.t + "</button>").join("") + "</div>" +
+        '<button class="ans wide" data-i="more">' + d.more + "</button>"
+      : d.options.map((o, i) => '<button class="ans" data-i="' + i + '">' + o.t + "</button>").join("");
+    const av = d.avKind === "icon" ? icon(d.av, false) : d.av;
+    const wrap = el(`
+      <div class="qwrap" data-id="${d.id}"><div class="qin"><div class="quiz pop">
+        <div class="asker"><div class="head">${COIN}</div><div class="say">${d.q}</div></div>
+        <div class="who"><div class="av">${av}</div>
+          <div style="min-width:0"><div class="nm">${d.who}</div><div class="dt">${d.date}</div></div>
+          <div class="am ${d.dir === "in" ? "in" : ""}">${d.dir === "in" ? "+" : "−"}${money(d.amount)}</div></div>
+        <div class="qn">${d.note}</div>${opts}
+      </div></div></div>`);
+    wrap.querySelectorAll(".ans").forEach(b => { b.onclick = () => answer(d, wrap, b); });
+    q.appendChild(wrap);
+  });
+  requestAnimationFrame(drawLine);
+}
+function flashStreak(){
+  const n = document.getElementById("streakChip");
+  if (!n) return; n.classList.remove("flash"); void n.offsetWidth; n.classList.add("flash");
+}
+
+render();
+try{ Telegram.WebApp.ready(); Telegram.WebApp.expand(); }catch(e){}
+</script>
+</body>
+</html>

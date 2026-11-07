@@ -1,8 +1,13 @@
 services:
   - type: web
-    name: cu-hack-media-api
+    name: cu-hack-honest-month
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
-    healthCheckPath: /health
+    startCommand: API_PORT=$PORT python -m app.main
+    healthCheckPath: /healthz
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: LLM_PROVIDER
+        value: none

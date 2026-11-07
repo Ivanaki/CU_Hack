@@ -1,0 +1,912 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Честный месяц — CU@Hack, кейс 3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#08090c;
+  --deep:#0b0d11;
+  --surface:#12161c;
+  --surface-2:#171c23;
+  --line:#242b35;
+  --line-soft:#1b212a;
+  --ink:#f3f5f8;
+  --ink-2:#a3adba;
+  --ink-3:#6a7482;
+  --accent:#5ee39b;
+  --accent-deep:#1f6b4a;
+  --accent-wash:rgba(94,227,155,.10);
+  --bad:#ff6b6b;
+  --bad-wash:rgba(255,107,107,.10);
+  --warn:#ffb020;
+  --W:1280px;
+  --H:720px;
+  --pad:76px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  font-size:16px;
+  line-height:1.4;
+  font-feature-settings:'tnum' 1,'cv05' 1;
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ---------- каркас: сцена 1280x720, вписанная в окно ---------- */
+#stage{
+  --ov:.2;
+  position:fixed; left:50%; top:50%;
+  width:var(--W); height:var(--H);
+  transform:translate(-50%,-50%) scale(var(--k,1));
+  transform-origin:center center;
+}
+.slot{position:absolute; inset:0}
+.slide{
+  position:absolute; inset:0;
+  background:var(--deep);
+  padding:var(--pad) var(--pad) 54px;
+  display:flex; flex-direction:column;
+  visibility:hidden;
+  overflow:hidden;
+}
+.slot.active .slide{visibility:visible}
+.slide::after{
+  content:attr(data-num);
+  position:absolute; right:32px; bottom:20px;
+  font-size:11px; font-weight:600; letter-spacing:.14em;
+  color:var(--ink-3);
+}
+
+/* ---------- типографика ---------- */
+.kicker{
+  font-size:12px; font-weight:700; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--accent); margin-bottom:18px;
+}
+.kicker.dim{color:var(--ink-3)}
+h2{font-size:46px; font-weight:800; letter-spacing:-.033em; line-height:1.03}
+h3{font-size:19px; font-weight:700; letter-spacing:-.015em}
+.lede{font-size:21px; line-height:1.38; color:var(--ink-2); max-width:880px; margin-top:16px; font-weight:400}
+.muted{color:var(--ink-2)}
+.dim{color:var(--ink-3)}
+.tiny{font-size:13px; line-height:1.45}
+.mono{font-variant-numeric:tabular-nums}
+b,strong{font-weight:700}
+.accent{color:var(--accent)}
+.neg{color:var(--bad)}
+
+/* ---------- блоки ---------- */
+.card{
+  background:var(--surface); border:1px solid var(--line);
+  border-radius:16px; padding:22px 24px;
+}
+.card.flat{background:var(--surface-2); border-color:var(--line-soft)}
+.grow{flex:1; min-height:0}
+.cols{display:grid; gap:20px}
+.c2{grid-template-columns:1fr 1fr}
+.c3{grid-template-columns:repeat(3,1fr)}
+.stack{display:flex; flex-direction:column; gap:14px}
+.spread{display:flex; align-items:baseline; justify-content:space-between; gap:12px}
+.rule{height:1px; background:var(--line-soft)}
+.pill{
+  display:inline-flex; align-items:center; gap:7px;
+  border:1px solid var(--line); border-radius:999px;
+  padding:6px 13px; font-size:12.5px; font-weight:600; color:var(--ink-2);
+}
+.pill.on{border-color:var(--accent-deep); color:var(--accent); background:var(--accent-wash)}
+
+.big{font-size:88px; font-weight:800; letter-spacing:-.05em; line-height:.92}
+.big.fit{font-size:56px; letter-spacing:-.04em; white-space:nowrap}
+.huge{font-size:132px; font-weight:800; letter-spacing:-.055em; line-height:.86}
+.cap{font-size:13px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3)}
+
+ul.bullets{list-style:none; display:flex; flex-direction:column; gap:12px}
+ul.bullets li{position:relative; padding-left:20px; font-size:16.5px; line-height:1.42; color:var(--ink-2)}
+ul.bullets li::before{
+  content:''; position:absolute; left:0; top:.62em;
+  width:7px; height:7px; border-radius:2px; background:var(--accent-deep);
+}
+ul.bullets li b{color:var(--ink)}
+
+/* ---------- таблицы ---------- */
+table{width:100%; border-collapse:collapse}
+th{
+  text-align:left; font-size:11px; font-weight:700; letter-spacing:.13em;
+  text-transform:uppercase; color:var(--ink-3); padding:0 10px 9px 0; vertical-align:bottom;
+}
+td{padding:8px 10px 8px 0; vertical-align:top; border-top:1px solid var(--line-soft)}
+tr:first-child td{border-top:0}
+table.scen td{padding:11px 14px 11px 0; line-height:1.36}
+
+.tag{
+  display:inline-block; font-size:11.5px; font-weight:700; letter-spacing:.01em;
+  padding:3px 9px; border-radius:6px; white-space:nowrap;
+}
+.tag.zero{background:#1b2028; color:var(--ink-2)}
+.tag.plus{background:var(--accent-wash); color:var(--accent)}
+.tag.minus{background:rgba(255,176,32,.12); color:var(--warn)}
+.tag.ask{background:rgba(255,107,107,.12); color:var(--bad)}
+
+/* ---------- слайд 1 ---------- */
+.title-slide{justify-content:center}
+.title-slide h1{font-size:104px; font-weight:800; letter-spacing:-.05em; line-height:.96}
+.title-mark{display:flex; align-items:center; gap:14px; margin-bottom:auto}
+.dot{width:11px; height:11px; border-radius:50%; background:var(--accent)}
+.title-foot{margin-top:auto; display:flex; gap:10px; flex-wrap:wrap}
+
+/* ---------- телефоны ---------- */
+.phones{display:flex; gap:26px; align-items:flex-start}
+.phone{
+  width:262px; flex:none;
+  border-radius:26px; overflow:hidden; background:#000;
+  border:1px solid #262d38;
+  box-shadow:0 18px 44px rgba(0,0,0,.55);
+}
+.phone img{display:block; width:100%; height:auto}
+.phone.clip{height:452px}
+.phone.clip img{object-fit:cover; object-position:top; height:100%}
+
+/* ---------- прочее ---------- */
+.stat{display:flex; flex-direction:column; gap:4px}
+.stat .v{font-size:40px; font-weight:800; letter-spacing:-.035em; line-height:1}
+.stat .l{font-size:13px; color:var(--ink-3); line-height:1.35}
+
+.flow{display:flex; align-items:stretch; gap:10px}
+.flow .step{
+  flex:1; background:var(--surface-2); border:1px solid var(--line-soft);
+  border-radius:12px; padding:14px 15px;
+}
+.flow .step .n{font-size:11px; font-weight:700; letter-spacing:.12em; color:var(--ink-3)}
+.flow .step .t{font-size:14.5px; font-weight:600; margin-top:6px; line-height:1.3}
+.flow .step .s{font-size:12.5px; color:var(--ink-3); margin-top:4px; line-height:1.35}
+
+.quote{
+  border-left:2px solid var(--accent-deep); padding-left:16px;
+  font-size:16px; color:var(--ink-2); line-height:1.45;
+}
+
+.ledger{display:flex; flex-direction:column; gap:6px; font-size:14px}
+.ledger .row{display:flex; justify-content:space-between; gap:14px; padding:6px 0}
+.ledger .row.sum{border-top:1px solid var(--line); padding-top:9px; margin-top:3px; font-weight:700}
+.ledger .row span:last-child{font-variant-numeric:tabular-nums}
+
+.checks{display:flex; flex-direction:column; gap:9px}
+.checks div{display:flex; gap:10px; align-items:flex-start; font-size:14.5px; color:var(--ink-2); line-height:1.35}
+.checks svg{flex:none; margin-top:2px}
+
+/* ---------- режим обзора ---------- */
+body.overview{overflow:auto}
+body.overview #stage{
+  position:static; transform:none; width:auto; height:auto;
+  display:grid; grid-template-columns:repeat(4,max-content);
+  gap:22px; padding:34px 40px 60px; justify-content:center;
+}
+body.overview .slot{
+  position:relative; inset:auto;
+  width:calc(1280px * var(--ov)); height:calc(720px * var(--ov));
+  border-radius:9px; overflow:hidden; cursor:pointer;
+  outline:1px solid var(--line); outline-offset:0;
+}
+body.overview .slot.active{outline:2px solid var(--accent)}
+body.overview .slide{
+  position:absolute; top:0; left:0; right:auto; bottom:auto;
+  width:var(--W); height:var(--H);
+  transform:scale(var(--ov)); transform-origin:0 0; visibility:visible;
+}
+
+/* ---------- заметки и подсказка ---------- */
+#notes{
+  position:fixed; left:0; right:0; bottom:0; z-index:40;
+  background:#0a0b0f; border-top:1px solid var(--line);
+  padding:16px 26px 18px; display:none;
+  box-shadow:0 -14px 34px rgba(0,0,0,.6);
+}
+body.notes-on #notes{display:block}
+#notes .hd{font-size:11px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3); margin-bottom:6px}
+#notes .bd{font-size:15px; line-height:1.5; color:var(--ink-2); max-width:1100px}
+.slide .notes{display:none}
+
+#hint{
+  position:fixed; left:14px; bottom:12px; z-index:30;
+  font-size:11px; color:#39414c; letter-spacing:.04em;
+  transition:opacity .35s; pointer-events:none;
+}
+#hint.hide{opacity:0}
+body.notes-on #hint{display:none}
+
+/* ---------- печать: один слайд на страницу, landscape ---------- */
+@page{size:1280px 720px; margin:0}
+@media print{
+  html,body{overflow:visible; background:#fff; height:auto}
+  #hint,#notes{display:none !important}
+  #stage{
+    position:static !important; transform:none !important;
+    width:auto !important; height:auto !important;
+    display:block !important; padding:0 !important; gap:0 !important;
+  }
+  .slot{
+    position:relative !important; inset:auto !important;
+    width:1280px !important; height:720px !important;
+    outline:0 !important; border-radius:0 !important; overflow:hidden !important;
+    break-after:page; page-break-after:always;
+  }
+  .slot:last-child{break-after:auto; page-break-after:auto}
+  .slide{
+    position:absolute !important; inset:0 !important;
+    transform:none !important; visibility:visible !important;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+}
+</style>
+</head>
+<body>
+
+<div id="stage">
+
+<!-- ═══════════ 1. Титул ═══════════ -->
+<div class="slot"><section class="slide title-slide">
+  <div class="title-mark">
+    <span class="dot"></span>
+    <span class="kicker dim" style="margin:0">CU@Hack · кейс 3</span>
+  </div>
+  <h1>Честный<br>месяц</h1>
+  <p class="lede" style="font-size:26px; color:var(--ink-2); max-width:820px; margin-top:26px">
+    Считаем не сколько списалось со счёта,<br>а сколько вы <b style="color:var(--ink);font-weight:700">потратили</b>.
+  </p>
+  <div class="title-foot">
+    <span class="pill on">Telegram-бот + Mini App</span>
+    <span class="pill">двойная запись</span>
+    <span class="pill">7 из 7 сценариев кейса</span>
+    <span class="pill">37 автотестов</span>
+    <span class="pill">задеплоено</span>
+  </div>
+  <aside class="notes">Кейс 3, «Честный месяц». Одна фраза, с которой мы начали: считать надо не то, сколько списалось со счёта, а сколько человек на самом деле потратил. Всё остальное в презентации — следствие этой фразы. Продукт работает: бот, Mini App, API, задеплоено в docker, 37 автотестов.</aside>
+</section></div>
+
+<!-- ═══════════ 2. Проблема ═══════════ -->
+<div class="slot"><section class="slide">
+  <div class="kicker">Проблема</div>
+  <h2>Две группы приложений,<br>и обе не решают задачу</h2>
+
+  <div class="cols c2 grow" style="margin-top:30px">
+    <div class="card" style="display:flex;flex-direction:column">
+      <div class="spread">
+        <h3>Ручной ввод</h3>
+        <span class="tag plus">цифры точные</span>
+      </div>
+      <p class="muted" style="margin-top:12px; font-size:16px; line-height:1.45">
+        Требует действий каждый день. Пользоваться перестают быстро —
+        и дело не в лени.
+      </p>
+      <div class="quote" style="margin-top:auto; padding-top:2px">
+        Усилие на ведение превышает пользу от результата.
+        <div class="tiny dim" style="margin-top:7px">формулировка самого кейса</div>
+      </div>
+    </div>
+
+    <div class="card" style="display:flex;flex-direction:column">
+      <div class="spread">
+        <h3>Автоматический импорт</h3>
+        <span class="tag ask">цифры врут</span>
+      </div>
+      <p class="muted" style="margin-top:12px; font-size:16px; line-height:1.45">
+        Вводить не надо ничего, но смысл операции подменяется знаком в выписке.
+      </p>
+      <div class="ledger" style="margin-top:14px">
+        <div class="row"><span class="muted">Перевод себе</span><span class="neg">показан расходом</span></div>
+        <div class="row"><span class="muted">Возврат долга</span><span class="neg">показан доходом</span></div>
+        <div class="row"><span class="muted">Оплата за компанию</span><span class="neg">завышает траты</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card flat" style="margin-top:20px; border-color:rgba(255,107,107,.22); background:var(--bad-wash)">
+    <div style="font-size:22px; font-weight:700; letter-spacing:-.02em">
+      Ошибка в цифрах обнуляет доверие ко всей аналитике.
+    </div>
+    <div class="muted" style="margin-top:6px; font-size:15.5px">
+      Один увиденный фантомный расход — и человек перестаёт верить остальным числам тоже. Неверный трекер хуже, чем никакого.
+    </div>
+  </div>
+  <aside class="notes">Кейс сам называет обе группы. Ручной ввод бросают не из лени: усилие превышает пользу. Автоимпорт не требует усилий, но показывает перевод себе расходом, а возврат долга доходом. После первой такой ошибки человек перестаёт верить и всем остальным цифрам — а значит, приложением перестают пользоваться.</aside>
+</section></div>
+
+<!-- ═══════════ 3. Кому ═══════════ -->
+<div class="slot"><section class="slide">
+  <div class="kicker">Кому это нужно</div>
+  <h2>Не тому, кому нечего есть.<br>Тому, кто не понимает, куда ушло</h2>
+
+  <div class="cols c3 grow" style="margin-top:34px; margin-bottom:22px">
+    <div class="card" style="display:flex;flex-direction:column;justify-content:center">
+      <div class="big fit">100–300</div>
+      <div class="cap" style="margin-top:12px">тысяч ₽ дохода в месяц</div>
+      <p class="tiny muted" style="margin-top:16px">Денег хватает, поэтому каждую покупку никто не считает.</p>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;justify-content:center">
+      <div class="big fit">300–1200</div>
+      <div class="cap" style="margin-top:12px">₽ — незаметная трата</div>
+      <p class="tiny muted" style="margin-top:16px">Такси, кофе, доставка. По одной штуке — ничто, за месяц — ощутимо.</p>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;justify-content:center;border-color:rgba(255,107,107,.25)">
+      <div class="big fit neg">~100k</div>
+      <div class="cap" style="margin-top:12px">₽ «непонятно на что»</div>
+      <p class="tiny muted" style="margin-top:16px">К концу месяца. Вопрос не «сколько», а «на что».</p>
+    </div>
+  </div>
+
+  <div class="card flat">
+    <div class="spread" style="align-items:center">
+      <div>
+        <div style="font-size:19px; font-weight:700; letter-spacing:-.015em">В нашем демо-месяце это видно буквально</div>
+        <div class="muted tiny" style="margin-top:6px">Сентябрь 2026, 48 операций, данные посчитаны движком, а не написаны на слайде.</div>
+      </div>
+      <div style="display:flex; gap:38px; text-align:right">
+        <div class="stat"><div class="v mono">14</div><div class="l">трат по&nbsp;300–1200&nbsp;₽</div></div>
+        <div class="stat"><div class="v mono">11 887 ₽</div><div class="l">в сумме, и ни одна<br>не запоминается</div></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Это не человек, которому нечего есть. Это человек с нормальным доходом, у которого к концу месяца сотня тысяч непонятно на что. Мелкая трата в триста-тысячу рублей не откладывается в памяти вообще. В нашем демо-месяце таких четырнадцать на двенадцать тысяч — ни одну из них он не назовёт.</aside>
+</section></div>
+
+<!-- ═══════════ 4. Решение в одном экране ═══════════ -->
+<div class="slot"><section class="slide">
+  <div class="kicker">Решение</div>
+  <h2 style="font-size:40px">Один экран. Три вещи</h2>
+
+  <div style="display:flex; gap:34px; margin-top:24px; flex:1; min-height:0">
+    <div class="phones">
+      <div class="phone clip"><img src="img/miniapp-1.png" alt="Главный экран Mini App: осознанность 99%, серия 12 дней, спорная операция"></div>
+      <div class="phone clip"><img src="img/miniapp-2.png" alt="Итоги месяца: потрачено, недельные срезы, категории"></div>
+    </div>
+
+    <div class="stack" style="flex:1; justify-content:center">
+      <div class="card">
+        <div class="spread"><h3>Процент осознанности</h3><span class="tag plus">99%</span></div>
+        <p class="muted tiny" style="margin-top:8px; font-size:14px">
+          Какая доля денег имеет установленный смысл. Не «сколько вы записали руками» — это была бы метрика дисциплины.
+        </p>
+      </div>
+      <div class="card">
+        <div class="spread"><h3>Серия и число действий</h3><span class="tag zero">12 дней</span></div>
+        <p class="muted tiny" style="margin-top:8px; font-size:14px">
+          Рядом — измеренное число действий в день. Показываем ровно то, что посчитали, а не то, что хотелось бы.
+        </p>
+      </div>
+      <div class="card" style="border-color:var(--accent-deep)">
+        <div class="spread"><h3>Спорная операция</h3><span class="tag plus">1 тап</span></div>
+        <p class="muted tiny" style="margin-top:8px; font-size:14px">
+          Вопрос с готовыми вариантами и объяснением, почему он задан. Ответ сразу пересчитывает месяц.
+        </p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Это настоящий экран Mini App, числа в нём посчитаны движком. Сверху кольцо осознанности: не сколько вы записали, а какая доля денег имеет установленный смысл. Ниже серия и измеренное число действий. Дальше спорные операции — каждая закрывается одним тапом, и месяц пересчитывается сразу.</aside>
+</section></div>
+
+<!-- ═══════════ 5. Сколько действий в день ═══════════ -->
+<div class="slot"><section class="slide">
+  <div class="kicker">Требование кейса: назвать число действий в день</div>
+
+  <div style="display:flex; align-items:flex-end; gap:34px; margin-top:6px">
+    <div class="huge">0–2</div>
+    <div style="padding-bottom:16px">
+      <div style="font-size:26px; font-weight:700; letter-spacing:-.025em; line-height:1.15">тапа в день</div>
+      <div class="muted" style="font-size:16px; margin-top:6px; max-width:420px">Ноль в обычный день. Один-два — когда системе есть о чём спросить.</div>
+    </div>
+  </div>
+
+  <div class="flow" style="margin-top:auto; margin-bottom:auto; padding:22px 0">
+    <div class="step">
+      <div class="n">ИСТОЧНИК</div>
+      <div class="t">Выписка раз в месяц</div>
+      <div class="s">Файл из банка, переслан в чат. Т-Банк, Сбер, Альфа, маркетплейсы.</div>
+    </div>
+    <div class="step">
+      <div class="n">ИЛИ</div>
+      <div class="t">Скриншот или фото чека</div>
+      <div class="s">Один вызов модели сам решает, что это. Пользователь просто кидает картинку.</div>
+    </div>
+    <div class="step">
+      <div class="n">ИЛИ</div>
+      <div class="t">Голосовое про наличные</div>
+      <div class="s">«Кофе триста рублей» → трата 300 ₽ в «Кафе». Наличных нет ни в одной выписке.</div>
+    </div>
+    <div class="step" style="border-color:var(--accent-deep); background:var(--accent-wash)">
+      <div class="n" style="color:var(--accent)">ОТВЕТ</div>
+      <div class="t">Тап там, где неясно</div>
+      <div class="s">Система спрашивает только про то, в чём честно не уверена.</div>
+    </div>
+  </div>
+
+  <div class="cols c2">
+    <div class="card">
+      <div class="spread" style="align-items:flex-end">
+        <div class="stat"><div class="v mono">3</div><div class="l">вопроса на весь демо-набор</div></div>
+        <div class="stat" style="text-align:right"><div class="v mono">104</div><div class="l">операции, 3 месяца, 4 источника</div></div>
+      </div>
+      <div class="rule" style="margin:14px 0 12px"></div>
+      <p class="tiny muted">Ручного занесения операций нет ни в одном пути. Импорт склеивает перевод из двух выписок в одну операцию сам.</p>
+    </div>
+    <div class="card" style="border-color:var(--accent-deep)">
+      <h3 style="font-size:17px">Число измеряется, а не объявляется</h3>
+      <p class="tiny muted" style="margin-top:10px; font-size:14px">
+        Каждый тап, файл и голосовое пишутся в таблицу активности за день.
+        <b style="color:var(--ink)">/streak</b> и главный экран показывают посчитанное среднее —
+        «Действий в день: 1.67 — считается по факту».
+      </p>
+      <p class="tiny dim" style="margin-top:10px">Если завтра мы начнём спрашивать чаще, цифра вырастет у нас на глазах, а не останется красивой на слайде.</p>
+    </div>
+  </div>
+  <aside class="notes">Кейс прямо требует назвать число действий в день. Наше — от нуля до двух. Данные приходят выпиской, скриншотом или фото чека — картинку модель распознаёт сама, пользователь не выбирает, что это. Руками не вводится ничего, кроме наличных голосом. На сто четыре операции демо-набора система задала три вопроса. И это число мы не объявляем, а измеряем: каждый тап пишется в таблицу активности, среднее видно в боте и на главном экране.</aside>
+</section></div>
+
+<!-- ═══════════ 6. Модель денег ═══════════ -->
+<div class="slot"><section class="slide">
+  <div class="kicker">Модель денег</div>
+  <h2 style="font-size:38px">Расход определяется смыслом операции,<br>а не знаком в выписке</h2>
+
+  <div class="cols c2" style="margin-top:22px; gap:26px">
+    <div>
+      <table>
+        <tr><th style="width:44%">Тип события</th><th>Что делает с расходами</th></tr>
+        <tr><td><b>Трата</b></td><td><span class="tag plus">+ расход</span></td></tr>
+        <tr><td><b>Доход</b></td><td><span class="tag zero">доход, не расход</span></td></tr>
+        <tr><td><b>Перевод себе</b></td><td><span class="tag zero">0</span> <span class="tiny dim">кроме комиссии</span></td></tr>
+        <tr><td><b>Пополнение кошелька</b></td><td><span class="tag zero">0</span> <span class="tiny dim">расход при покупке</span></td></tr>
+        <tr><td><b>Снятие наличных</b></td><td><span class="tag zero">0</span> <span class="tiny dim">это перемещение</span></td></tr>
+        <tr><td><b>Трата наличными</b></td><td><span class="tag plus">+ расход</span></td></tr>
+        <tr><td><b>Дал в долг</b></td><td><span class="tag zero">0</span> <span class="tiny dim">смена формы актива</span></td></tr>
+        <tr><td><b>Мне вернули долг</b></td><td><span class="tag zero">0</span></td></tr>
+      </table>
+    </div>
+    <div>
+      <table>
+        <tr><th style="width:44%">Тип события</th><th>Что делает с расходами</th></tr>
+        <tr><td><b>Занял</b></td><td><span class="tag zero">0</span> <span class="tiny dim">это обязательство</span></td></tr>
+        <tr><td><b>Вернул долг</b></td><td><span class="tag zero">0</span></td></tr>
+        <tr><td><b>Счёт за компанию</b></td><td><span class="tag plus">+ только моя доля</span></td></tr>
+        <tr><td><b>Вернули мою долю</b></td><td><span class="tag zero">0</span></td></tr>
+        <tr><td><b>Возврат товара</b></td><td><span class="tag minus">− расход</span></td></tr>
+        <tr><td><b>Корректировка</b></td><td><span class="tag plus">+ расход</span> <span class="tiny dim">невозврат, наличные</span></td></tr>
+        <tr><td><b>Смысл не установлен</b></td><td><span class="tag ask">0, вопрос</span></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="cols c3" style="margin-top:auto; gap:16px">
+    <div class="card flat"><div class="stat"><div class="v mono">15</div><div class="l">типов событий. Модель спроектирована до кода и не переделывалась</div></div></div>
+    <div class="card flat"><div class="stat"><div class="v mono">10</div><div class="l">видов счетов, включая <i>suspense</i> — счёт честного «я не знаю»</div></div></div>
+    <div class="card flat" style="border-color:var(--accent-deep)"><div class="stat"><div class="v mono accent">8</div><div class="l">типов физически не могут создать расход или доход — это проверяет тест</div></div></div>
+  </div>
+  <aside class="notes">Модель событий спроектирована до начала разработки и не переделывалась. Пятнадцать типов, и каждый отвечает на один вопрос: уменьшилось ли моё богатство и на сколько. Восемь типов не могут создать ни расход, ни доход — и это не договорённость команды, а проверка, которая падает на CI, если кто-то ошибётся.</aside>
+</section></div>
+
+<!-- ═══════════ 7. Семь сценариев ═══════════ -->
+<div class="slot"><section class="slide" style="padding-top:52px">
+  <div class="kicker">Семь сценариев кейса</div>
+  <h2 style="font-size:34px">Все семь ломают обычные трекеры. Каждый закрыт тестом</h2>
+
+  <table class="scen" style="margin-top:22px; font-size:14.5px">
+    <tr>
+      <th style="width:31%">Сценарий из кейса</th>
+      <th style="width:31%">Что показал бы обычный трекер</th>
+      <th>Что показываем мы</th>
+    </tr>
+    <tr>
+      <td><b>1.</b> Перевод 10 000 между своими картами</td>
+      <td class="neg">расход 10 000 <span class="dim">и</span> доход 10 000</td>
+      <td><span class="accent">0 и 0</span> <span class="dim">— две записи склеены в одну операцию</span></td>
+    </tr>
+    <tr>
+      <td><b>2.</b> Пополнение карты Wildberries на 6 000, затем покупки с неё</td>
+      <td class="neg">расход 6 000 <span class="dim">+ траты без категории</span></td>
+      <td><span class="accent">0 за пополнение.</span> Завели 6 000 → Товары для дома 3 100, Продукты 2 300, <span class="dim">остаток 600</span></td>
+    </tr>
+    <tr>
+      <td><b>3.</b> Долг 3 000, возврат двумя частями по 1 500 через неделю</td>
+      <td class="neg">расход 3 000 <span class="dim">и</span> доход 3 000</td>
+      <td><span class="accent">0 по всем трём событиям.</span> <span class="dim">Работает и в обратную сторону: заём мне — не доход, моё погашение — не расход</span></td>
+    </tr>
+    <tr>
+      <td><b>4.</b> Счёт 8 000 за пятерых, затем 4 поступления по 1 600</td>
+      <td class="neg">расход 8 000, <span class="dim">потом</span> доход 6 400</td>
+      <td><span class="accent">трата 1 600, дохода нет</span> <span class="dim">— 6 400 сразу дебиторка</span></td>
+    </tr>
+    <tr>
+      <td><b>5.</b> Пришло 500 «за обед», зафиксированного долга нет</td>
+      <td class="neg">доход 500 <span class="dim">(или тихо угадано)</span></td>
+      <td><span class="accent">0, висит на suspense</span> <span class="dim">— вопрос в 1 тап, 4 варианта</span></td>
+    </tr>
+    <tr>
+      <td><b>6.</b> Возврат товара, 4 200 пришли обратно на карту</td>
+      <td class="neg">доход 4 200</td>
+      <td><span class="accent">−4 200 к «электронике»</span> <span class="dim">— датой возврата, прошлое не переписываем</span></td>
+    </tr>
+    <tr>
+      <td><b>7.</b> Снятие 5 000 в банкомате</td>
+      <td class="neg">расход 5 000 сразу</td>
+      <td><span class="accent">0 при снятии.</span> 2 000 стали тратой по голосовым, про оставшиеся 3 000 висит вопрос <span class="dim">— не угадываем</span></td>
+    </tr>
+  </table>
+
+  <div class="spread" style="margin-top:auto; padding-top:14px">
+    <span class="pill on">tests/test_scenarios.py — 9 тестов: по одному на сценарий, плюс долг в обратную сторону</span>
+    <span class="tiny dim">Проверяется не «код не упал», а сколько рублей попало в расходы</span>
+  </div>
+  <aside class="notes">Все семь сценариев кейса. Левая колонка — то, что покажет обычный трекер, правая — мы. Второй — прямое требование кейса про кошелёк маркетплейса: завели шесть тысяч, видно, что три сто ушло в товары для дома, две триста в продукты, шестьсот осталось. Самый наглядный четвёртый: трекер сначала покажет расход восемь тысяч, потом доход шесть четыреста, и месяц соврёт дважды. Мы показываем трату тысяча шестьсот и ноль дохода. Каждая строка этой таблицы — отдельный тест, который проверяет рубли, а не отсутствие исключений.</aside>
+</section></div>
+
+<!-- ═══════════ 8. Почему цифрам можно верить ═══════════ -->
+<div class="slot"><section class="slide">
+  <div class="kicker">Доверие</div>
+  <h2 style="font-size:40px">Почему цифрам можно верить</h2>
+
+  <div class="cols c3" style="margin-top:26px; flex:1; min-height:0; gap:18px">
+    <div class="card" style="display:flex; flex-direction:column">
+      <h3 style="font-size:18px">Двойная запись</h3>
+      <p class="tiny muted" style="margin-top:8px">Операция — это не строка, а набор проводок. Счёт 8 000 за пятерых:</p>
+      <div class="ledger" style="margin-top:10px; font-size:13.5px">
+        <div class="row"><span class="muted">Карта</span><span class="neg">−8 000,00</span></div>
+        <div class="row"><span class="muted">Расход · кафе <span class="dim">(моя доля)</span></span><span>+1 600,00</span></div>
+        <div class="row"><span class="muted">Мне должны <span class="dim">(4 чел.)</span></span><span>+6 400,00</span></div>
+        <div class="row sum"><span>Сумма проводок</span><span class="accent">0,00</span></div>
+      </div>
+      <p class="tiny dim" style="margin-top:auto">Пока сумма равна нулю, деньги не могут появиться и исчезнуть незаметно. Аналитика читает проводки, а не строки выписки.</p>
+    </div>
+
+    <div class="card" style="display:flex; flex-direction:column">
+      <h3 style="font-size:18px">Четыре инварианта</h3>
+      <div class="checks" style="margin-top:12px">
+        <div><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.2 3.2L13 5" stroke="#5ee39b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Сумма проводок каждой операции равна нулю</span></div>
+        <div><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.2 3.2L13 5" stroke="#5ee39b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Книга в целом сходится в ноль</span></div>
+        <div><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.2 3.2L13 5" stroke="#5ee39b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Нет проводок без операции</span></div>
+        <div><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.2 3.2L13 5" stroke="#5ee39b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Ни один нейтральный тип не создал расход или доход</span></div>
+      </div>
+      <p class="tiny dim" style="margin-top:auto">Команда <b style="color:var(--ink-2)">/checkup</b> запускает те же четыре проверки прямо в боте — на защите это видно вживую, а не на слайде.</p>
+    </div>
+
+    <div class="card" style="display:flex; flex-direction:column; border-color:var(--accent-deep)">
+      <h3 style="font-size:18px">Недели складываются<br>в месяц по построению</h3>
+      <p class="tiny muted" style="margin-top:8px">Срезы стыкуются встык: конец одного равен началу следующего, без дыр и нахлёстов.</p>
+      <div style="margin-top:14px">
+        <div class="tiny dim">сумма 5 недельных срезов</div>
+        <div class="mono" style="font-size:20px; font-weight:700; letter-spacing:-.02em; margin-top:2px">125 618,20 ₽</div>
+        <div class="accent" style="font-size:19px; font-weight:800; margin:5px 0">=</div>
+        <div class="tiny dim">сентябрь целиком</div>
+        <div class="mono" style="font-size:20px; font-weight:700; letter-spacing:-.02em; margin-top:2px">125 618,20 ₽</div>
+      </div>
+      <p class="tiny dim" style="margin-top:auto">Сумма не подгоняется. Она не может разойтись.</p>
+    </div>
+  </div>
+
+  <div class="card flat" style="margin-top:14px; padding:13px 22px">
+    <div style="display:flex; align-items:center; gap:24px">
+      <div style="display:flex; align-items:baseline; gap:10px; flex:none">
+        <span class="mono" style="font-size:29px;font-weight:800;letter-spacing:-.035em">37</span>
+        <span class="tiny dim" style="max-width:120px;font-size:12px">автотестов<br>209 проводок</span>
+      </div>
+      <div style="width:1px;height:46px;background:var(--line);flex:none"></div>
+      <div style="flex:1">
+        <div class="tiny" style="font-weight:700;color:var(--ink);font-size:12.5px;margin-bottom:4px">
+          Эти проверки уже поймали три ошибки — и это главный аргумент, что цифрам можно верить
+        </div>
+        <div class="tiny dim" style="font-size:12px;line-height:1.45">
+          округление рисовало «100 %» при открытом вопросе — теперь пока хоть рубль не разобран, сотня не показывается ·
+          в запасных данных экрана серия подставлялась как <span class="mono">max(streak, 12)</span> — единственное непосчитанное число в проекте, убрано ·
+          SQLite переиспользовал id вопросов после пересчёта, и старый клиент мог ответить на чужой вопрос
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Под капотом двойная запись: операция — это набор проводок, и их сумма равна нулю. Деньги не могут появиться или исчезнуть незаметно. Недели складываются в месяц не потому, что мы подогнали итог, а потому что срезы стыкуются встык. Те же четыре проверки живут в боте под командой чекап, и тридцать семь тестов гоняют их на каждом прогоне. Внизу — три ошибки, которые эти проверки уже поймали: округление рисовало сто процентов при открытом вопросе, в запасных данных экрана серия была захардкожена, и SQLite переиспользовал идентификаторы вопросов. Это и есть разница между «мы уверены» и «мы проверили».</aside>
+</section></div>
+
+<!-- ═══════════ 9. Механика возвращаться ═══════════ -->
+<div class="slot"><section class="slide">
+  <div class="kicker">Регулярность</div>
+  <h2 style="font-size:40px">Мы никогда не просим «вести учёт»</h2>
+  <p class="lede" style="font-size:19px; margin-top:12px">Просить вести учёт — ровно то, из-за чего люди бросают трекеры. Вместо этого приходит конкретный вопрос, на который отвечают одним тапом.</p>
+
+  <div class="cols c2" style="margin-top:24px; flex:1; min-height:0">
+    <div class="stack">
+      <div class="card" style="flex:1">
+        <div class="spread"><h3 style="font-size:17px">Вопрос вместо напоминания</h3><span class="tag plus">1 тап</span></div>
+        <p class="tiny muted" style="margin-top:9px">«Пришло 500 ₽ от Кати Н., назначение „за обед“ — что это?» Четыре готовых варианта и объяснение, почему система спрашивает. Ответ сразу пересчитывает месяц и запоминается на будущее.</p>
+      </div>
+      <div class="card" style="flex:1">
+        <div class="spread"><h3 style="font-size:17px">Серия дней</h3><span class="tag zero">12, рекорд 18</span></div>
+        <p class="tiny muted" style="margin-top:9px">Растёт от любого действия: тапа, файла, голосового. Рядом всегда стоит измеренное число действий — серия не требует ритуала.</p>
+      </div>
+    </div>
+
+    <div class="stack">
+      <div class="card" style="flex:1; border-color:var(--accent-deep)">
+        <div class="spread"><h3 style="font-size:17px">Процент осознанности</h3><span class="tag plus">99%</span></div>
+        <p class="tiny muted" style="margin-top:9px">
+          Метрика <b style="color:var(--ink)">качества данных</b>, а не дисциплины — как Recovery у Whoop.
+          Показывает, какая доля денег имеет установленный смысл; остальное — честно признанное незнание.
+        </p>
+        <p class="tiny dim" style="margin-top:9px">Зарплата в знаменатель не входит: 300 тысяч дохода разбавили бы любую неясность до неразличимости.</p>
+      </div>
+      <div class="card" style="flex:1">
+        <h3 style="font-size:17px">Вечерняя сводка — только когда есть что сказать</h3>
+        <p class="tiny muted" style="margin-top:9px">Есть спорные операции — приходит вопрос. Неделя отклонилась больше чем на четверть — приходит цифра. Нечего сказать — бот молчит.</p>
+        <div class="quote tiny" style="margin-top:11px; font-size:13px">Уведомление без содержания обесценивает все следующие.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="spread" style="margin-top:auto; padding-top:8px">
+    <span class="pill on">механика живёт в коде: планировщик, очередь вопросов, таблица активности</span>
+    <span class="tiny dim">кейс отдельно штрафует за механику, описанную только в презентации</span>
+  </div>
+  <aside class="notes">Кейс отдельно штрафует за механику привычки, которая описана в презентации, но отсутствует в продукте. У нас это планировщик, очередь вопросов и таблица активности. Мы никогда не пишем «не забудьте внести траты» — мы приходим с конкретным вопросом на один тап. И молчим, когда сказать нечего: пустое уведомление обесценивает все следующие.</aside>
+</section></div>
+
+<!-- ═══════════ 10. Аналитика и советы ═══════════ -->
+<div class="slot"><section class="slide">
+  <div class="kicker">Аналитика</div>
+  <h2 style="font-size:38px">Категории, сравнение, советы —<br>и ни одного придуманного числа</h2>
+
+  <div style="display:flex; gap:22px; margin-top:20px; flex:1; min-height:0">
+    <div class="stack" style="width:244px; flex:none">
+      <div class="phone" style="width:244px"><img src="img/miniapp-tips.png" alt="Экран советов в Mini App"></div>
+      <div class="card" style="border-color:var(--accent-deep); flex:1; padding:16px 18px">
+        <div class="cap accent">Правило про LLM</div>
+        <p class="tiny muted" style="margin-top:9px; font-size:13.5px">
+          Все числа считаются из проводок. Языковая модель только переписывает формулировку и <b style="color:var(--ink)">не имеет права</b> менять или выдумывать суммы.
+        </p>
+      </div>
+    </div>
+
+    <div class="stack" style="flex:1; gap:11px">
+      <div class="card" style="flex:1; padding:14px 18px">
+        <div class="spread"><h3 style="font-size:16px">Проездной выгоднее такси</h3><span class="tag plus">−533 ₽ / мес</span></div>
+        <p class="tiny muted" style="margin-top:7px; font-size:13.5px">8 поездок на 6 967,10 ₽, из них 5 коротких на 3 602,90 ₽. Проездной стоит 3 070 ₽: при такой частоте окупается.</p>
+      </div>
+      <div class="card" style="flex:1; padding:14px 18px">
+        <div class="spread"><h3 style="font-size:16px">Подписок: 4</h3><span class="tag zero">33 456 ₽ в год</span></div>
+        <p class="tiny muted" style="margin-top:7px; font-size:13.5px">iCloud, МТС, Яндекс Плюс, VK Music — 2 788 ₽ в месяц. Списываются сами, поэтому и не замечаются.</p>
+      </div>
+      <div class="card" style="flex:1; padding:14px 18px">
+        <div class="spread"><h3 style="font-size:16px">Доставка догоняет продукты</h3><span class="tag minus">22% сверху</span></div>
+        <p class="tiny muted" style="margin-top:7px; font-size:13.5px">Доставка 5 286,80 ₽ при тратах на продукты 23 924,90 ₽. Наценка съедает разницу в цене.</p>
+      </div>
+      <div class="card" style="flex:1; padding:14px 18px; border-color:var(--accent-deep)">
+        <div class="spread"><h3 style="font-size:16px">Прогноз до конца месяца</h3><span class="tag plus">149 083,30 ₽</span></div>
+        <p class="tiny muted" style="margin-top:7px; font-size:13.5px">Темп 2 346,51 ₽ в день за 20 прошедших дней. Аренда, подписки и налоги из темпа вычтены — иначе прогноз был бы завышен втрое.</p>
+      </div>
+    </div>
+
+    <div class="card flat" style="width:258px; flex:none; display:flex; flex-direction:column; padding:16px 18px">
+      <div class="cap" style="font-size:11.5px">Разрезы</div>
+      <ul class="bullets tiny" style="margin-top:10px; gap:8px">
+        <li style="font-size:13px">8 категорий, доля и дельта к августу</li>
+        <li style="font-size:13px"><b>Обязательные</b> 101 624,90 ₽</li>
+        <li style="font-size:13px"><b>Необязательные</b> 23 993,30 ₽ — ими можно управлять</li>
+        <li style="font-size:13px">Любой период: день, неделя, месяц, год</li>
+      </ul>
+      <div class="rule" style="margin:auto 0 11px"></div>
+      <div class="cap" style="font-size:11.5px">Незнакомые магазины</div>
+      <div class="tiny muted" style="font-size:12.5px; margin-top:6px">
+        «Рынок, овощи и фрукты» → <b style="color:var(--ink)">Продукты</b>. Модель спрашиваем только о том, что не взяли MCC и словарь, пачкой одним запросом; ответ сохраняем правилом — за магазин платим один раз.
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Аналитика: категории, сравнение с прошлым месяцем, деление на обязательное и необязательное, прогноз до конца периода — из темпа вычтены аренда и подписки, иначе он был бы завышен втрое. Советы — не общие слова: каждый называет конкретное действие и конкретную экономию. Все числа в них посчитаны из проводок. Языковая модель, если включена, только переписывает формулировку человеческим языком и не имеет права трогать суммы — иначе совет перестаёт быть правдой.</aside>
+</section></div>
+
+<!-- ═══════════ 11. Что работает сейчас ═══════════ -->
+<div class="slot"><section class="slide">
+  <div class="kicker">Статус</div>
+  <h2 style="font-size:40px">Что работает прямо сейчас</h2>
+
+  <div class="cols c2" style="margin-top:26px; flex:1; min-height:0">
+    <div class="stack">
+      <div class="card" style="flex:1">
+        <h3 style="font-size:17px">Продукт</h3>
+        <ul class="bullets tiny" style="margin-top:12px; gap:9px">
+          <li style="font-size:14px"><b>Telegram-бот</b> — 10 команд: отчёты за любой период, очередь вопросов, советы, прогноз, <b>/checkup</b></li>
+          <li style="font-size:14px"><b>Mini App</b> — главный экран, вопросы в один тап, итоги месяца</li>
+          <li style="font-size:14px"><b>Четыре входа</b> — выписка, скриншот, фото чека, голосовое. Ручного занесения нет</li>
+          <li style="font-size:14px"><b>HTTP API</b> — 13 эндпоинтов, бот и Mini App живут на одном слое сценариев</li>
+          <li style="font-size:14px"><b>Задеплоено</b> — один процесс, <span class="mono">docker compose up</span>, том с базой переживает пересборку</li>
+        </ul>
+      </div>
+      <div class="card flat">
+        <div class="spread" style="align-items:flex-end">
+          <div class="stat"><div class="v mono">104</div><div class="l">операции в демо-наборе<br>за 3 месяца</div></div>
+          <div class="stat"><div class="v mono">4</div><div class="l">источника: Т-Банк, Альфа,<br>Wildberries, голос</div></div>
+          <div class="stat"><div class="v mono accent">7/7</div><div class="l">сценариев кейса<br>внутри набора</div></div>
+        </div>
+        <div class="tiny dim" style="margin-top:12px">Кейс просит от 50 операций. Набор служит одновременно тестовыми данными и материалом демонстрации.</div>
+      </div>
+    </div>
+
+    <div class="stack">
+      <div class="card" style="flex:1; border-color:var(--accent-deep)">
+        <h3 style="font-size:17px">Модели выбраны замером, а не наугад</h3>
+        <div class="ledger" style="margin-top:11px; font-size:13.5px">
+          <div class="row"><span class="muted"><b style="color:var(--ink)">Скриншот банка</b> — операции с датами</span><span class="accent">8 из 8 за 6 с</span></div>
+          <div class="row"><span class="muted"><b style="color:var(--ink)">Фото чека</b> — тот же вызов решает, что это</span><span class="accent">без выбора</span></div>
+          <div class="row"><span class="muted"><b style="color:var(--ink)">Голос</b> — «Кофе 300 ₽», сразу с валютой</span><span class="accent">1,5 с</span></div>
+        </div>
+        <div class="rule" style="margin:12px 0"></div>
+        <p class="tiny muted"><span class="mono">scripts/bench_vision.py</span> гоняет 8 кандидатов через настоящий код разбора и сравнивает с эталоном — меряется весь путь, включая промпт. Для речи так же: <span class="mono">gigaam-v3</span> против whisper на русском.</p>
+      </div>
+      <div class="card" style="flex:1">
+        <h3 style="font-size:17px">Если модель отвалится</h3>
+        <ul class="bullets tiny" style="margin-top:11px; gap:9px">
+          <li style="font-size:14px">Цепочка запасных моделей для зрения и для распознавания речи — переключение по конфигу</li>
+          <li style="font-size:14px">Без LLM продукт не падает: классификация работает на эвристиках по суммам, времени и контрагентам</li>
+          <li style="font-size:14px">На случай 152-ФЗ — вариант с моделью, которая хранит данные в РФ</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Работает сейчас: бот, Mini App и API в одном процессе, поднимается одной командой, база в отдельном томе. Модели выбраны замером: восемь кандидатов прогнаны через настоящий код разбора, победитель достаёт восемь операций из восьми за шесть секунд. Тот же вызов отличает чек от скриншота, и пользователь ничего не выбирает. Для речи так же — gigaam полторы секунды и сразу пишет «300 рублей» цифрами. Есть цепочка запасных моделей, без LLM продукт продолжает работать на эвристиках, и есть вариант с хранением данных в РФ.</aside>
+</section></div>
+
+<!-- ═══════════ 12. Что дальше ═══════════ -->
+<div class="slot"><section class="slide">
+  <div class="kicker">Дальше</div>
+  <h2 style="font-size:40px">Что дальше</h2>
+
+  <div class="cols c2" style="margin-top:28px; margin-bottom:18px; flex:1; min-height:0; gap:18px">
+    <div class="card">
+      <div class="spread"><h3>Групповые траты между пользователями</h3><span class="tag zero">план</span></div>
+      <p class="tiny muted" style="margin-top:9px">Сейчас счёт за компанию считается на стороне одного человека. Дальше — общий счёт на двоих и больше: один платит, у остальных доля появляется автоматически.</p>
+    </div>
+    <div class="card">
+      <div class="spread"><h3>Цель на период</h3><span class="tag zero">план</span></div>
+      <p class="tiny muted" style="margin-top:9px">Прогноз уже работает — «при таком темпе выйдет 149 083,30 ₽». Следующий шаг: назвать желаемую цифру и получать сигнал, когда темп от неё уходит.</p>
+    </div>
+    <div class="card" style="border-color:var(--accent-deep)">
+      <div class="spread"><h3>Импорт из нескольких банков без дублей</h3><span class="tag plus">частично есть</span></div>
+      <p class="tiny muted" style="margin-top:9px">Уже работает: один платёж, присланный скриншотом и потом пришедший в выписке, засчитывается один раз, а ответ пользователя переезжает на точную запись. Дальше — межбанковские дубли и частичные совпадения.</p>
+    </div>
+    <div class="card">
+      <div class="spread"><h3>Позиции чека в аналитику</h3><span class="tag plus">чек уже читаем</span></div>
+      <p class="tiny muted" style="margin-top:9px">Сейчас чек разбирается в одну трату, состав уходит в описание. Дальше — позиции отдельными строками: видно не «магазин 3 400», а что именно в этих трёх тысячах четырёхстах.</p>
+    </div>
+  </div>
+
+  <div class="card flat">
+    <div class="spread" style="align-items:center">
+      <div>
+        <div style="font-size:21px; font-weight:700; letter-spacing:-.02em">Считаем не сколько списалось, а сколько вы потратили.</div>
+        <div class="tiny dim" style="margin-top:6px">CU@Hack · кейс 3 · «Честный месяц»</div>
+      </div>
+      <div style="display:flex; gap:9px">
+        <span class="pill on">спасибо</span>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Что дальше. Групповые траты между несколькими пользователями и цель на период — прогноз под неё уже готов. Дедупликация между банками частично работает уже сейчас: платёж из скриншота и тот же платёж из выписки засчитываются один раз. И позиции чека отдельными строками: сам чек мы уже читаем, но состав пока уходит в описание, а не в категории. Спасибо, готовы показать вживую.</aside>
+</section></div>
+
+</div><!-- /#stage -->
+
+<div id="notes"><div class="hd">Заметки докладчику</div><div class="bd" id="notesBody"></div></div>
+<div id="hint">← → листать · Esc обзор · N заметки · F во весь экран</div>
+
+<script>
+(function(){
+  'use strict';
+  var stage = document.getElementById('stage');
+  var slots = Array.prototype.slice.call(document.querySelectorAll('.slot'));
+  var notesBox = document.getElementById('notes');
+  var notesBody = document.getElementById('notesBody');
+  var hint = document.getElementById('hint');
+  var i = 0, overview = false;
+
+  // номера слайдов
+  slots.forEach(function(slot, n){
+    var s = slot.querySelector('.slide');
+    s.setAttribute('data-num', (n + 1 < 10 ? '0' : '') + (n + 1) + ' / ' + slots.length);
+    slot.addEventListener('click', function(){
+      if (overview) { i = n; setOverview(false); render(); }
+    });
+  });
+
+  // --k масштабирует сцену под окно; --ov — миниатюры в режиме обзора.
+  // Обе величины безразмерные, поэтому считаются здесь, а не в calc().
+  function fit(){
+    // Открытые заметки забирают низ экрана — сцена ужимается, чтобы слайд
+    // остался виден целиком, а не уехал под панель.
+    var reserved = document.body.classList.contains('notes-on') ? notesBox.offsetHeight : 0;
+    var availH = Math.max(200, window.innerHeight - reserved);
+    stage.style.top = (availH / 2) + 'px';
+    stage.style.setProperty('--k', Math.min(window.innerWidth / 1280, availH / 720));
+    var cols = window.innerWidth < 900 ? 2 : (window.innerWidth < 1300 ? 3 : 4);
+    stage.style.setProperty('grid-template-columns', 'repeat(' + cols + ',max-content)');
+    var avail = window.innerWidth - 80 - 22 * (cols - 1);
+    stage.style.setProperty('--ov', Math.max(0.08, avail / cols / 1280));
+  }
+
+  function render(){
+    slots.forEach(function(slot, n){ slot.classList.toggle('active', n === i); });
+    var note = slots[i].querySelector('.notes');
+    notesBody.textContent = note ? note.textContent.trim() : '';
+    if (!overview) fit();
+    if (overview) {
+      slots[i].scrollIntoView({block: 'nearest'});
+    }
+    if (location.hash !== '#' + (i + 1)) {
+      history.replaceState(null, '', '#' + (i + 1));
+    }
+  }
+
+  function go(d){
+    var next = i + d;
+    if (next < 0 || next >= slots.length) return;
+    i = next; render();
+  }
+
+  function setOverview(on){
+    overview = on;
+    document.body.classList.toggle('overview', on);
+    if (!on) fit();
+  }
+
+  document.addEventListener('keydown', function(e){
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    var c = e.code;
+    if (c === 'ArrowRight' || c === 'ArrowDown' || c === 'Space' || c === 'PageDown' || c === 'Enter') {
+      if (c === 'Enter' && overview) { setOverview(false); render(); e.preventDefault(); return; }
+      go(1); e.preventDefault();
+    } else if (c === 'ArrowLeft' || c === 'ArrowUp' || c === 'PageUp' || c === 'Backspace') {
+      go(-1); e.preventDefault();
+    } else if (c === 'Home') {
+      i = 0; render(); e.preventDefault();
+    } else if (c === 'End') {
+      i = slots.length - 1; render(); e.preventDefault();
+    } else if (c === 'Escape') {
+      setOverview(!overview); render(); e.preventDefault();
+    } else if (c === 'KeyN') {
+      document.body.classList.toggle('notes-on'); fit(); e.preventDefault();
+    } else if (c === 'KeyF') {
+      if (document.fullscreenElement) { document.exitFullscreen(); }
+      else if (document.documentElement.requestFullscreen) { document.documentElement.requestFullscreen(); }
+      e.preventDefault();
+    }
+  });
+
+  window.addEventListener('resize', fit);
+
+  // клик по правой/левой половине экрана — вперёд/назад
+  document.addEventListener('click', function(e){
+    if (overview) return;
+    if (e.target.closest('#notes')) return;
+    go(e.clientX > window.innerWidth * 0.32 ? 1 : -1);
+  });
+
+  // свайп на тачскрине
+  var x0 = null;
+  document.addEventListener('touchstart', function(e){ x0 = e.touches[0].clientX; }, {passive: true});
+  document.addEventListener('touchend', function(e){
+    if (x0 === null) return;
+    var dx = e.changedTouches[0].clientX - x0;
+    if (Math.abs(dx) > 45) go(dx < 0 ? 1 : -1);
+    x0 = null;
+  }, {passive: true});
+
+  var start = parseInt((location.hash || '').slice(1), 10);
+  if (start >= 1 && start <= slots.length) i = start - 1;
+
+  fit();
+  render();
+  setTimeout(function(){ hint.classList.add('hide'); }, 5000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+﻿datetime,bank,card,amount,currency,mcc,counterparty,description
+2026-09-08 11:21:00,Wildberries,,6000.00,RUB,,Сергей К.,Пополнение с карты Т-Банк
+2026-09-10 16:44:00,Wildberries,,-2300.00,RUB,5411,WILDBERRIES,"Продукты питания, заказ 8812"
+2026-09-12 18:10:00,Wildberries,,-3100.00,RUB,5722,WILDBERRIES,"Чайник электрический, заказ 8977"

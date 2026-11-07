@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ru" data-concept="private-bank" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Честный месяц — Приватный банк</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f7f5f0;
+  --bg-deep:#ece8e0;
+  --panel:#ffffff;
+  --panel-2:#f3f1ea;
+  --rule:#ddd8cc;
+  --rule-soft:#e8e4da;
+  --text:#161b22;
+  --muted:#5d6675;
+  --hint:#8a93a1;
+  --gold:#8d6c16;
+  --gold-2:#b28c26;
+  --gold-soft:rgba(141,108,22,.10);
+  --green:#2f7a52;
+  --rose:#a83b46;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{background:var(--bg-deep);color:var(--text);overflow-x:hidden;
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;line-height:1.45;
+  -webkit-font-smoothing:antialiased}
+.phone{max-width:430px;margin:0 auto;min-height:100vh;background:var(--bg);padding:0 16px 44px;overflow-x:hidden}
+.serif{font-family:'Cormorant Garamond',Georgia,serif}
+.tab{font-variant-numeric:tabular-nums lining-nums}
+.kicker{font-size:9.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--gold);font-weight:600}
+.kicker.muted{color:var(--hint)}
+
+.masthead{display:flex;align-items:center;gap:10px;padding:16px 0 12px;border-bottom:1px solid var(--rule)}
+.crest{width:30px;height:30px;border:1px solid var(--gold);border-radius:3px;display:grid;place-items:center;
+  color:var(--gold);font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:600}
+.masthead .nm{font-family:'Cormorant Garamond',serif;font-size:19px;letter-spacing:.06em;font-weight:500}
+.masthead .sub{font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--hint);margin-top:-2px}
+.masthead .sp{flex:1}
+.masthead button{background:none;border:1px solid var(--rule);color:var(--muted);border-radius:3px;
+  width:28px;height:28px;font:inherit;font-size:12px;cursor:pointer}
+
+.statement{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--rule-soft);
+  font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--hint)}
+
+/* gauge */
+.gauge-wrap{text-align:center;padding:24px 0 6px;position:relative}
+.gauge{position:relative;width:268px;height:214px;margin:0 auto;overflow:hidden}
+.gauge svg{display:block}
+.gauge .in{position:absolute;left:0;right:0;top:34px;display:flex;flex-direction:column;align-items:center}
+.gauge .val{font-family:'Cormorant Garamond',serif;font-size:92px;font-weight:300;line-height:.9;letter-spacing:-.02em;
+  color:var(--text)}
+.gauge .val i{font-style:normal;font-size:30px;color:var(--gold);vertical-align:super;margin-left:2px}
+.gauge .cap{margin-top:10px;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);max-width:170px;text-align:center}
+.gauge .delta{margin-top:11px;font-size:11px;color:var(--gold);border-top:1px solid var(--gold-soft);padding-top:8px;max-width:150px;text-align:center}
+.gauge .ends{position:absolute;bottom:14px;left:16px;right:16px;display:flex;justify-content:space-between;
+  font-size:9.5px;color:var(--hint);letter-spacing:.1em}
+.summary{display:flex;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);margin-top:4px}
+.summary div{flex:1;padding:12px 8px;text-align:center}
+.summary div + div{border-left:1px solid var(--rule-soft)}
+.summary .k{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--hint)}
+.summary .v{font-size:14.5px;font-weight:500;margin-top:5px}
+.summary .v.g{color:var(--gold)}
+
+/* sections */
+.sec{margin-top:26px}
+.sec-h{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+.sec-h h2{margin:0;font-family:'Cormorant Garamond',serif;font-size:21px;font-weight:500;letter-spacing:.01em}
+.sec-h .line{flex:1;height:1px;background:var(--rule)}
+.sec-h .n{font-size:10px;color:var(--hint);letter-spacing:.14em;text-transform:uppercase}
+
+table{width:100%;border-collapse:collapse}
+th{font-size:8.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--hint);font-weight:600;
+  text-align:right;padding:0 0 8px;border-bottom:1px solid var(--rule)}
+th:first-child{text-align:left}
+td{padding:9px 0;border-bottom:1px solid var(--rule-soft);font-size:13px;text-align:right;vertical-align:middle}
+td:first-child{text-align:left}
+tr:last-child td{border-bottom:0}
+.nm-cell{display:flex;align-items:center;gap:9px}
+.nm-cell .e{font-size:14px;width:18px;text-align:center}
+.nm-cell .t{font-weight:400}
+.nm-cell .tag{font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--hint);
+  border:1px solid var(--rule);border-radius:2px;padding:1px 4px;margin-left:2px}
+td.sum{font-weight:600;letter-spacing:-.01em}
+td.share{color:var(--muted);font-size:12px;width:44px}
+td.delta{font-size:11.5px;width:74px}
+.delta.up{color:var(--rose)} .delta.down{color:var(--green)} .delta.flat{color:var(--hint)}
+.rowbar{height:2px;background:var(--rule);margin-top:5px;position:relative}
+.rowbar i{display:block;height:100%;background:var(--gold)}
+
+/* open items */
+.item{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--rule-soft)}
+.item:last-child{border-bottom:0}
+.item .t{font-size:13px}
+.item .h{font-size:10.5px;color:var(--hint);margin-top:2px}
+.item .v{font-size:13.5px;font-weight:600;color:var(--gold);white-space:nowrap}
+
+/* discipline */
+.disc{display:flex;align-items:center;gap:14px;border:1px solid var(--rule);padding:14px;background:var(--panel)}
+.disc .n{font-family:'Cormorant Garamond',serif;font-size:46px;line-height:.85;font-weight:400;color:var(--gold)}
+.disc .t{font-size:12.5px}
+.disc .s{font-size:10.5px;color:var(--hint);margin-top:3px;letter-spacing:.02em}
+.pips{display:flex;gap:4px;margin-top:14px;align-items:center}
+.pips i{flex:1;height:14px;border:1px solid var(--rule);transform:skewX(-18deg);display:block}
+.pips i.on{background:var(--gold);border-color:var(--gold)}
+.pips i.today{background:var(--gold-2);border-color:var(--gold-2);box-shadow:0 0 0 1px var(--gold-soft)}
+.disc-foot{display:flex;justify-content:space-between;margin-top:10px;font-size:10px;color:var(--hint);
+  letter-spacing:.1em;text-transform:uppercase}
+
+/* enquiry cards */
+.enq{border:1px solid var(--gold-soft);background:var(--panel);margin-bottom:12px;transition:.3s ease}
+.enq.gone{opacity:0;transform:translateY(-8px);margin-bottom:-160px;pointer-events:none}
+.enq .bar{display:flex;align-items:center;gap:8px;background:var(--gold-soft);padding:7px 12px;
+  font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--gold)}
+.enq .bar .sp{flex:1}
+.enq .body{padding:14px 12px 13px}
+.enq .line1{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  padding-bottom:9px;border-bottom:1px solid var(--rule-soft)}
+.enq .who{font-size:14px;font-weight:500}
+.enq .meta{font-size:10.5px;color:var(--hint);margin-top:2px;letter-spacing:.02em}
+.enq .amt{font-size:17px;font-weight:600;white-space:nowrap}
+.enq .amt.in{color:var(--green)}
+.enq .q{font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:500;line-height:1.25;margin:12px 0 4px}
+.enq .note{font-size:11.5px;color:var(--muted);margin-bottom:13px}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rule-soft);border:1px solid var(--rule-soft)}
+.opts button{background:var(--panel);border:0;padding:12px 8px;font:inherit;font-size:12px;color:var(--text);
+  cursor:pointer;display:flex;align-items:center;gap:7px;transition:.15s;text-align:left}
+.opts button:hover{background:var(--gold-soft);color:var(--gold)}
+.opts button .e{font-size:13px}
+.opts.seg{display:flex;gap:0}
+.opts.seg button{flex:1;justify-content:center;font-size:15px;font-weight:500;font-variant-numeric:tabular-nums}
+.opts.seg button.sugg{background:var(--gold);color:#12151a;font-weight:600}
+.link-more{display:block;width:100%;background:none;border:0;border-top:1px solid var(--rule-soft);margin-top:10px;
+  padding:10px 0 0;font:inherit;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--hint);
+  cursor:pointer;text-align:left}
+.link-more:hover{color:var(--gold)}
+.enq-empty{border:1px solid var(--rule);padding:22px 14px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.6}
+.enq-empty .s{font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--gold);display:block;margin-bottom:6px}
+
+/* headline sums */
+.headline{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;border-bottom:1px solid var(--rule);padding-bottom:14px}
+.headline .big{font-family:'Cormorant Garamond',serif;font-size:44px;font-weight:400;line-height:.95;letter-spacing:-.01em}
+.headline .k{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--hint);margin-bottom:6px}
+.headline .r{text-align:right;font-size:11.5px;color:var(--muted);line-height:1.7}
+.headline .r b{color:var(--text);font-weight:600}
+.ratio{display:flex;margin-top:14px;height:1px;background:var(--rule)}
+.ratio-row{display:flex;justify-content:space-between;margin-top:14px;gap:10px}
+.ratio-row .c{flex:1;border-left:2px solid var(--gold);padding-left:10px}
+.ratio-row .c.alt{border-left-color:var(--rule)}
+.ratio-row .k{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--hint)}
+.ratio-row .v{font-size:16px;font-weight:600;margin-top:4px}
+.ratio-row .p{font-size:10.5px;color:var(--muted);margin-top:2px}
+
+/* advice */
+.adv{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--rule-soft)}
+.adv:last-child{border-bottom:0}
+.adv .num{font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--gold);line-height:1;width:22px;flex:0 0 22px}
+.adv .t{font-size:13.5px;font-weight:500}
+.adv .d{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.55}
+.adv .g{font-size:11px;color:var(--gold);margin-top:7px;letter-spacing:.06em}
+.sign{margin-top:28px;padding-top:14px;border-top:1px solid var(--rule);display:flex;justify-content:space-between;
+  font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--hint)}
+.summary .v,.item .v,.enq .amt,.headline .big,.ratio-row .v,td.sum,td.delta,.adv .g{white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="phone" id="app"></div>
+<script>
+const DATA = {
+  period:{ title:"Сентябрь 2026", ref:"Выписка № 09/26", daysPassed:20, daysTotal:30 },
+  money:{ spent:125618, income:301240, deltaPrev:9620, turnover:426858, unclear:4700 },
+  awareness:{ percent:99, prev:94, gaps:[
+    { title:"Поступления без объяснения", amount:500,  hint:"1 операция · перевод от К. Н." },
+    { title:"Расходы вне категорий",      amount:1200, hint:"3 операции" },
+    { title:"Наличные без назначения",    amount:3000, hint:"снятие 05.09.2026" }
+  ]},
+  streak:{ current:12, record:18, nextReward:14, rewardName:"Статус «Две недели точности»",
+    days:[{on:false},{on:false},{on:true},{on:true},{on:true},{on:true},{on:true},
+          {on:true},{on:true},{on:true},{on:true},{on:true},{on:true},{on:true,today:true}] },
+  disputes:[
+    { id:"d1", ref:"Запрос 1 из 2", who:"Катя Н.", meta:"18.09.2026 · входящий перевод СБП", amount:500, dir:"in",
+      q:"Катя Н. перевела 500 ₽. Как классифицировать?", note:"Назначение платежа: «за обед». От дохода это отличается принципиально.",
+      options:[{e:"🍽",t:"Вернула свою долю"},{e:"🤝",t:"Вернула долг"},{e:"🎁",t:"Подарок"},{e:"💰",t:"Это доход"}] },
+    { id:"d2", ref:"Запрос 2 из 2", who:"White Rabbit", meta:"14.09.2026 · оплата картой ·8842", amount:8000, dir:"out",
+      q:"Счёт на 8 ⁠000 ₽ разделён на какое число гостей?", note:"Принято по умолчанию: 5 гостей, ваша доля — 1 ⁠600 ₽.",
+      numeric:true, options:[{t:"2"},{t:"3"},{t:"4"},{t:"5",sugg:true}], more:"Указать другое число гостей" }
+  ],
+  categories:[
+    { e:"🏠", n:"Жильё и ЖКХ",     a:76800, s:61, d:0,     must:true },
+    { e:"🛒", n:"Продукты",         a:22725, s:18, d:1240,  must:true },
+    { e:"🚕", n:"Такси",            a:6967,  s:6,  d:1980,  must:false },
+    { e:"🍽", n:"Кафе и рестораны", a:6360,  s:5,  d:-2100, must:false },
+    { e:"🛵", n:"Доставка еды",     a:5287,  s:4,  d:640,   must:false },
+    { e:"🪑", n:"Товары для дома",  a:3100,  s:2,  d:1500,  must:false },
+    { e:"🔁", n:"Подписки",         a:1888,  s:2,  d:0,     must:false },
+    { e:"❔", n:"Прочее",           a:1200,  s:1,  d:-420,  must:false },
+    { e:"📶", n:"Связь",            a:900,   s:1,  d:0,     must:true }
+  ],
+  split:{ mandatory:100425, optional:25193, optionalShare:20 },
+  tips:[
+    { t:"Транспорт: проездной вместо такси", d:"8 поездок в сентябре — 6 ⁠967 ₽. Месячный проездной покрывает те же маршруты за 3 ⁠070 ₽.", gain:3897 },
+    { t:"Подписки: две позиции без использования", d:"749 ₽ из 1 ⁠888 ₽ списаны за сервисы, не открывавшиеся с июля. Рекомендуем отменить.", gain:749 },
+    { t:"Доставка: пересмотреть частоту", d:"11 заказов на 5 ⁠287 ₽ при среднем чеке 481 ₽ — наценка к магазину около 80%.", gain:2100 }
+  ],
+  facts:{ actionsPerDay:1.4, owed:0, cash:3000 }
+};
+
+const TH = " ";
+const num = n => Math.round(n).toLocaleString("ru-RU").replace(/[\s ]/g, TH + "⁠");
+const money = n => num(n) + TH + "₽";
+const signed = n => (n > 0 ? "+" : "−") + num(Math.abs(n)) + TH + "₽";
+const el = h => { const t = document.createElement("template"); t.innerHTML = h.trim(); return t.content.firstElementChild; };
+try{ const t = new URLSearchParams(location.search).get("theme");
+
+const app = document.getElementById("app");
+const state = { awareness: DATA.awareness.percent, open: DATA.disputes.map(d => d.id) };
+const R = 112, C = 2 * Math.PI * R, SWEEP = 0.75;
+
+function gauge(p){
+  let ticks = "";
+  for (let i = 0; i <= 30; i++){
+    const frac = i / 30;
+    const ang = (135 + frac * 270) * Math.PI / 180;
+    const r1 = 104, r2 = (i % 5 === 0) ? 93 : 97;
+    const x1 = 134 + Math.cos(ang) * r1, y1 = 134 + Math.sin(ang) * r1;
+    const x2 = 134 + Math.cos(ang) * r2, y2 = 134 + Math.sin(ang) * r2;
+    const lit = frac * 100 <= p;
+    ticks += '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) +
+      '" stroke="' + (lit ? "var(--gold)" : "var(--rule)") + '" stroke-width="' + (i % 5 === 0 ? 1.2 : .7) + '"/>';
+  }
+  return '<svg width="268" height="268" viewBox="0 0 268 268" style="margin-top:-2px" aria-hidden="true">' +
+    '<g transform="rotate(135 134 134)">' +
+      '<circle cx="134" cy="134" r="' + R + '" fill="none" stroke="var(--rule)" stroke-width="1.5" ' +
+        'stroke-dasharray="' + (C * SWEEP).toFixed(1) + " " + C.toFixed(1) + '"/>' +
+      '<circle id="arc" cx="134" cy="134" r="' + R + '" fill="none" stroke="var(--gold)" stroke-width="4" ' +
+        'stroke-linecap="butt" stroke-dasharray="0 ' + C.toFixed(1) + '" ' +
+        'data-target="' + (C * SWEEP * p / 100).toFixed(1) + " " + C.toFixed(1) + '" ' +
+        'style="transition:stroke-dasharray 1.2s cubic-bezier(.25,.9,.2,1)"/>' +
+    "</g>" + ticks + "</svg>";
+}
+
+function render(){
+  const d = DATA;
+  app.innerHTML = `
+  <div class="masthead">
+    <div class="crest">Ч</div>
+    <div><div class="nm">Честный месяц</div><div class="sub">Private tracking</div></div>
+    <div class="sp"></div>
+  </div>
+  <div class="statement"><span>${d.period.ref}</span><span>${d.period.title}</span><span>${d.period.daysPassed}/${d.period.daysTotal} дней</span></div>
+
+  <div class="gauge-wrap">
+    <div class="kicker">Индекс осознанности</div>
+    <div class="gauge">${gauge(state.awareness)}
+      <div class="in">
+        <div class="val"><span id="ringVal">${state.awareness}</span><i>%</i></div>
+        <div class="cap">оборота объяснено</div>
+        <div class="delta">+${state.awareness - d.awareness.prev} п.п. к августу</div>
+      </div>
+      <div class="ends"><span>0</span><span>100</span></div>
+    </div>
+  </div>
+
+  <div class="summary">
+    <div><div class="k">Оборот</div><div class="v tab">${money(d.money.turnover)}</div></div>
+    <div><div class="k">Без объяснения</div><div class="v g tab" id="unclearVal">${money(d.money.unclear)}</div></div>
+    <div><div class="k">Действий в день</div><div class="v tab">${String(d.facts.actionsPerDay).replace(".", ",")}</div></div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h"><h2>Открытые позиции</h2><span class="line"></span><span class="n">3 пункта</span></div>
+    <div id="gaps"></div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h"><h2>Дисциплина</h2><span class="line"></span><span class="n">Серия дней</span></div>
+    <div class="disc">
+      <div class="n tab">${d.streak.current}</div>
+      <div style="flex:1">
+        <div class="t">дней подряд с разобранными операциями</div>
+        <div class="s">Личный рекорд — ${d.streak.record}. Прерывать не рекомендуется.</div>
+      </div>
+    </div>
+    <div class="pips">${d.streak.days.map(x =>
+      '<i class="' + (x.on ? "on" : "") + " " + (x.today ? "today" : "") + '"></i>').join("")}</div>
+    <div class="disc-foot"><span>7 — 20 сентября</span><span>${d.streak.rewardName} · ${d.streak.current}/${d.streak.nextReward}</span></div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h"><h2>Требуется решение</h2><span class="line"></span><span class="n" id="qCount">${d.disputes.length} запроса</span></div>
+    <div id="queue"></div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h"><h2>Расходы месяца</h2><span class="line"></span><span class="n">${signed(d.money.deltaPrev)} к августу</span></div>
+    <div class="headline">
+      <div><div class="k">Итого потрачено</div><div class="big tab">${money(d.money.spent)}</div></div>
+      <div class="r">поступления<br><b class="tab">${money(d.money.income)}</b></div>
+    </div>
+    <div class="ratio-row">
+      <div class="c"><div class="k">Обязательные</div><div class="v tab">${money(d.split.mandatory)}</div>
+        <div class="p">${100 - d.split.optionalShare}% расходов</div></div>
+      <div class="c alt"><div class="k">Необязательные</div><div class="v tab">${money(d.split.optional)}</div>
+        <div class="p">${d.split.optionalShare}% расходов</div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h"><h2>Структура</h2><span class="line"></span><span class="n">9 категорий</span></div>
+    <table>
+      <thead><tr><th>Категория</th><th>Сумма</th><th>Доля</th><th>Δ к августу</th></tr></thead>
+      <tbody id="cats"></tbody>
+    </table>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h"><h2>Рекомендации</h2><span class="line"></span>
+      <span class="n">потенциал ${money(d.tips.reduce((s, t) => s + t.gain, 0))}</span></div>
+    <div id="tips"></div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h"><h2>Прочее</h2><span class="line"></span></div>
+    <div class="item"><div><div class="t">Вам должны</div><div class="h">после всех разделённых счетов</div></div>
+      <div class="v" style="color:var(--text)">${money(d.facts.owed)}</div></div>
+    <div class="item"><div><div class="t">Наличные на руках</div><div class="h">по расчёту снятий и трат</div></div>
+      <div class="v" style="color:var(--text)">${money(d.facts.cash)}</div></div>
+    <div class="item"><div><div class="t">Индекс осознанности в августе</div><div class="h">рост за месяц — ${d.awareness.percent - d.awareness.prev} п.п.</div></div>
+      <div class="v" style="color:var(--text)">${d.awareness.prev}%</div></div>
+  </div>
+
+  <div class="sign"><span>Честный месяц</span><span>обновлено 20.09.2026, 11:42</span></div>`;
+
+  document.getElementById("gaps").innerHTML = DATA.awareness.gaps.map(g => `
+    <div class="item"><div><div class="t">${g.title}</div><div class="h">${g.hint}</div></div>
+      <div class="v tab">${money(g.amount)}</div></div>`).join("");
+
+  const maxCat = DATA.categories[0].a;
+  document.getElementById("cats").innerHTML = DATA.categories.map(c => `
+    <tr>
+      <td><div class="nm-cell"><span class="e">${c.e}</span>
+        <span><span class="t">${c.n}</span>${c.must ? '<span class="tag">обяз.</span>' : ""}
+        <span class="rowbar" style="display:block"><i style="width:${Math.round(c.a / maxCat * 100)}%"></i></span></span></div></td>
+      <td class="sum tab">${num(c.a)}</td>
+      <td class="share tab">${c.s}%</td>
+      <td class="delta tab ${c.d > 0 ? "up" : c.d < 0 ? "down" : "flat"}">${c.d === 0 ? "—" : signed(c.d)}</td>
+    </tr>`).join("");
+
+  document.getElementById("tips").innerHTML = DATA.tips.map((t, i) => `
+    <div class="adv"><div class="num">${i + 1}</div>
+      <div><div class="t">${t.t}</div><div class="d">${t.d}</div>
+      <div class="g">Потенциальная экономия — ${money(t.gain)} в месяц</div></div></div>`).join("");
+
+  renderQueue();
+  requestAnimationFrame(() => { const a = document.getElementById("arc"); if (a) a.setAttribute("stroke-dasharray", a.dataset.target); });
+  document.getElementById("themeBtn").onclick = toggleTheme;
+}
+
+function renderQueue(){
+  const q = document.getElementById("queue");
+  q.innerHTML = "";
+  const list = DATA.disputes.filter(d => state.open.indexOf(d.id) >= 0);
+  if (!list.length){
+    q.appendChild(el('<div class="enq-empty"><span class="s">Открытых запросов нет</span>' +
+      'Все операции месяца классифицированы. Индекс осознанности достиг максимума.</div>'));
+    return;
+  }
+  list.forEach(d => {
+    const opts = d.numeric
+      ? '<div class="opts seg">' + d.options.map((o, i) => '<button class="' + (o.sugg ? "sugg" : "") + '" data-i="' + i + '">' + o.t + "</button>").join("") + "</div>" +
+        '<button class="link-more" data-i="more">' + d.more + "</button>"
+      : '<div class="opts">' + d.options.map((o, i) => '<button data-i="' + i + '"><span class="e">' + o.e + "</span><span>" + o.t + "</span></button>").join("") + "</div>";
+    const card = el(`
+      <div class="enq">
+        <div class="bar"><span>${d.ref}</span><span class="sp"></span><span>ответ в один тап</span></div>
+        <div class="body">
+          <div class="line1">
+            <div><div class="who">${d.who}</div><div class="meta">${d.meta}</div></div>
+            <div class="amt tab ${d.dir === "in" ? "in" : ""}">${d.dir === "in" ? "+" : "−"}${money(d.amount)}</div>
+          </div>
+          <div class="q">${d.q}</div>
+          <div class="note">${d.note}</div>
+          ${opts}
+        </div>
+      </div>`);
+    card.querySelectorAll("button").forEach(b => { b.onclick = () => answer(d, card, b); });
+    q.appendChild(card);
+  });
+}
+
+function answer(d, card, btn){
+  try{ if (window.Telegram && Telegram.WebApp.HapticFeedback) Telegram.WebApp.HapticFeedback.selectionChanged(); }catch(e){}
+  btn.style.background = "var(--gold)"; btn.style.color = "#12151a";
+  setTimeout(() => {
+    card.classList.add("gone");
+    setTimeout(() => {
+      state.open = state.open.filter(x => x !== d.id);
+      if (d.id === "d1") clearAmount(500);
+      renderQueue();
+      const left = state.open.length;
+      document.getElementById("qCount").textContent = left ? left + " запрос" : "решений не требуется";
+    }, 300);
+  }, 180);
+}
+
+function clearAmount(v){
+  const unclear = Math.max(0, DATA.money.unclear - v);
+  DATA.money.unclear = unclear;
+  document.getElementById("unclearVal").textContent = money(unclear);
+  const p = Math.min(100, Math.round((1 - unclear / DATA.money.turnover) * 100));
+  if (p !== state.awareness){
+    state.awareness = p;
+    document.getElementById("ringVal").textContent = p;
+    const a = document.getElementById("arc");
+    if (a) a.setAttribute("stroke-dasharray", (C * SWEEP * p / 100).toFixed(1) + " " + C.toFixed(1));
+  }
+}
+
+function toggleTheme(){
+  const now = cur ? cur : (sysDark ? "dark" : "light");
+}
+
+render();
+try{ Telegram.WebApp.ready(); Telegram.WebApp.expand(); }catch(e){}
+</script>
+</body>
+</html>

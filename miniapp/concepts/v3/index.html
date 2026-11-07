@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Честный месяц — витрина v3</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+
+:root{
+  --bg:#FBF0D9; --bg-2:#F3E4C6; --card:#FFFCF4; --card-2:#F6EDDB;
+  --ink:#1B2430; --hint:#8C8474; --rule:#E7D9BD; --stroke:#1B2430;
+  --gold:#F5B93A; --green:#4CC86A; --green-d:#2E9E55; --coral:#FF7A59; --coral-d:#DF5638;
+  --sh:0 2px 5px rgba(60,45,20,.06), 0 18px 40px -20px rgba(60,45,20,.36);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);overflow-x:hidden;
+  font-family:'Nunito',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-size:15px;font-weight:600;line-height:1.5;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(900px 480px at 8% -8%, rgba(76,200,106,.18), transparent 62%),
+    radial-gradient(700px 520px at 104% 14%, rgba(255,122,89,.15), transparent 60%),
+    radial-gradient(640px 500px at -12% 88%, rgba(245,185,58,.20), transparent 62%),
+    linear-gradient(180deg, var(--bg), var(--bg-2))}
+.wrap{position:relative;z-index:1;max-width:1220px;margin:0 auto;padding:0 20px 60px}
+
+header{padding:38px 0 8px;display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap}
+header h1{margin:0;font-size:30px;font-weight:900;letter-spacing:-.03em}
+header .sub{color:var(--hint);font-size:14px;margin-top:6px;max-width:640px}
+header .sp{flex:1}
+.tbtn{border:3px solid var(--stroke);background:var(--card);border-radius:999px;padding:7px 15px;
+  font:inherit;font-size:13px;font-weight:900;color:var(--ink);cursor:pointer;box-shadow:0 4px 0 var(--stroke)}
+.tbtn:active{transform:translateY(4px);box-shadow:none}
+
+h2.sec{font-size:12px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:var(--hint);
+  margin:46px 0 4px;padding-top:22px;border-top:2px solid var(--rule)}
+.lead{font-size:15px;color:var(--ink);max-width:760px;margin:10px 0 22px;line-height:1.6}
+.lead b{font-weight:900}
+
+/* ===== маскот ===== */
+.mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:14px}
+.mcell{background:var(--card);border:3px solid var(--stroke);border-radius:22px;padding:8px 12px 14px;
+  box-shadow:0 5px 0 var(--stroke);text-align:center}
+.mcell .stagebox{position:relative;border-radius:16px;background:linear-gradient(170deg,#56D077,#31A85A);
+  padding:4px;margin-bottom:10px;overflow:hidden}
+.mcell .stagebox:before{content:"";position:absolute;inset:0;opacity:.14;
+  background-image:radial-gradient(#0F2417 1.4px,transparent 1.6px);background-size:20px 20px}
+.mcell button.m{display:block;width:100%;aspect-ratio:1/1;background:none;border:0;padding:0;cursor:pointer;
+  position:relative;z-index:1}
+.mcell .nm{font-size:15px;font-weight:900;letter-spacing:-.01em}
+.mcell .code{font-size:10.5px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--hint);
+  margin-top:1px}
+.mcell .ds{font-size:12px;font-weight:600;color:var(--hint);margin-top:7px;line-height:1.4}
+
+.specs{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px;margin-top:20px}
+.spec{background:var(--card-2);border-radius:16px;padding:12px 14px}
+.spec .k{font-size:10.5px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--hint)}
+.spec .v{font-size:13px;font-weight:700;margin-top:4px;line-height:1.45}
+
+/* ===== варианты ===== */
+.ctrl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 20px}
+.ctrl .lb{font-size:11px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--hint);
+  margin-right:4px}
+.ctrl button{border:2.5px solid var(--stroke);background:var(--card);border-radius:999px;padding:5px 13px;
+  font:inherit;font-size:12.5px;font-weight:800;color:var(--ink);cursor:pointer;box-shadow:0 3px 0 var(--stroke)}
+.ctrl button:active{transform:translateY(3px);box-shadow:none}
+.ctrl button.on{background:var(--green);color:#0F2417}
+
+.strip{display:flex;flex-wrap:wrap;justify-content:center;gap:30px 28px;padding:6px 2px 26px}
+.col{flex:0 0 auto;width:390px}
+.col .ti{display:flex;align-items:baseline;gap:9px;margin-bottom:5px}
+.col .ti h3{margin:0;font-size:19px;font-weight:900;letter-spacing:-.02em}
+.col .ti a{font-size:12px;font-weight:800;color:var(--green-d);text-decoration:none;margin-left:auto;
+  white-space:nowrap;border-bottom:2px solid currentColor}
+.col .ds{font-size:13px;font-weight:600;color:var(--hint);line-height:1.5;min-height:76px;margin-bottom:12px}
+.device{position:relative;width:390px;height:844px;border-radius:46px;background:var(--stroke);padding:11px;
+  box-shadow:var(--sh)}
+.device iframe{width:100%;height:100%;border:0;border-radius:36px;background:var(--bg);display:block}
+
+footer{margin-top:40px;padding-top:20px;border-top:2px solid var(--rule);font-size:12.5px;color:var(--hint);
+  line-height:1.7}
+footer code{background:var(--card-2);padding:2px 6px;border-radius:6px;font-size:11.5px}
+
+/* Готовые PNG-иконки нарисованы на белом фоне, поэтому плитка под ними
+   тоже белая в обеих темах — тогда шва не видно. */
+.ic{width:100%;height:100%;display:block;object-fit:contain}
+.icbox{display:grid;place-items:center;flex:0 0 auto;overflow:hidden}
+/* PNG заливает плитку целиком — её белый фон становится фоном плитки,
+   а форму (круг или скруглённый квадрат) задаёт сама плитка */
+.icbox:has(img.ic){padding:0;background:#FFFFFF}
+img.ic{object-fit:cover}
+
+/* ===== ДВИЖОК МАСКОТА =================================================
+   Состояния задаются классом на <svg>: s-proud s-curious s-hype s-sad
+   s-think s-party. Каждый «слой» группы отвечает за свою трансформацию,
+   чтобы анимации не перетирали друг друга.                             */
+.mas{display:block;width:100%;height:100%}
+.mas .v{display:none}
+.mas .mo{fill:none;stroke:#1B2430;stroke-width:4.6;stroke-linecap:round;stroke-linejoin:round}
+
+.m-lean,.m-bounce,.m-breath,.m-squash{transform-box:view-box;transform-origin:100px 176px}
+.m-breath{animation:m-breath 3.6s ease-in-out infinite}
+@keyframes m-breath{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-2.5px) scale(1.018)}}
+.m-lean{transition:transform .55s cubic-bezier(.34,1.5,.5,1)}
+.s-curious .m-lean{transform:rotate(-7deg)}
+.s-think   .m-lean{transform:rotate(5deg)}
+.s-sad     .m-lean{transform:translateY(8px) scale(.955)}
+.s-sad     .m-breath{animation-duration:5.4s}
+.s-hype  .m-bounce{animation:m-hop .58s cubic-bezier(.35,.9,.35,1) infinite}
+.s-party .m-bounce{animation:m-jump .78s cubic-bezier(.25,1.1,.4,1) infinite}
+.s-proud .m-bounce{animation:m-sway 4.6s ease-in-out infinite}
+@keyframes m-hop{0%,100%{transform:translateY(0)}45%{transform:translateY(-10px)}}
+@keyframes m-jump{0%,100%{transform:translateY(0) rotate(0)}28%{transform:translateY(-18px) rotate(-6deg)}
+  58%{transform:translateY(-3px) rotate(5deg)}80%{transform:translateY(-7px) rotate(-2deg)}}
+@keyframes m-sway{0%,100%{transform:rotate(-1.6deg)}50%{transform:rotate(1.6deg)}}
+
+/* реакция на тап */
+.m-squash{transform-origin:100px 178px}
+.mas.tap .m-squash{animation:m-tap .55s cubic-bezier(.3,1.4,.4,1)}
+@keyframes m-tap{0%{transform:scale(1,1)}20%{transform:scale(1.16,.84)}46%{transform:scale(.92,1.09)}
+  70%{transform:scale(1.05,.96)}100%{transform:scale(1,1)}}
+.tapring{transform-box:fill-box;transform-origin:center;opacity:0}
+.mas.tap .tapring{animation:m-ring .6s ease-out}
+@keyframes m-ring{0%{opacity:.7;transform:scale(.55)}100%{opacity:0;transform:scale(1.45)}}
+
+/* моргание */
+.eye{transform-box:fill-box;transform-origin:center;animation:m-blink 5.6s infinite}
+@keyframes m-blink{0%,92.5%,100%{transform:scaleY(1)}94%{transform:scaleY(.06)}95.6%{transform:scaleY(1)}
+  97%{transform:scaleY(.06)}98.4%{transform:scaleY(1)}}
+.pupils{transform-box:view-box;transition:transform .45s cubic-bezier(.34,1.4,.5,1)}
+.s-curious .pupils{transform:translate(4px,-2px)}
+.s-think   .pupils{transform:translate(-4.5px,-4px)}
+
+/* мимика по состояниям */
+.s-proud .e-happy,.s-party .e-happy,.s-hype .e-star,.s-sad .e-sad,
+.s-curious .e-open,.s-think .e-open{display:block}
+.s-proud .mo-grin,.s-party .mo-open,.s-hype .mo-open,.s-sad .mo-frown,
+.s-curious .mo-wave,.s-think .mo-flat{display:block}
+
+/* руки */
+.arm{transform-box:view-box;transition:transform .5s cubic-bezier(.34,1.5,.5,1)}
+.arm-l{transform-origin:50px 102px}
+.arm-r{transform-origin:150px 102px}
+.s-proud   .arm-l{transform:rotate(14deg)}  .s-proud   .arm-r{transform:rotate(-14deg)}
+.s-hype    .arm-l{transform:rotate(46deg)}  .s-hype    .arm-r{transform:rotate(-46deg)}
+.s-party   .arm-l{transform:rotate(62deg)}  .s-party   .arm-r{transform:rotate(-62deg)}
+.s-sad     .arm-l{transform:rotate(-14deg)} .s-sad     .arm-r{transform:rotate(14deg)}
+.s-curious .arm-l{transform:rotate(0deg)}   .s-curious .arm-r{transform:rotate(-14deg)}
+.s-think   .arm-l{transform:rotate(-8deg)}
+.s-curious .a-point,.s-curious .a-glass,.s-curious .a-hold,.s-think .a-chin{display:block}
+.s-curious .a-idle-r,.s-think .a-idle-r,.s-curious .a-idle-l{display:none}
+.s-think .arm-r{display:none}
+
+/* реквизит */
+.s-hype .p-flame,.s-hype .p-spark,.s-sad .p-tear,.s-party .p-conf,
+.s-curious .p-ask,.s-think .p-dots,.s-proud .p-spark{display:block}
+.p-flame .fl{transform-box:fill-box;transform-origin:50% 100%;animation:fl-flick 1.1s ease-in-out infinite}
+@keyframes fl-flick{0%,100%{transform:scaleY(1) scaleX(1)}35%{transform:scaleY(1.1) scaleX(.94)}
+  65%{transform:scaleY(.94) scaleX(1.05)}}
+.spark{transform-box:fill-box;transform-origin:center;animation:sp-twinkle 2.2s ease-in-out infinite}
+.p-spark g:nth-of-type(2) .spark{animation-delay:.6s}
+.p-spark g:nth-of-type(3) .spark{animation-delay:1.2s}
+@keyframes sp-twinkle{0%,100%{transform:scale(.15) rotate(0);opacity:0}
+  40%{transform:scale(1) rotate(40deg);opacity:1}70%{transform:scale(.55) rotate(70deg);opacity:.45}}
+.tear{transform-box:fill-box;transform-origin:center;animation:tr-drop 2.8s ease-in infinite}
+@keyframes tr-drop{0%{transform:translateY(0) scale(.25);opacity:0}16%{transform:translateY(0) scale(1);opacity:1}
+  70%{transform:translateY(28px) scale(.95);opacity:.9}86%,100%{transform:translateY(36px) scale(.2);opacity:0}}
+.conf{transform-box:fill-box;transform-origin:center;animation:cf-fall 1.6s linear infinite}
+.p-conf .conf:nth-of-type(2){animation-delay:.22s}.p-conf .conf:nth-of-type(3){animation-delay:.45s}
+.p-conf .conf:nth-of-type(4){animation-delay:.68s}.p-conf .conf:nth-of-type(5){animation-delay:.9s}
+.p-conf .conf:nth-of-type(6){animation-delay:1.1s}.p-conf .conf:nth-of-type(7){animation-delay:1.3s}
+@keyframes cf-fall{0%{transform:translateY(-8px) rotate(0);opacity:0}12%{opacity:1}
+  100%{transform:translateY(78px) rotate(320deg);opacity:0}}
+.qm{transform-box:fill-box;transform-origin:50% 100%;animation:qm-bob 1.8s ease-in-out infinite}
+@keyframes qm-bob{0%,100%{transform:translateY(0) rotate(-7deg)}50%{transform:translateY(-6px) rotate(7deg)}}
+.p-dots circle{animation:dt 1.5s ease-in-out infinite}
+.p-dots circle:nth-child(2){animation-delay:.22s}.p-dots circle:nth-child(3){animation-delay:.44s}
+@keyframes dt{0%,100%{opacity:.25}50%{opacity:1}}
+.m-shadow{transition:opacity .4s}
+.s-sad .m-shadow{opacity:.07}
+
+/* ===== уважение к prefers-reduced-motion ===== */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    animation-duration:.001ms !important; animation-iteration-count:1 !important;
+    transition-duration:.001ms !important; scroll-behavior:auto !important;
+  }
+  .p-flame .fl,.spark,.tear,.conf,.qm,.p-dots circle{opacity:1 !important}
+}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div>
+    <h1>Честный месяц — v3</h1>
+    <div class="sub">Четыре развития concept-3 на утверждённой стилистике: монетка-ревизор Грош,
+      толстый контур #1B2430, кремовый фон, зелёный и коралловый. Данные — сентябрь 2026 из рабочего бэкенда.</div>
+  </div>
+</header>
+
+<h2 class="sec">Маскот</h2>
+<div class="lead">
+  <b>Грош</b> — монетка-ревизор. Он не копит деньги и не отчитывает за траты: его работа — понимать,
+  что произошло. Каждая непонятная операция — дырка в его памяти, поэтому он и задаёт вопросы;
+  в озадаченном состоянии он достаёт лупу и показывает пальцем туда, где непонятно.
+  Чем выше осознанность, тем он спокойнее. Нажмите на любое состояние — он отреагирует на тап.
+</div>
+<div class="mgrid">
+<div class="mcell"><div class="stagebox"><button class="m" data-state="proud" aria-label="Доволен">
+<svg class="mas s-proud" viewBox="0 0 200 200" role="img" aria-label="Грош — маскот приложения">
+ <defs>
+   <clipPath id="mproud-eL"><ellipse cx="86" cy="86" rx="11.2" ry="15.2"/></clipPath>
+   <clipPath id="mproud-eR"><ellipse cx="114" cy="86" rx="11.2" ry="15.2"/></clipPath>
+   <clipPath id="mproud-sL"><ellipse cx="86" cy="88" rx="10.2" ry="13.2"/></clipPath>
+   <clipPath id="mproud-sR"><ellipse cx="114" cy="88" rx="10.2" ry="13.2"/></clipPath>
+   <clipPath id="mproud-mo"><path d="M85 106 Q100 132 115 106 Q100 114 85 106 Z"/></clipPath>
+ </defs>
+
+ <ellipse class="m-shadow" cx="100" cy="184" rx="42" ry="7.5" fill="#1B2430" opacity=".15"/>
+
+ <!-- ===== реквизит позади ===== -->
+ <g class="v p-ask">
+   <g transform="translate(168,50)"><g class="qm">
+     <circle cx="0" cy="0" r="17" fill="#FF7A59" stroke="#1B2430" stroke-width="4"/>
+     <path d="M-5.6 -6 a5.9 5.9 0 1 1 6.6 8.8 q-1.7 1.2 -1.7 3.5" fill="none" stroke="#FBF0D9" stroke-width="3.8" stroke-linecap="round"/>
+     <circle cx="-0.5" cy="10.4" r="2.5" fill="#FBF0D9"/>
+   </g></g>
+ </g>
+ <g class="v p-dots" fill="#FBF0D9" stroke="#1B2430" stroke-width="3">
+   <circle cx="152" cy="46" r="4"/><circle cx="166" cy="34" r="4.4"/><circle cx="181" cy="21" r="4.8"/>
+ </g>
+ <g class="v p-spark" fill="#F5B93A" stroke="#1B2430" stroke-width="3.4" stroke-linejoin="round">
+   <g transform="translate(30,54) scale(1.5)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+   <g transform="translate(172,52) scale(1.2)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+   <g transform="translate(158,20) scale(.95)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+ </g>
+
+ <g class="m-lean"><g class="m-bounce"><g class="m-breath"><g class="m-squash">
+
+   <!-- ===== ноги и ботинки ===== -->
+   <g class="m-legs">
+     <path d="M86 130 V160" stroke="#1B2430" stroke-width="14" stroke-linecap="round"/>
+     <path d="M114 130 V160" stroke="#1B2430" stroke-width="14" stroke-linecap="round"/>
+     <rect x="64" y="155" width="34" height="21" rx="10.5" fill="#1B2430"/>
+     <rect x="102" y="155" width="34" height="21" rx="10.5" fill="#1B2430"/>
+     <path d="M86 130 V158" stroke="#F5B93A" stroke-width="7.6" stroke-linecap="round"/>
+     <path d="M114 130 V158" stroke="#F5B93A" stroke-width="7.6" stroke-linecap="round"/>
+     <rect x="67.4" y="158.4" width="27.2" height="14.2" rx="7.1" fill="#F5B93A"/>
+     <rect x="105.4" y="158.4" width="27.2" height="14.2" rx="7.1" fill="#F5B93A"/>
+   </g>
+
+   <!-- ===== руки-шланги с варежками ===== -->
+   <g class="arm arm-l">
+     <g class="a-idle-l">
+       <path d="M50 102 C 30 108, 24 128, 38 138" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M38 138 L27 130" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="38" cy="138" r="11.5" fill="#1B2430"/>
+       <path d="M50 102 C 30 108, 24 128, 38 138" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M38 138 L27 130" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="38" cy="138" r="8.2" fill="#F5B93A"/>
+     </g>
+     <g class="v a-hold">
+       <path d="M50 104 C 32 110, 30 124, 47 128" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M47 128 L37 121" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="47" cy="128" r="11.5" fill="#1B2430"/>
+       <path d="M50 104 C 32 110, 30 124, 47 128" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M47 128 L37 121" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="47" cy="128" r="8.2" fill="#F5B93A"/>
+     </g>
+   </g>
+   <g class="arm arm-r">
+     <g class="a-idle-r">
+       <path d="M150 102 C 168 108, 173 126, 160 134" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M160 134 L170 126" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="160" cy="134" r="11.5" fill="#1B2430"/>
+       <path d="M150 102 C 168 108, 173 126, 160 134" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M160 134 L170 126" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="160" cy="134" r="8.2" fill="#F5B93A"/>
+     </g>
+     <g class="v a-point">
+       <path d="M150 102 C 164 106, 170 114, 170 122" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <circle cx="170" cy="122" r="11.5" fill="#1B2430"/>
+       <path d="M179 118 h11" stroke="#1B2430" stroke-width="12" stroke-linecap="round"/>
+       <path d="M150 102 C 164 106, 170 114, 170 122" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <circle cx="170" cy="122" r="8.2" fill="#F5B93A"/>
+       <path d="M179 118 h10" stroke="#F5B93A" stroke-width="6" stroke-linecap="round"/>
+     </g>
+   </g>
+
+   <!-- ===== монета: гурт слева + лицевая сторона ===== -->
+   <circle cx="89" cy="90" r="52" fill="#E3A526" stroke="#1B2430" stroke-width="4.4"/>
+   <path d="M47 79 A 44 44 0 0 0 47 101" fill="none" stroke="#C98E1C" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+   <circle cx="100" cy="92" r="52" fill="#F5B93A" stroke="#1B2430" stroke-width="4.4"/>
+   <circle cx="100" cy="92" r="43" fill="none" stroke="#E0A32A" stroke-width="3.4"/>
+   <circle cx="100" cy="92" r="37.5" fill="none" stroke="#E0A32A" stroke-width="2"/>
+   <circle class="tapring" cx="100" cy="92" r="52" fill="none" stroke="#FBF0D9" stroke-width="6"/>
+
+   <!-- ===== глаза ===== -->
+   <g class="v e-open">
+     <g class="eye">
+       <ellipse cx="86" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g class="pupils" clip-path="url(#mproud-eL)">
+         <ellipse cx="87" cy="89" rx="8" ry="10.6" fill="#1B2430"/>
+         <circle cx="84" cy="83.6" r="3.2" fill="#FFFDF5"/><circle cx="90.4" cy="94.6" r="1.7" fill="#FFFDF5" opacity=".8"/>
+       </g>
+     </g>
+     <g class="eye">
+       <ellipse cx="114" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g class="pupils" clip-path="url(#mproud-eR)">
+         <ellipse cx="115" cy="89" rx="8" ry="10.6" fill="#1B2430"/>
+         <circle cx="112" cy="83.6" r="3.2" fill="#FFFDF5"/><circle cx="118.4" cy="94.6" r="1.7" fill="#FFFDF5" opacity=".8"/>
+       </g>
+     </g>
+   </g>
+
+   <g class="v e-happy" fill="none" stroke="#1B2430" stroke-width="5.6" stroke-linecap="round">
+     <path d="M74 94 q12 -18 24 0"/><path d="M102 94 q12 -18 24 0"/>
+   </g>
+
+   <g class="v e-star">
+     <ellipse cx="86" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+     <ellipse cx="114" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+     <g fill="none" stroke="#1B2430" stroke-width="3.6" stroke-linecap="round">
+       <path d="M83 78 v16"/><path d="M83 78 h4.8 a4.4 4.4 0 0 1 0 8.8 H83"/><path d="M79.2 90.4 h9"/>
+       <path d="M111 78 v16"/><path d="M111 78 h4.8 a4.4 4.4 0 0 1 0 8.8 H111"/><path d="M107.2 90.4 h9"/>
+     </g>
+   </g>
+
+   <g class="v e-sad">
+     <g class="eye">
+       <ellipse cx="86" cy="88" rx="12" ry="15" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g clip-path="url(#mproud-sL)">
+         <ellipse cx="86" cy="94" rx="7.4" ry="9.4" fill="#1B2430"/>
+         <circle cx="83.4" cy="90" r="2.8" fill="#FFFDF5"/>
+         <rect x="66" y="56" width="42" height="24" fill="#1B2430" transform="rotate(-14 86 88)"/>
+       </g>
+     </g>
+     <g class="eye">
+       <ellipse cx="114" cy="88" rx="12" ry="15" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g clip-path="url(#mproud-sR)">
+         <ellipse cx="114" cy="94" rx="7.4" ry="9.4" fill="#1B2430"/>
+         <circle cx="111.4" cy="90" r="2.8" fill="#FFFDF5"/>
+         <rect x="92" y="56" width="42" height="24" fill="#1B2430" transform="rotate(14 114 88)"/>
+       </g>
+     </g>
+   </g>
+
+   <!-- ===== рот ===== -->
+   <g class="mouth">
+     <path class="v mo mo-grin" d="M91 111 q9 9 18 0"/>
+     <g class="v mo-open">
+       <path d="M85 106 Q100 132 115 106 Q100 114 85 106 Z" fill="#1B2430"/>
+       <g clip-path="url(#mproud-mo)"><ellipse cx="100" cy="124" rx="7.5" ry="6" fill="#FF7A59"/></g>
+     </g>
+     <path class="v mo mo-frown" d="M91 119 q9 -9 18 0"/>
+     <path class="v mo mo-wave" d="M90 113 q5 -6 10 0 q5 6 10 0" stroke-width="4"/>
+     <path class="v mo mo-flat" d="M92 114 q8 4 16 -1" stroke-width="4"/>
+   </g>
+
+   <!-- рука у подбородка (поверх монеты) -->
+   <g class="v a-chin">
+     <path d="M156 116 C 158 136, 140 146, 124 140" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+     <circle cx="122" cy="138" r="11.5" fill="#1B2430"/>
+     <path d="M156 116 C 158 136, 140 146, 124 140" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+     <circle cx="122" cy="138" r="8.2" fill="#F5B93A"/>
+   </g>
+
+   <!-- лупа (поверх монеты, в руке) -->
+   <g class="v a-glass">
+     <path d="M46 124 L38 104" stroke="#1B2430" stroke-width="11.5" stroke-linecap="round"/>
+     <path d="M46 124 L38 104" stroke="#C98E1C" stroke-width="5.6" stroke-linecap="round"/>
+     <circle cx="33" cy="88" r="18.5" fill="#FBF0D9" stroke="#1B2430" stroke-width="4.6"/>
+     <path d="M24 80 a12.5 12.5 0 0 1 9 -5" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+   </g>
+
+   <!-- слеза -->
+   <g class="v p-tear">
+     <path class="tear" d="M126 100 c 0 0 7 8 7 12.5 a7 7 0 0 1 -14 0 c 0 -4.5 7 -12.5 7 -12.5 Z"
+       fill="#FBF0D9" stroke="#1B2430" stroke-width="3.4" stroke-linejoin="round"/>
+   </g>
+
+   <!-- огонёк над головой -->
+   <g class="v p-flame">
+     <path class="fl" d="M100 46 C 76 34, 100 24, 90 3 C 122 12, 126 36, 100 46 Z" fill="#FF7A59" stroke="#1B2430" stroke-width="4" stroke-linejoin="round"/>
+     <path class="fl" d="M100 42 C 88 35, 99 29, 95 16 C 112 23, 113 36, 100 42 Z" fill="#F5B93A"/>
+   </g>
+
+ </g></g></g></g>
+
+ <g class="v p-conf" stroke="#1B2430" stroke-width="2.6">
+   <rect class="conf" x="22"  y="44" width="10" height="13" rx="3" fill="#4CC86A"/>
+   <rect class="conf" x="52"  y="18" width="9"  height="12" rx="3" fill="#FF7A59"/>
+   <rect class="conf" x="92"  y="4"  width="10" height="13" rx="3" fill="#F5B93A"/>
+   <rect class="conf" x="132" y="12" width="9"  height="12" rx="3" fill="#4CC86A"/>
+   <rect class="conf" x="168" y="34" width="10" height="13" rx="3" fill="#FF7A59"/>
+   <rect class="conf" x="182" y="70" width="9"  height="12" rx="3" fill="#F5B93A"/>
+   <rect class="conf" x="8"   y="84" width="9"  height="12" rx="3" fill="#4CC86A"/>
+ </g>
+</svg></button></div><div class="nm">Доволен</div><div class="code">s-proud</div><div class="ds">Осознанность высокая, непонятных денег нет. Слегка покачивается, глаза-дуги.</div></div>
+<div class="mcell"><div class="stagebox"><button class="m" data-state="curious" aria-label="Озадачен">
+<svg class="mas s-proud" viewBox="0 0 200 200" role="img" aria-label="Грош — маскот приложения">
+ <defs>
+   <clipPath id="mcurious-eL"><ellipse cx="86" cy="86" rx="11.2" ry="15.2"/></clipPath>
+   <clipPath id="mcurious-eR"><ellipse cx="114" cy="86" rx="11.2" ry="15.2"/></clipPath>
+   <clipPath id="mcurious-sL"><ellipse cx="86" cy="88" rx="10.2" ry="13.2"/></clipPath>
+   <clipPath id="mcurious-sR"><ellipse cx="114" cy="88" rx="10.2" ry="13.2"/></clipPath>
+   <clipPath id="mcurious-mo"><path d="M85 106 Q100 132 115 106 Q100 114 85 106 Z"/></clipPath>
+ </defs>
+
+ <ellipse class="m-shadow" cx="100" cy="184" rx="42" ry="7.5" fill="#1B2430" opacity=".15"/>
+
+ <!-- ===== реквизит позади ===== -->
+ <g class="v p-ask">
+   <g transform="translate(168,50)"><g class="qm">
+     <circle cx="0" cy="0" r="17" fill="#FF7A59" stroke="#1B2430" stroke-width="4"/>
+     <path d="M-5.6 -6 a5.9 5.9 0 1 1 6.6 8.8 q-1.7 1.2 -1.7 3.5" fill="none" stroke="#FBF0D9" stroke-width="3.8" stroke-linecap="round"/>
+     <circle cx="-0.5" cy="10.4" r="2.5" fill="#FBF0D9"/>
+   </g></g>
+ </g>
+ <g class="v p-dots" fill="#FBF0D9" stroke="#1B2430" stroke-width="3">
+   <circle cx="152" cy="46" r="4"/><circle cx="166" cy="34" r="4.4"/><circle cx="181" cy="21" r="4.8"/>
+ </g>
+ <g class="v p-spark" fill="#F5B93A" stroke="#1B2430" stroke-width="3.4" stroke-linejoin="round">
+   <g transform="translate(30,54) scale(1.5)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+   <g transform="translate(172,52) scale(1.2)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+   <g transform="translate(158,20) scale(.95)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+ </g>
+
+ <g class="m-lean"><g class="m-bounce"><g class="m-breath"><g class="m-squash">
+
+   <!-- ===== ноги и ботинки ===== -->
+   <g class="m-legs">
+     <path d="M86 130 V160" stroke="#1B2430" stroke-width="14" stroke-linecap="round"/>
+     <path d="M114 130 V160" stroke="#1B2430" stroke-width="14" stroke-linecap="round"/>
+     <rect x="64" y="155" width="34" height="21" rx="10.5" fill="#1B2430"/>
+     <rect x="102" y="155" width="34" height="21" rx="10.5" fill="#1B2430"/>
+     <path d="M86 130 V158" stroke="#F5B93A" stroke-width="7.6" stroke-linecap="round"/>
+     <path d="M114 130 V158" stroke="#F5B93A" stroke-width="7.6" stroke-linecap="round"/>
+     <rect x="67.4" y="158.4" width="27.2" height="14.2" rx="7.1" fill="#F5B93A"/>
+     <rect x="105.4" y="158.4" width="27.2" height="14.2" rx="7.1" fill="#F5B93A"/>
+   </g>
+
+   <!-- ===== руки-шланги с варежками ===== -->
+   <g class="arm arm-l">
+     <g class="a-idle-l">
+       <path d="M50 102 C 30 108, 24 128, 38 138" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M38 138 L27 130" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="38" cy="138" r="11.5" fill="#1B2430"/>
+       <path d="M50 102 C 30 108, 24 128, 38 138" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M38 138 L27 130" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="38" cy="138" r="8.2" fill="#F5B93A"/>
+     </g>
+     <g class="v a-hold">
+       <path d="M50 104 C 32 110, 30 124, 47 128" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M47 128 L37 121" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="47" cy="128" r="11.5" fill="#1B2430"/>
+       <path d="M50 104 C 32 110, 30 124, 47 128" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M47 128 L37 121" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="47" cy="128" r="8.2" fill="#F5B93A"/>
+     </g>
+   </g>
+   <g class="arm arm-r">
+     <g class="a-idle-r">
+       <path d="M150 102 C 168 108, 173 126, 160 134" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M160 134 L170 126" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="160" cy="134" r="11.5" fill="#1B2430"/>
+       <path d="M150 102 C 168 108, 173 126, 160 134" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M160 134 L170 126" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="160" cy="134" r="8.2" fill="#F5B93A"/>
+     </g>
+     <g class="v a-point">
+       <path d="M150 102 C 164 106, 170 114, 170 122" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <circle cx="170" cy="122" r="11.5" fill="#1B2430"/>
+       <path d="M179 118 h11" stroke="#1B2430" stroke-width="12" stroke-linecap="round"/>
+       <path d="M150 102 C 164 106, 170 114, 170 122" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <circle cx="170" cy="122" r="8.2" fill="#F5B93A"/>
+       <path d="M179 118 h10" stroke="#F5B93A" stroke-width="6" stroke-linecap="round"/>
+     </g>
+   </g>
+
+   <!-- ===== монета: гурт слева + лицевая сторона ===== -->
+   <circle cx="89" cy="90" r="52" fill="#E3A526" stroke="#1B2430" stroke-width="4.4"/>
+   <path d="M47 79 A 44 44 0 0 0 47 101" fill="none" stroke="#C98E1C" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+   <circle cx="100" cy="92" r="52" fill="#F5B93A" stroke="#1B2430" stroke-width="4.4"/>
+   <circle cx="100" cy="92" r="43" fill="none" stroke="#E0A32A" stroke-width="3.4"/>
+   <circle cx="100" cy="92" r="37.5" fill="none" stroke="#E0A32A" stroke-width="2"/>
+   <circle class="tapring" cx="100" cy="92" r="52" fill="none" stroke="#FBF0D9" stroke-width="6"/>
+
+   <!-- ===== глаза ===== -->
+   <g class="v e-open">
+     <g class="eye">
+       <ellipse cx="86" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g class="pupils" clip-path="url(#mcurious-eL)">
+         <ellipse cx="87" cy="89" rx="8" ry="10.6" fill="#1B2430"/>
+         <circle cx="84" cy="83.6" r="3.2" fill="#FFFDF5"/><circle cx="90.4" cy="94.6" r="1.7" fill="#FFFDF5" opacity=".8"/>
+       </g>
+     </g>
+     <g class="eye">
+       <ellipse cx="114" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g class="pupils" clip-path="url(#mcurious-eR)">
+         <ellipse cx="115" cy="89" rx="8" ry="10.6" fill="#1B2430"/>
+         <circle cx="112" cy="83.6" r="3.2" fill="#FFFDF5"/><circle cx="118.4" cy="94.6" r="1.7" fill="#FFFDF5" opacity=".8"/>
+       </g>
+     </g>
+   </g>
+
+   <g class="v e-happy" fill="none" stroke="#1B2430" stroke-width="5.6" stroke-linecap="round">
+     <path d="M74 94 q12 -18 24 0"/><path d="M102 94 q12 -18 24 0"/>
+   </g>
+
+   <g class="v e-star">
+     <ellipse cx="86" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+     <ellipse cx="114" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+     <g fill="none" stroke="#1B2430" stroke-width="3.6" stroke-linecap="round">
+       <path d="M83 78 v16"/><path d="M83 78 h4.8 a4.4 4.4 0 0 1 0 8.8 H83"/><path d="M79.2 90.4 h9"/>
+       <path d="M111 78 v16"/><path d="M111 78 h4.8 a4.4 4.4 0 0 1 0 8.8 H111"/><path d="M107.2 90.4 h9"/>
+     </g>
+   </g>
+
+   <g class="v e-sad">
+     <g class="eye">
+       <ellipse cx="86" cy="88" rx="12" ry="15" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g clip-path="url(#mcurious-sL)">
+         <ellipse cx="86" cy="94" rx="7.4" ry="9.4" fill="#1B2430"/>
+         <circle cx="83.4" cy="90" r="2.8" fill="#FFFDF5"/>
+         <rect x="66" y="56" width="42" height="24" fill="#1B2430" transform="rotate(-14 86 88)"/>
+       </g>
+     </g>
+     <g class="eye">
+       <ellipse cx="114" cy="88" rx="12" ry="15" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g clip-path="url(#mcurious-sR)">
+         <ellipse cx="114" cy="94" rx="7.4" ry="9.4" fill="#1B2430"/>
+         <circle cx="111.4" cy="90" r="2.8" fill="#FFFDF5"/>
+         <rect x="92" y="56" width="42" height="24" fill="#1B2430" transform="rotate(14 114 88)"/>
+       </g>
+     </g>
+   </g>
+
+   <!-- ===== рот ===== -->
+   <g class="mouth">
+     <path class="v mo mo-grin" d="M91 111 q9 9 18 0"/>
+     <g class="v mo-open">
+       <path d="M85 106 Q100 132 115 106 Q100 114 85 106 Z" fill="#1B2430"/>
+       <g clip-path="url(#mcurious-mo)"><ellipse cx="100" cy="124" rx="7.5" ry="6" fill="#FF7A59"/></g>
+     </g>
+     <path class="v mo mo-frown" d="M91 119 q9 -9 18 0"/>
+     <path class="v mo mo-wave" d="M90 113 q5 -6 10 0 q5 6 10 0" stroke-width="4"/>
+     <path class="v mo mo-flat" d="M92 114 q8 4 16 -1" stroke-width="4"/>
+   </g>
+
+   <!-- рука у подбородка (поверх монеты) -->
+   <g class="v a-chin">
+     <path d="M156 116 C 158 136, 140 146, 124 140" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+     <circle cx="122" cy="138" r="11.5" fill="#1B2430"/>
+     <path d="M156 116 C 158 136, 140 146, 124 140" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+     <circle cx="122" cy="138" r="8.2" fill="#F5B93A"/>
+   </g>
+
+   <!-- лупа (поверх монеты, в руке) -->
+   <g class="v a-glass">
+     <path d="M46 124 L38 104" stroke="#1B2430" stroke-width="11.5" stroke-linecap="round"/>
+     <path d="M46 124 L38 104" stroke="#C98E1C" stroke-width="5.6" stroke-linecap="round"/>
+     <circle cx="33" cy="88" r="18.5" fill="#FBF0D9" stroke="#1B2430" stroke-width="4.6"/>
+     <path d="M24 80 a12.5 12.5 0 0 1 9 -5" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+   </g>
+
+   <!-- слеза -->
+   <g class="v p-tear">
+     <path class="tear" d="M126 100 c 0 0 7 8 7 12.5 a7 7 0 0 1 -14 0 c 0 -4.5 7 -12.5 7 -12.5 Z"
+       fill="#FBF0D9" stroke="#1B2430" stroke-width="3.4" stroke-linejoin="round"/>
+   </g>
+
+   <!-- огонёк над головой -->
+   <g class="v p-flame">
+     <path class="fl" d="M100 46 C 76 34, 100 24, 90 3 C 122 12, 126 36, 100 46 Z" fill="#FF7A59" stroke="#1B2430" stroke-width="4" stroke-linejoin="round"/>
+     <path class="fl" d="M100 42 C 88 35, 99 29, 95 16 C 112 23, 113 36, 100 42 Z" fill="#F5B93A"/>
+   </g>
+
+ </g></g></g></g>
+
+ <g class="v p-conf" stroke="#1B2430" stroke-width="2.6">
+   <rect class="conf" x="22"  y="44" width="10" height="13" rx="3" fill="#4CC86A"/>
+   <rect class="conf" x="52"  y="18" width="9"  height="12" rx="3" fill="#FF7A59"/>
+   <rect class="conf" x="92"  y="4"  width="10" height="13" rx="3" fill="#F5B93A"/>
+   <rect class="conf" x="132" y="12" width="9"  height="12" rx="3" fill="#4CC86A"/>
+   <rect class="conf" x="168" y="34" width="10" height="13" rx="3" fill="#FF7A59"/>
+   <rect class="conf" x="182" y="70" width="9"  height="12" rx="3" fill="#F5B93A"/>
+   <rect class="conf" x="8"   y="84" width="9"  height="12" rx="3" fill="#4CC86A"/>
+ </g>
+</svg></button></div><div class="nm">Озадачен</div><div class="code">s-curious</div><div class="ds">Есть неразобранные деньги. Наклоняется, достаёт лупу и показывает пальцем.</div></div>
+<div class="mcell"><div class="stagebox"><button class="m" data-state="hype" aria-label="Загорелся">
+<svg class="mas s-proud" viewBox="0 0 200 200" role="img" aria-label="Грош — маскот приложения">
+ <defs>
+   <clipPath id="mhype-eL"><ellipse cx="86" cy="86" rx="11.2" ry="15.2"/></clipPath>
+   <clipPath id="mhype-eR"><ellipse cx="114" cy="86" rx="11.2" ry="15.2"/></clipPath>
+   <clipPath id="mhype-sL"><ellipse cx="86" cy="88" rx="10.2" ry="13.2"/></clipPath>
+   <clipPath id="mhype-sR"><ellipse cx="114" cy="88" rx="10.2" ry="13.2"/></clipPath>
+   <clipPath id="mhype-mo"><path d="M85 106 Q100 132 115 106 Q100 114 85 106 Z"/></clipPath>
+ </defs>
+
+ <ellipse class="m-shadow" cx="100" cy="184" rx="42" ry="7.5" fill="#1B2430" opacity=".15"/>
+
+ <!-- ===== реквизит позади ===== -->
+ <g class="v p-ask">
+   <g transform="translate(168,50)"><g class="qm">
+     <circle cx="0" cy="0" r="17" fill="#FF7A59" stroke="#1B2430" stroke-width="4"/>
+     <path d="M-5.6 -6 a5.9 5.9 0 1 1 6.6 8.8 q-1.7 1.2 -1.7 3.5" fill="none" stroke="#FBF0D9" stroke-width="3.8" stroke-linecap="round"/>
+     <circle cx="-0.5" cy="10.4" r="2.5" fill="#FBF0D9"/>
+   </g></g>
+ </g>
+ <g class="v p-dots" fill="#FBF0D9" stroke="#1B2430" stroke-width="3">
+   <circle cx="152" cy="46" r="4"/><circle cx="166" cy="34" r="4.4"/><circle cx="181" cy="21" r="4.8"/>
+ </g>
+ <g class="v p-spark" fill="#F5B93A" stroke="#1B2430" stroke-width="3.4" stroke-linejoin="round">
+   <g transform="translate(30,54) scale(1.5)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+   <g transform="translate(172,52) scale(1.2)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+   <g transform="translate(158,20) scale(.95)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+ </g>
+
+ <g class="m-lean"><g class="m-bounce"><g class="m-breath"><g class="m-squash">
+
+   <!-- ===== ноги и ботинки ===== -->
+   <g class="m-legs">
+     <path d="M86 130 V160" stroke="#1B2430" stroke-width="14" stroke-linecap="round"/>
+     <path d="M114 130 V160" stroke="#1B2430" stroke-width="14" stroke-linecap="round"/>
+     <rect x="64" y="155" width="34" height="21" rx="10.5" fill="#1B2430"/>
+     <rect x="102" y="155" width="34" height="21" rx="10.5" fill="#1B2430"/>
+     <path d="M86 130 V158" stroke="#F5B93A" stroke-width="7.6" stroke-linecap="round"/>
+     <path d="M114 130 V158" stroke="#F5B93A" stroke-width="7.6" stroke-linecap="round"/>
+     <rect x="67.4" y="158.4" width="27.2" height="14.2" rx="7.1" fill="#F5B93A"/>
+     <rect x="105.4" y="158.4" width="27.2" height="14.2" rx="7.1" fill="#F5B93A"/>
+   </g>
+
+   <!-- ===== руки-шланги с варежками ===== -->
+   <g class="arm arm-l">
+     <g class="a-idle-l">
+       <path d="M50 102 C 30 108, 24 128, 38 138" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M38 138 L27 130" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="38" cy="138" r="11.5" fill="#1B2430"/>
+       <path d="M50 102 C 30 108, 24 128, 38 138" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M38 138 L27 130" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="38" cy="138" r="8.2" fill="#F5B93A"/>
+     </g>
+     <g class="v a-hold">
+       <path d="M50 104 C 32 110, 30 124, 47 128" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M47 128 L37 121" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="47" cy="128" r="11.5" fill="#1B2430"/>
+       <path d="M50 104 C 32 110, 30 124, 47 128" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M47 128 L37 121" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="47" cy="128" r="8.2" fill="#F5B93A"/>
+     </g>
+   </g>
+   <g class="arm arm-r">
+     <g class="a-idle-r">
+       <path d="M150 102 C 168 108, 173 126, 160 134" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M160 134 L170 126" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="160" cy="134" r="11.5" fill="#1B2430"/>
+       <path d="M150 102 C 168 108, 173 126, 160 134" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M160 134 L170 126" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="160" cy="134" r="8.2" fill="#F5B93A"/>
+     </g>
+     <g class="v a-point">
+       <path d="M150 102 C 164 106, 170 114, 170 122" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <circle cx="170" cy="122" r="11.5" fill="#1B2430"/>
+       <path d="M179 118 h11" stroke="#1B2430" stroke-width="12" stroke-linecap="round"/>
+       <path d="M150 102 C 164 106, 170 114, 170 122" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <circle cx="170" cy="122" r="8.2" fill="#F5B93A"/>
+       <path d="M179 118 h10" stroke="#F5B93A" stroke-width="6" stroke-linecap="round"/>
+     </g>
+   </g>
+
+   <!-- ===== монета: гурт слева + лицевая сторона ===== -->
+   <circle cx="89" cy="90" r="52" fill="#E3A526" stroke="#1B2430" stroke-width="4.4"/>
+   <path d="M47 79 A 44 44 0 0 0 47 101" fill="none" stroke="#C98E1C" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+   <circle cx="100" cy="92" r="52" fill="#F5B93A" stroke="#1B2430" stroke-width="4.4"/>
+   <circle cx="100" cy="92" r="43" fill="none" stroke="#E0A32A" stroke-width="3.4"/>
+   <circle cx="100" cy="92" r="37.5" fill="none" stroke="#E0A32A" stroke-width="2"/>
+   <circle class="tapring" cx="100" cy="92" r="52" fill="none" stroke="#FBF0D9" stroke-width="6"/>
+
+   <!-- ===== глаза ===== -->
+   <g class="v e-open">
+     <g class="eye">
+       <ellipse cx="86" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g class="pupils" clip-path="url(#mhype-eL)">
+         <ellipse cx="87" cy="89" rx="8" ry="10.6" fill="#1B2430"/>
+         <circle cx="84" cy="83.6" r="3.2" fill="#FFFDF5"/><circle cx="90.4" cy="94.6" r="1.7" fill="#FFFDF5" opacity=".8"/>
+       </g>
+     </g>
+     <g class="eye">
+       <ellipse cx="114" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g class="pupils" clip-path="url(#mhype-eR)">
+         <ellipse cx="115" cy="89" rx="8" ry="10.6" fill="#1B2430"/>
+         <circle cx="112" cy="83.6" r="3.2" fill="#FFFDF5"/><circle cx="118.4" cy="94.6" r="1.7" fill="#FFFDF5" opacity=".8"/>
+       </g>
+     </g>
+   </g>
+
+   <g class="v e-happy" fill="none" stroke="#1B2430" stroke-width="5.6" stroke-linecap="round">
+     <path d="M74 94 q12 -18 24 0"/><path d="M102 94 q12 -18 24 0"/>
+   </g>
+
+   <g class="v e-star">
+     <ellipse cx="86" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+     <ellipse cx="114" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+     <g fill="none" stroke="#1B2430" stroke-width="3.6" stroke-linecap="round">
+       <path d="M83 78 v16"/><path d="M83 78 h4.8 a4.4 4.4 0 0 1 0 8.8 H83"/><path d="M79.2 90.4 h9"/>
+       <path d="M111 78 v16"/><path d="M111 78 h4.8 a4.4 4.4 0 0 1 0 8.8 H111"/><path d="M107.2 90.4 h9"/>
+     </g>
+   </g>
+
+   <g class="v e-sad">
+     <g class="eye">
+       <ellipse cx="86" cy="88" rx="12" ry="15" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g clip-path="url(#mhype-sL)">
+         <ellipse cx="86" cy="94" rx="7.4" ry="9.4" fill="#1B2430"/>
+         <circle cx="83.4" cy="90" r="2.8" fill="#FFFDF5"/>
+         <rect x="66" y="56" width="42" height="24" fill="#1B2430" transform="rotate(-14 86 88)"/>
+       </g>
+     </g>
+     <g class="eye">
+       <ellipse cx="114" cy="88" rx="12" ry="15" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g clip-path="url(#mhype-sR)">
+         <ellipse cx="114" cy="94" rx="7.4" ry="9.4" fill="#1B2430"/>
+         <circle cx="111.4" cy="90" r="2.8" fill="#FFFDF5"/>
+         <rect x="92" y="56" width="42" height="24" fill="#1B2430" transform="rotate(14 114 88)"/>
+       </g>
+     </g>
+   </g>
+
+   <!-- ===== рот ===== -->
+   <g class="mouth">
+     <path class="v mo mo-grin" d="M91 111 q9 9 18 0"/>
+     <g class="v mo-open">
+       <path d="M85 106 Q100 132 115 106 Q100 114 85 106 Z" fill="#1B2430"/>
+       <g clip-path="url(#mhype-mo)"><ellipse cx="100" cy="124" rx="7.5" ry="6" fill="#FF7A59"/></g>
+     </g>
+     <path class="v mo mo-frown" d="M91 119 q9 -9 18 0"/>
+     <path class="v mo mo-wave" d="M90 113 q5 -6 10 0 q5 6 10 0" stroke-width="4"/>
+     <path class="v mo mo-flat" d="M92 114 q8 4 16 -1" stroke-width="4"/>
+   </g>
+
+   <!-- рука у подбородка (поверх монеты) -->
+   <g class="v a-chin">
+     <path d="M156 116 C 158 136, 140 146, 124 140" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+     <circle cx="122" cy="138" r="11.5" fill="#1B2430"/>
+     <path d="M156 116 C 158 136, 140 146, 124 140" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+     <circle cx="122" cy="138" r="8.2" fill="#F5B93A"/>
+   </g>
+
+   <!-- лупа (поверх монеты, в руке) -->
+   <g class="v a-glass">
+     <path d="M46 124 L38 104" stroke="#1B2430" stroke-width="11.5" stroke-linecap="round"/>
+     <path d="M46 124 L38 104" stroke="#C98E1C" stroke-width="5.6" stroke-linecap="round"/>
+     <circle cx="33" cy="88" r="18.5" fill="#FBF0D9" stroke="#1B2430" stroke-width="4.6"/>
+     <path d="M24 80 a12.5 12.5 0 0 1 9 -5" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+   </g>
+
+   <!-- слеза -->
+   <g class="v p-tear">
+     <path class="tear" d="M126 100 c 0 0 7 8 7 12.5 a7 7 0 0 1 -14 0 c 0 -4.5 7 -12.5 7 -12.5 Z"
+       fill="#FBF0D9" stroke="#1B2430" stroke-width="3.4" stroke-linejoin="round"/>
+   </g>
+
+   <!-- огонёк над головой -->
+   <g class="v p-flame">
+     <path class="fl" d="M100 46 C 76 34, 100 24, 90 3 C 122 12, 126 36, 100 46 Z" fill="#FF7A59" stroke="#1B2430" stroke-width="4" stroke-linejoin="round"/>
+     <path class="fl" d="M100 42 C 88 35, 99 29, 95 16 C 112 23, 113 36, 100 42 Z" fill="#F5B93A"/>
+   </g>
+
+ </g></g></g></g>
+
+ <g class="v p-conf" stroke="#1B2430" stroke-width="2.6">
+   <rect class="conf" x="22"  y="44" width="10" height="13" rx="3" fill="#4CC86A"/>
+   <rect class="conf" x="52"  y="18" width="9"  height="12" rx="3" fill="#FF7A59"/>
+   <rect class="conf" x="92"  y="4"  width="10" height="13" rx="3" fill="#F5B93A"/>
+   <rect class="conf" x="132" y="12" width="9"  height="12" rx="3" fill="#4CC86A"/>
+   <rect class="conf" x="168" y="34" width="10" height="13" rx="3" fill="#FF7A59"/>
+   <rect class="conf" x="182" y="70" width="9"  height="12" rx="3" fill="#F5B93A"/>
+   <rect class="conf" x="8"   y="84" width="9"  height="12" rx="3" fill="#4CC86A"/>
+ </g>
+</svg></button></div><div class="nm">Загорелся</div><div class="code">s-hype</div><div class="ds">Стрик горит. Прыгает, над головой огонь, в глазах рубли.</div></div>
+<div class="mcell"><div class="stagebox"><button class="m" data-state="sad" aria-label="Грустит">
+<svg class="mas s-proud" viewBox="0 0 200 200" role="img" aria-label="Грош — маскот приложения">
+ <defs>
+   <clipPath id="msad-eL"><ellipse cx="86" cy="86" rx="11.2" ry="15.2"/></clipPath>
+   <clipPath id="msad-eR"><ellipse cx="114" cy="86" rx="11.2" ry="15.2"/></clipPath>
+   <clipPath id="msad-sL"><ellipse cx="86" cy="88" rx="10.2" ry="13.2"/></clipPath>
+   <clipPath id="msad-sR"><ellipse cx="114" cy="88" rx="10.2" ry="13.2"/></clipPath>
+   <clipPath id="msad-mo"><path d="M85 106 Q100 132 115 106 Q100 114 85 106 Z"/></clipPath>
+ </defs>
+
+ <ellipse class="m-shadow" cx="100" cy="184" rx="42" ry="7.5" fill="#1B2430" opacity=".15"/>
+
+ <!-- ===== реквизит позади ===== -->
+ <g class="v p-ask">
+   <g transform="translate(168,50)"><g class="qm">
+     <circle cx="0" cy="0" r="17" fill="#FF7A59" stroke="#1B2430" stroke-width="4"/>
+     <path d="M-5.6 -6 a5.9 5.9 0 1 1 6.6 8.8 q-1.7 1.2 -1.7 3.5" fill="none" stroke="#FBF0D9" stroke-width="3.8" stroke-linecap="round"/>
+     <circle cx="-0.5" cy="10.4" r="2.5" fill="#FBF0D9"/>
+   </g></g>
+ </g>
+ <g class="v p-dots" fill="#FBF0D9" stroke="#1B2430" stroke-width="3">
+   <circle cx="152" cy="46" r="4"/><circle cx="166" cy="34" r="4.4"/><circle cx="181" cy="21" r="4.8"/>
+ </g>
+ <g class="v p-spark" fill="#F5B93A" stroke="#1B2430" stroke-width="3.4" stroke-linejoin="round">
+   <g transform="translate(30,54) scale(1.5)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+   <g transform="translate(172,52) scale(1.2)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+   <g transform="translate(158,20) scale(.95)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+ </g>
+
+ <g class="m-lean"><g class="m-bounce"><g class="m-breath"><g class="m-squash">
+
+   <!-- ===== ноги и ботинки ===== -->
+   <g class="m-legs">
+     <path d="M86 130 V160" stroke="#1B2430" stroke-width="14" stroke-linecap="round"/>
+     <path d="M114 130 V160" stroke="#1B2430" stroke-width="14" stroke-linecap="round"/>
+     <rect x="64" y="155" width="34" height="21" rx="10.5" fill="#1B2430"/>
+     <rect x="102" y="155" width="34" height="21" rx="10.5" fill="#1B2430"/>
+     <path d="M86 130 V158" stroke="#F5B93A" stroke-width="7.6" stroke-linecap="round"/>
+     <path d="M114 130 V158" stroke="#F5B93A" stroke-width="7.6" stroke-linecap="round"/>
+     <rect x="67.4" y="158.4" width="27.2" height="14.2" rx="7.1" fill="#F5B93A"/>
+     <rect x="105.4" y="158.4" width="27.2" height="14.2" rx="7.1" fill="#F5B93A"/>
+   </g>
+
+   <!-- ===== руки-шланги с варежками ===== -->
+   <g class="arm arm-l">
+     <g class="a-idle-l">
+       <path d="M50 102 C 30 108, 24 128, 38 138" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M38 138 L27 130" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="38" cy="138" r="11.5" fill="#1B2430"/>
+       <path d="M50 102 C 30 108, 24 128, 38 138" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M38 138 L27 130" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="38" cy="138" r="8.2" fill="#F5B93A"/>
+     </g>
+     <g class="v a-hold">
+       <path d="M50 104 C 32 110, 30 124, 47 128" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M47 128 L37 121" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="47" cy="128" r="11.5" fill="#1B2430"/>
+       <path d="M50 104 C 32 110, 30 124, 47 128" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M47 128 L37 121" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="47" cy="128" r="8.2" fill="#F5B93A"/>
+     </g>
+   </g>
+   <g class="arm arm-r">
+     <g class="a-idle-r">
+       <path d="M150 102 C 168 108, 173 126, 160 134" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M160 134 L170 126" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="160" cy="134" r="11.5" fill="#1B2430"/>
+       <path d="M150 102 C 168 108, 173 126, 160 134" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M160 134 L170 126" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="160" cy="134" r="8.2" fill="#F5B93A"/>
+     </g>
+     <g class="v a-point">
+       <path d="M150 102 C 164 106, 170 114, 170 122" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <circle cx="170" cy="122" r="11.5" fill="#1B2430"/>
+       <path d="M179 118 h11" stroke="#1B2430" stroke-width="12" stroke-linecap="round"/>
+       <path d="M150 102 C 164 106, 170 114, 170 122" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <circle cx="170" cy="122" r="8.2" fill="#F5B93A"/>
+       <path d="M179 118 h10" stroke="#F5B93A" stroke-width="6" stroke-linecap="round"/>
+     </g>
+   </g>
+
+   <!-- ===== монета: гурт слева + лицевая сторона ===== -->
+   <circle cx="89" cy="90" r="52" fill="#E3A526" stroke="#1B2430" stroke-width="4.4"/>
+   <path d="M47 79 A 44 44 0 0 0 47 101" fill="none" stroke="#C98E1C" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+   <circle cx="100" cy="92" r="52" fill="#F5B93A" stroke="#1B2430" stroke-width="4.4"/>
+   <circle cx="100" cy="92" r="43" fill="none" stroke="#E0A32A" stroke-width="3.4"/>
+   <circle cx="100" cy="92" r="37.5" fill="none" stroke="#E0A32A" stroke-width="2"/>
+   <circle class="tapring" cx="100" cy="92" r="52" fill="none" stroke="#FBF0D9" stroke-width="6"/>
+
+   <!-- ===== глаза ===== -->
+   <g class="v e-open">
+     <g class="eye">
+       <ellipse cx="86" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g class="pupils" clip-path="url(#msad-eL)">
+         <ellipse cx="87" cy="89" rx="8" ry="10.6" fill="#1B2430"/>
+         <circle cx="84" cy="83.6" r="3.2" fill="#FFFDF5"/><circle cx="90.4" cy="94.6" r="1.7" fill="#FFFDF5" opacity=".8"/>
+       </g>
+     </g>
+     <g class="eye">
+       <ellipse cx="114" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g class="pupils" clip-path="url(#msad-eR)">
+         <ellipse cx="115" cy="89" rx="8" ry="10.6" fill="#1B2430"/>
+         <circle cx="112" cy="83.6" r="3.2" fill="#FFFDF5"/><circle cx="118.4" cy="94.6" r="1.7" fill="#FFFDF5" opacity=".8"/>
+       </g>
+     </g>
+   </g>
+
+   <g class="v e-happy" fill="none" stroke="#1B2430" stroke-width="5.6" stroke-linecap="round">
+     <path d="M74 94 q12 -18 24 0"/><path d="M102 94 q12 -18 24 0"/>
+   </g>
+
+   <g class="v e-star">
+     <ellipse cx="86" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+     <ellipse cx="114" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+     <g fill="none" stroke="#1B2430" stroke-width="3.6" stroke-linecap="round">
+       <path d="M83 78 v16"/><path d="M83 78 h4.8 a4.4 4.4 0 0 1 0 8.8 H83"/><path d="M79.2 90.4 h9"/>
+       <path d="M111 78 v16"/><path d="M111 78 h4.8 a4.4 4.4 0 0 1 0 8.8 H111"/><path d="M107.2 90.4 h9"/>
+     </g>
+   </g>
+
+   <g class="v e-sad">
+     <g class="eye">
+       <ellipse cx="86" cy="88" rx="12" ry="15" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g clip-path="url(#msad-sL)">
+         <ellipse cx="86" cy="94" rx="7.4" ry="9.4" fill="#1B2430"/>
+         <circle cx="83.4" cy="90" r="2.8" fill="#FFFDF5"/>
+         <rect x="66" y="56" width="42" height="24" fill="#1B2430" transform="rotate(-14 86 88)"/>
+       </g>
+     </g>
+     <g class="eye">
+       <ellipse cx="114" cy="88" rx="12" ry="15" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g clip-path="url(#msad-sR)">
+         <ellipse cx="114" cy="94" rx="7.4" ry="9.4" fill="#1B2430"/>
+         <circle cx="111.4" cy="90" r="2.8" fill="#FFFDF5"/>
+         <rect x="92" y="56" width="42" height="24" fill="#1B2430" transform="rotate(14 114 88)"/>
+       </g>
+     </g>
+   </g>
+
+   <!-- ===== рот ===== -->
+   <g class="mouth">
+     <path class="v mo mo-grin" d="M91 111 q9 9 18 0"/>
+     <g class="v mo-open">
+       <path d="M85 106 Q100 132 115 106 Q100 114 85 106 Z" fill="#1B2430"/>
+       <g clip-path="url(#msad-mo)"><ellipse cx="100" cy="124" rx="7.5" ry="6" fill="#FF7A59"/></g>
+     </g>
+     <path class="v mo mo-frown" d="M91 119 q9 -9 18 0"/>
+     <path class="v mo mo-wave" d="M90 113 q5 -6 10 0 q5 6 10 0" stroke-width="4"/>
+     <path class="v mo mo-flat" d="M92 114 q8 4 16 -1" stroke-width="4"/>
+   </g>
+
+   <!-- рука у подбородка (поверх монеты) -->
+   <g class="v a-chin">
+     <path d="M156 116 C 158 136, 140 146, 124 140" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+     <circle cx="122" cy="138" r="11.5" fill="#1B2430"/>
+     <path d="M156 116 C 158 136, 140 146, 124 140" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+     <circle cx="122" cy="138" r="8.2" fill="#F5B93A"/>
+   </g>
+
+   <!-- лупа (поверх монеты, в руке) -->
+   <g class="v a-glass">
+     <path d="M46 124 L38 104" stroke="#1B2430" stroke-width="11.5" stroke-linecap="round"/>
+     <path d="M46 124 L38 104" stroke="#C98E1C" stroke-width="5.6" stroke-linecap="round"/>
+     <circle cx="33" cy="88" r="18.5" fill="#FBF0D9" stroke="#1B2430" stroke-width="4.6"/>
+     <path d="M24 80 a12.5 12.5 0 0 1 9 -5" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+   </g>
+
+   <!-- слеза -->
+   <g class="v p-tear">
+     <path class="tear" d="M126 100 c 0 0 7 8 7 12.5 a7 7 0 0 1 -14 0 c 0 -4.5 7 -12.5 7 -12.5 Z"
+       fill="#FBF0D9" stroke="#1B2430" stroke-width="3.4" stroke-linejoin="round"/>
+   </g>
+
+   <!-- огонёк над головой -->
+   <g class="v p-flame">
+     <path class="fl" d="M100 46 C 76 34, 100 24, 90 3 C 122 12, 126 36, 100 46 Z" fill="#FF7A59" stroke="#1B2430" stroke-width="4" stroke-linejoin="round"/>
+     <path class="fl" d="M100 42 C 88 35, 99 29, 95 16 C 112 23, 113 36, 100 42 Z" fill="#F5B93A"/>
+   </g>
+
+ </g></g></g></g>
+
+ <g class="v p-conf" stroke="#1B2430" stroke-width="2.6">
+   <rect class="conf" x="22"  y="44" width="10" height="13" rx="3" fill="#4CC86A"/>
+   <rect class="conf" x="52"  y="18" width="9"  height="12" rx="3" fill="#FF7A59"/>
+   <rect class="conf" x="92"  y="4"  width="10" height="13" rx="3" fill="#F5B93A"/>
+   <rect class="conf" x="132" y="12" width="9"  height="12" rx="3" fill="#4CC86A"/>
+   <rect class="conf" x="168" y="34" width="10" height="13" rx="3" fill="#FF7A59"/>
+   <rect class="conf" x="182" y="70" width="9"  height="12" rx="3" fill="#F5B93A"/>
+   <rect class="conf" x="8"   y="84" width="9"  height="12" rx="3" fill="#4CC86A"/>
+ </g>
+</svg></button></div><div class="nm">Грустит</div><div class="code">s-sad</div><div class="ds">Стрик потерян, день пропущен. Оседает, веки опускаются, катится слеза.</div></div>
+<div class="mcell"><div class="stagebox"><button class="m" data-state="think" aria-label="Считает">
+<svg class="mas s-proud" viewBox="0 0 200 200" role="img" aria-label="Грош — маскот приложения">
+ <defs>
+   <clipPath id="mthink-eL"><ellipse cx="86" cy="86" rx="11.2" ry="15.2"/></clipPath>
+   <clipPath id="mthink-eR"><ellipse cx="114" cy="86" rx="11.2" ry="15.2"/></clipPath>
+   <clipPath id="mthink-sL"><ellipse cx="86" cy="88" rx="10.2" ry="13.2"/></clipPath>
+   <clipPath id="mthink-sR"><ellipse cx="114" cy="88" rx="10.2" ry="13.2"/></clipPath>
+   <clipPath id="mthink-mo"><path d="M85 106 Q100 132 115 106 Q100 114 85 106 Z"/></clipPath>
+ </defs>
+
+ <ellipse class="m-shadow" cx="100" cy="184" rx="42" ry="7.5" fill="#1B2430" opacity=".15"/>
+
+ <!-- ===== реквизит позади ===== -->
+ <g class="v p-ask">
+   <g transform="translate(168,50)"><g class="qm">
+     <circle cx="0" cy="0" r="17" fill="#FF7A59" stroke="#1B2430" stroke-width="4"/>
+     <path d="M-5.6 -6 a5.9 5.9 0 1 1 6.6 8.8 q-1.7 1.2 -1.7 3.5" fill="none" stroke="#FBF0D9" stroke-width="3.8" stroke-linecap="round"/>
+     <circle cx="-0.5" cy="10.4" r="2.5" fill="#FBF0D9"/>
+   </g></g>
+ </g>
+ <g class="v p-dots" fill="#FBF0D9" stroke="#1B2430" stroke-width="3">
+   <circle cx="152" cy="46" r="4"/><circle cx="166" cy="34" r="4.4"/><circle cx="181" cy="21" r="4.8"/>
+ </g>
+ <g class="v p-spark" fill="#F5B93A" stroke="#1B2430" stroke-width="3.4" stroke-linejoin="round">
+   <g transform="translate(30,54) scale(1.5)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+   <g transform="translate(172,52) scale(1.2)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+   <g transform="translate(158,20) scale(.95)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+ </g>
+
+ <g class="m-lean"><g class="m-bounce"><g class="m-breath"><g class="m-squash">
+
+   <!-- ===== ноги и ботинки ===== -->
+   <g class="m-legs">
+     <path d="M86 130 V160" stroke="#1B2430" stroke-width="14" stroke-linecap="round"/>
+     <path d="M114 130 V160" stroke="#1B2430" stroke-width="14" stroke-linecap="round"/>
+     <rect x="64" y="155" width="34" height="21" rx="10.5" fill="#1B2430"/>
+     <rect x="102" y="155" width="34" height="21" rx="10.5" fill="#1B2430"/>
+     <path d="M86 130 V158" stroke="#F5B93A" stroke-width="7.6" stroke-linecap="round"/>
+     <path d="M114 130 V158" stroke="#F5B93A" stroke-width="7.6" stroke-linecap="round"/>
+     <rect x="67.4" y="158.4" width="27.2" height="14.2" rx="7.1" fill="#F5B93A"/>
+     <rect x="105.4" y="158.4" width="27.2" height="14.2" rx="7.1" fill="#F5B93A"/>
+   </g>
+
+   <!-- ===== руки-шланги с варежками ===== -->
+   <g class="arm arm-l">
+     <g class="a-idle-l">
+       <path d="M50 102 C 30 108, 24 128, 38 138" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M38 138 L27 130" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="38" cy="138" r="11.5" fill="#1B2430"/>
+       <path d="M50 102 C 30 108, 24 128, 38 138" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M38 138 L27 130" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="38" cy="138" r="8.2" fill="#F5B93A"/>
+     </g>
+     <g class="v a-hold">
+       <path d="M50 104 C 32 110, 30 124, 47 128" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M47 128 L37 121" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="47" cy="128" r="11.5" fill="#1B2430"/>
+       <path d="M50 104 C 32 110, 30 124, 47 128" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M47 128 L37 121" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="47" cy="128" r="8.2" fill="#F5B93A"/>
+     </g>
+   </g>
+   <g class="arm arm-r">
+     <g class="a-idle-r">
+       <path d="M150 102 C 168 108, 173 126, 160 134" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M160 134 L170 126" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="160" cy="134" r="11.5" fill="#1B2430"/>
+       <path d="M150 102 C 168 108, 173 126, 160 134" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M160 134 L170 126" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="160" cy="134" r="8.2" fill="#F5B93A"/>
+     </g>
+     <g class="v a-point">
+       <path d="M150 102 C 164 106, 170 114, 170 122" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <circle cx="170" cy="122" r="11.5" fill="#1B2430"/>
+       <path d="M179 118 h11" stroke="#1B2430" stroke-width="12" stroke-linecap="round"/>
+       <path d="M150 102 C 164 106, 170 114, 170 122" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <circle cx="170" cy="122" r="8.2" fill="#F5B93A"/>
+       <path d="M179 118 h10" stroke="#F5B93A" stroke-width="6" stroke-linecap="round"/>
+     </g>
+   </g>
+
+   <!-- ===== монета: гурт слева + лицевая сторона ===== -->
+   <circle cx="89" cy="90" r="52" fill="#E3A526" stroke="#1B2430" stroke-width="4.4"/>
+   <path d="M47 79 A 44 44 0 0 0 47 101" fill="none" stroke="#C98E1C" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+   <circle cx="100" cy="92" r="52" fill="#F5B93A" stroke="#1B2430" stroke-width="4.4"/>
+   <circle cx="100" cy="92" r="43" fill="none" stroke="#E0A32A" stroke-width="3.4"/>
+   <circle cx="100" cy="92" r="37.5" fill="none" stroke="#E0A32A" stroke-width="2"/>
+   <circle class="tapring" cx="100" cy="92" r="52" fill="none" stroke="#FBF0D9" stroke-width="6"/>
+
+   <!-- ===== глаза ===== -->
+   <g class="v e-open">
+     <g class="eye">
+       <ellipse cx="86" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g class="pupils" clip-path="url(#mthink-eL)">
+         <ellipse cx="87" cy="89" rx="8" ry="10.6" fill="#1B2430"/>
+         <circle cx="84" cy="83.6" r="3.2" fill="#FFFDF5"/><circle cx="90.4" cy="94.6" r="1.7" fill="#FFFDF5" opacity=".8"/>
+       </g>
+     </g>
+     <g class="eye">
+       <ellipse cx="114" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g class="pupils" clip-path="url(#mthink-eR)">
+         <ellipse cx="115" cy="89" rx="8" ry="10.6" fill="#1B2430"/>
+         <circle cx="112" cy="83.6" r="3.2" fill="#FFFDF5"/><circle cx="118.4" cy="94.6" r="1.7" fill="#FFFDF5" opacity=".8"/>
+       </g>
+     </g>
+   </g>
+
+   <g class="v e-happy" fill="none" stroke="#1B2430" stroke-width="5.6" stroke-linecap="round">
+     <path d="M74 94 q12 -18 24 0"/><path d="M102 94 q12 -18 24 0"/>
+   </g>
+
+   <g class="v e-star">
+     <ellipse cx="86" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+     <ellipse cx="114" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+     <g fill="none" stroke="#1B2430" stroke-width="3.6" stroke-linecap="round">
+       <path d="M83 78 v16"/><path d="M83 78 h4.8 a4.4 4.4 0 0 1 0 8.8 H83"/><path d="M79.2 90.4 h9"/>
+       <path d="M111 78 v16"/><path d="M111 78 h4.8 a4.4 4.4 0 0 1 0 8.8 H111"/><path d="M107.2 90.4 h9"/>
+     </g>
+   </g>
+
+   <g class="v e-sad">
+     <g class="eye">
+       <ellipse cx="86" cy="88" rx="12" ry="15" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g clip-path="url(#mthink-sL)">
+         <ellipse cx="86" cy="94" rx="7.4" ry="9.4" fill="#1B2430"/>
+         <circle cx="83.4" cy="90" r="2.8" fill="#FFFDF5"/>
+         <rect x="66" y="56" width="42" height="24" fill="#1B2430" transform="rotate(-14 86 88)"/>
+       </g>
+     </g>
+     <g class="eye">
+       <ellipse cx="114" cy="88" rx="12" ry="15" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g clip-path="url(#mthink-sR)">
+         <ellipse cx="114" cy="94" rx="7.4" ry="9.4" fill="#1B2430"/>
+         <circle cx="111.4" cy="90" r="2.8" fill="#FFFDF5"/>
+         <rect x="92" y="56" width="42" height="24" fill="#1B2430" transform="rotate(14 114 88)"/>
+       </g>
+     </g>
+   </g>
+
+   <!-- ===== рот ===== -->
+   <g class="mouth">
+     <path class="v mo mo-grin" d="M91 111 q9 9 18 0"/>
+     <g class="v mo-open">
+       <path d="M85 106 Q100 132 115 106 Q100 114 85 106 Z" fill="#1B2430"/>
+       <g clip-path="url(#mthink-mo)"><ellipse cx="100" cy="124" rx="7.5" ry="6" fill="#FF7A59"/></g>
+     </g>
+     <path class="v mo mo-frown" d="M91 119 q9 -9 18 0"/>
+     <path class="v mo mo-wave" d="M90 113 q5 -6 10 0 q5 6 10 0" stroke-width="4"/>
+     <path class="v mo mo-flat" d="M92 114 q8 4 16 -1" stroke-width="4"/>
+   </g>
+
+   <!-- рука у подбородка (поверх монеты) -->
+   <g class="v a-chin">
+     <path d="M156 116 C 158 136, 140 146, 124 140" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+     <circle cx="122" cy="138" r="11.5" fill="#1B2430"/>
+     <path d="M156 116 C 158 136, 140 146, 124 140" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+     <circle cx="122" cy="138" r="8.2" fill="#F5B93A"/>
+   </g>
+
+   <!-- лупа (поверх монеты, в руке) -->
+   <g class="v a-glass">
+     <path d="M46 124 L38 104" stroke="#1B2430" stroke-width="11.5" stroke-linecap="round"/>
+     <path d="M46 124 L38 104" stroke="#C98E1C" stroke-width="5.6" stroke-linecap="round"/>
+     <circle cx="33" cy="88" r="18.5" fill="#FBF0D9" stroke="#1B2430" stroke-width="4.6"/>
+     <path d="M24 80 a12.5 12.5 0 0 1 9 -5" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+   </g>
+
+   <!-- слеза -->
+   <g class="v p-tear">
+     <path class="tear" d="M126 100 c 0 0 7 8 7 12.5 a7 7 0 0 1 -14 0 c 0 -4.5 7 -12.5 7 -12.5 Z"
+       fill="#FBF0D9" stroke="#1B2430" stroke-width="3.4" stroke-linejoin="round"/>
+   </g>
+
+   <!-- огонёк над головой -->
+   <g class="v p-flame">
+     <path class="fl" d="M100 46 C 76 34, 100 24, 90 3 C 122 12, 126 36, 100 46 Z" fill="#FF7A59" stroke="#1B2430" stroke-width="4" stroke-linejoin="round"/>
+     <path class="fl" d="M100 42 C 88 35, 99 29, 95 16 C 112 23, 113 36, 100 42 Z" fill="#F5B93A"/>
+   </g>
+
+ </g></g></g></g>
+
+ <g class="v p-conf" stroke="#1B2430" stroke-width="2.6">
+   <rect class="conf" x="22"  y="44" width="10" height="13" rx="3" fill="#4CC86A"/>
+   <rect class="conf" x="52"  y="18" width="9"  height="12" rx="3" fill="#FF7A59"/>
+   <rect class="conf" x="92"  y="4"  width="10" height="13" rx="3" fill="#F5B93A"/>
+   <rect class="conf" x="132" y="12" width="9"  height="12" rx="3" fill="#4CC86A"/>
+   <rect class="conf" x="168" y="34" width="10" height="13" rx="3" fill="#FF7A59"/>
+   <rect class="conf" x="182" y="70" width="9"  height="12" rx="3" fill="#F5B93A"/>
+   <rect class="conf" x="8"   y="84" width="9"  height="12" rx="3" fill="#4CC86A"/>
+ </g>
+</svg></button></div><div class="nm">Считает</div><div class="code">s-think</div><div class="ds">Разбирает операцию. Рука у подбородка, взгляд вверх, точки размышления.</div></div>
+<div class="mcell"><div class="stagebox"><button class="m" data-state="party" aria-label="Празднует">
+<svg class="mas s-proud" viewBox="0 0 200 200" role="img" aria-label="Грош — маскот приложения">
+ <defs>
+   <clipPath id="mparty-eL"><ellipse cx="86" cy="86" rx="11.2" ry="15.2"/></clipPath>
+   <clipPath id="mparty-eR"><ellipse cx="114" cy="86" rx="11.2" ry="15.2"/></clipPath>
+   <clipPath id="mparty-sL"><ellipse cx="86" cy="88" rx="10.2" ry="13.2"/></clipPath>
+   <clipPath id="mparty-sR"><ellipse cx="114" cy="88" rx="10.2" ry="13.2"/></clipPath>
+   <clipPath id="mparty-mo"><path d="M85 106 Q100 132 115 106 Q100 114 85 106 Z"/></clipPath>
+ </defs>
+
+ <ellipse class="m-shadow" cx="100" cy="184" rx="42" ry="7.5" fill="#1B2430" opacity=".15"/>
+
+ <!-- ===== реквизит позади ===== -->
+ <g class="v p-ask">
+   <g transform="translate(168,50)"><g class="qm">
+     <circle cx="0" cy="0" r="17" fill="#FF7A59" stroke="#1B2430" stroke-width="4"/>
+     <path d="M-5.6 -6 a5.9 5.9 0 1 1 6.6 8.8 q-1.7 1.2 -1.7 3.5" fill="none" stroke="#FBF0D9" stroke-width="3.8" stroke-linecap="round"/>
+     <circle cx="-0.5" cy="10.4" r="2.5" fill="#FBF0D9"/>
+   </g></g>
+ </g>
+ <g class="v p-dots" fill="#FBF0D9" stroke="#1B2430" stroke-width="3">
+   <circle cx="152" cy="46" r="4"/><circle cx="166" cy="34" r="4.4"/><circle cx="181" cy="21" r="4.8"/>
+ </g>
+ <g class="v p-spark" fill="#F5B93A" stroke="#1B2430" stroke-width="3.4" stroke-linejoin="round">
+   <g transform="translate(30,54) scale(1.5)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+   <g transform="translate(172,52) scale(1.2)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+   <g transform="translate(158,20) scale(.95)"><path class="spark" d="M0 -8 C 1.4 -2.6, 2.6 -1.4, 8 0 C 2.6 1.4, 1.4 2.6, 0 8 C -1.4 2.6, -2.6 1.4, -8 0 C -2.6 -1.4, -1.4 -2.6, 0 -8 Z"/></g>
+ </g>
+
+ <g class="m-lean"><g class="m-bounce"><g class="m-breath"><g class="m-squash">
+
+   <!-- ===== ноги и ботинки ===== -->
+   <g class="m-legs">
+     <path d="M86 130 V160" stroke="#1B2430" stroke-width="14" stroke-linecap="round"/>
+     <path d="M114 130 V160" stroke="#1B2430" stroke-width="14" stroke-linecap="round"/>
+     <rect x="64" y="155" width="34" height="21" rx="10.5" fill="#1B2430"/>
+     <rect x="102" y="155" width="34" height="21" rx="10.5" fill="#1B2430"/>
+     <path d="M86 130 V158" stroke="#F5B93A" stroke-width="7.6" stroke-linecap="round"/>
+     <path d="M114 130 V158" stroke="#F5B93A" stroke-width="7.6" stroke-linecap="round"/>
+     <rect x="67.4" y="158.4" width="27.2" height="14.2" rx="7.1" fill="#F5B93A"/>
+     <rect x="105.4" y="158.4" width="27.2" height="14.2" rx="7.1" fill="#F5B93A"/>
+   </g>
+
+   <!-- ===== руки-шланги с варежками ===== -->
+   <g class="arm arm-l">
+     <g class="a-idle-l">
+       <path d="M50 102 C 30 108, 24 128, 38 138" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M38 138 L27 130" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="38" cy="138" r="11.5" fill="#1B2430"/>
+       <path d="M50 102 C 30 108, 24 128, 38 138" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M38 138 L27 130" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="38" cy="138" r="8.2" fill="#F5B93A"/>
+     </g>
+     <g class="v a-hold">
+       <path d="M50 104 C 32 110, 30 124, 47 128" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M47 128 L37 121" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="47" cy="128" r="11.5" fill="#1B2430"/>
+       <path d="M50 104 C 32 110, 30 124, 47 128" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M47 128 L37 121" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="47" cy="128" r="8.2" fill="#F5B93A"/>
+     </g>
+   </g>
+   <g class="arm arm-r">
+     <g class="a-idle-r">
+       <path d="M150 102 C 168 108, 173 126, 160 134" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <path d="M160 134 L170 126" stroke="#1B2430" stroke-width="12.5" stroke-linecap="round"/>
+       <circle cx="160" cy="134" r="11.5" fill="#1B2430"/>
+       <path d="M150 102 C 168 108, 173 126, 160 134" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <path d="M160 134 L170 126" stroke="#F5B93A" stroke-width="6.2" stroke-linecap="round"/>
+       <circle cx="160" cy="134" r="8.2" fill="#F5B93A"/>
+     </g>
+     <g class="v a-point">
+       <path d="M150 102 C 164 106, 170 114, 170 122" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+       <circle cx="170" cy="122" r="11.5" fill="#1B2430"/>
+       <path d="M179 118 h11" stroke="#1B2430" stroke-width="12" stroke-linecap="round"/>
+       <path d="M150 102 C 164 106, 170 114, 170 122" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+       <circle cx="170" cy="122" r="8.2" fill="#F5B93A"/>
+       <path d="M179 118 h10" stroke="#F5B93A" stroke-width="6" stroke-linecap="round"/>
+     </g>
+   </g>
+
+   <!-- ===== монета: гурт слева + лицевая сторона ===== -->
+   <circle cx="89" cy="90" r="52" fill="#E3A526" stroke="#1B2430" stroke-width="4.4"/>
+   <path d="M47 79 A 44 44 0 0 0 47 101" fill="none" stroke="#C98E1C" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+   <circle cx="100" cy="92" r="52" fill="#F5B93A" stroke="#1B2430" stroke-width="4.4"/>
+   <circle cx="100" cy="92" r="43" fill="none" stroke="#E0A32A" stroke-width="3.4"/>
+   <circle cx="100" cy="92" r="37.5" fill="none" stroke="#E0A32A" stroke-width="2"/>
+   <circle class="tapring" cx="100" cy="92" r="52" fill="none" stroke="#FBF0D9" stroke-width="6"/>
+
+   <!-- ===== глаза ===== -->
+   <g class="v e-open">
+     <g class="eye">
+       <ellipse cx="86" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g class="pupils" clip-path="url(#mparty-eL)">
+         <ellipse cx="87" cy="89" rx="8" ry="10.6" fill="#1B2430"/>
+         <circle cx="84" cy="83.6" r="3.2" fill="#FFFDF5"/><circle cx="90.4" cy="94.6" r="1.7" fill="#FFFDF5" opacity=".8"/>
+       </g>
+     </g>
+     <g class="eye">
+       <ellipse cx="114" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g class="pupils" clip-path="url(#mparty-eR)">
+         <ellipse cx="115" cy="89" rx="8" ry="10.6" fill="#1B2430"/>
+         <circle cx="112" cy="83.6" r="3.2" fill="#FFFDF5"/><circle cx="118.4" cy="94.6" r="1.7" fill="#FFFDF5" opacity=".8"/>
+       </g>
+     </g>
+   </g>
+
+   <g class="v e-happy" fill="none" stroke="#1B2430" stroke-width="5.6" stroke-linecap="round">
+     <path d="M74 94 q12 -18 24 0"/><path d="M102 94 q12 -18 24 0"/>
+   </g>
+
+   <g class="v e-star">
+     <ellipse cx="86" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+     <ellipse cx="114" cy="86" rx="13" ry="17" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+     <g fill="none" stroke="#1B2430" stroke-width="3.6" stroke-linecap="round">
+       <path d="M83 78 v16"/><path d="M83 78 h4.8 a4.4 4.4 0 0 1 0 8.8 H83"/><path d="M79.2 90.4 h9"/>
+       <path d="M111 78 v16"/><path d="M111 78 h4.8 a4.4 4.4 0 0 1 0 8.8 H111"/><path d="M107.2 90.4 h9"/>
+     </g>
+   </g>
+
+   <g class="v e-sad">
+     <g class="eye">
+       <ellipse cx="86" cy="88" rx="12" ry="15" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g clip-path="url(#mparty-sL)">
+         <ellipse cx="86" cy="94" rx="7.4" ry="9.4" fill="#1B2430"/>
+         <circle cx="83.4" cy="90" r="2.8" fill="#FFFDF5"/>
+         <rect x="66" y="56" width="42" height="24" fill="#1B2430" transform="rotate(-14 86 88)"/>
+       </g>
+     </g>
+     <g class="eye">
+       <ellipse cx="114" cy="88" rx="12" ry="15" fill="#FFFDF5" stroke="#1B2430" stroke-width="4.2"/>
+       <g clip-path="url(#mparty-sR)">
+         <ellipse cx="114" cy="94" rx="7.4" ry="9.4" fill="#1B2430"/>
+         <circle cx="111.4" cy="90" r="2.8" fill="#FFFDF5"/>
+         <rect x="92" y="56" width="42" height="24" fill="#1B2430" transform="rotate(14 114 88)"/>
+       </g>
+     </g>
+   </g>
+
+   <!-- ===== рот ===== -->
+   <g class="mouth">
+     <path class="v mo mo-grin" d="M91 111 q9 9 18 0"/>
+     <g class="v mo-open">
+       <path d="M85 106 Q100 132 115 106 Q100 114 85 106 Z" fill="#1B2430"/>
+       <g clip-path="url(#mparty-mo)"><ellipse cx="100" cy="124" rx="7.5" ry="6" fill="#FF7A59"/></g>
+     </g>
+     <path class="v mo mo-frown" d="M91 119 q9 -9 18 0"/>
+     <path class="v mo mo-wave" d="M90 113 q5 -6 10 0 q5 6 10 0" stroke-width="4"/>
+     <path class="v mo mo-flat" d="M92 114 q8 4 16 -1" stroke-width="4"/>
+   </g>
+
+   <!-- рука у подбородка (поверх монеты) -->
+   <g class="v a-chin">
+     <path d="M156 116 C 158 136, 140 146, 124 140" fill="none" stroke="#1B2430" stroke-width="13.5" stroke-linecap="round"/>
+     <circle cx="122" cy="138" r="11.5" fill="#1B2430"/>
+     <path d="M156 116 C 158 136, 140 146, 124 140" fill="none" stroke="#F5B93A" stroke-width="7" stroke-linecap="round"/>
+     <circle cx="122" cy="138" r="8.2" fill="#F5B93A"/>
+   </g>
+
+   <!-- лупа (поверх монеты, в руке) -->
+   <g class="v a-glass">
+     <path d="M46 124 L38 104" stroke="#1B2430" stroke-width="11.5" stroke-linecap="round"/>
+     <path d="M46 124 L38 104" stroke="#C98E1C" stroke-width="5.6" stroke-linecap="round"/>
+     <circle cx="33" cy="88" r="18.5" fill="#FBF0D9" stroke="#1B2430" stroke-width="4.6"/>
+     <path d="M24 80 a12.5 12.5 0 0 1 9 -5" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+   </g>
+
+   <!-- слеза -->
+   <g class="v p-tear">
+     <path class="tear" d="M126 100 c 0 0 7 8 7 12.5 a7 7 0 0 1 -14 0 c 0 -4.5 7 -12.5 7 -12.5 Z"
+       fill="#FBF0D9" stroke="#1B2430" stroke-width="3.4" stroke-linejoin="round"/>
+   </g>
+
+   <!-- огонёк над головой -->
+   <g class="v p-flame">
+     <path class="fl" d="M100 46 C 76 34, 100 24, 90 3 C 122 12, 126 36, 100 46 Z" fill="#FF7A59" stroke="#1B2430" stroke-width="4" stroke-linejoin="round"/>
+     <path class="fl" d="M100 42 C 88 35, 99 29, 95 16 C 112 23, 113 36, 100 42 Z" fill="#F5B93A"/>
+   </g>
+
+ </g></g></g></g>
+
+ <g class="v p-conf" stroke="#1B2430" stroke-width="2.6">
+   <rect class="conf" x="22"  y="44" width="10" height="13" rx="3" fill="#4CC86A"/>
+   <rect class="conf" x="52"  y="18" width="9"  height="12" rx="3" fill="#FF7A59"/>
+   <rect class="conf" x="92"  y="4"  width="10" height="13" rx="3" fill="#F5B93A"/>
+   <rect class="conf" x="132" y="12" width="9"  height="12" rx="3" fill="#4CC86A"/>
+   <rect class="conf" x="168" y="34" width="10" height="13" rx="3" fill="#FF7A59"/>
+   <rect class="conf" x="182" y="70" width="9"  height="12" rx="3" fill="#F5B93A"/>
+   <rect class="conf" x="8"   y="84" width="9"  height="12" rx="3" fill="#4CC86A"/>
+ </g>
+</svg></button></div><div class="nm">Празднует</div><div class="code">s-party</div><div class="ds">Вы ответили на вопрос. Подпрыгивает, руки вверх, конфетти.</div></div>
+</div>
+<div class="specs">
+  <div class="spec"><div class="k">Формат</div><div class="v">Инлайновый SVG, ~8 КБ. Никакой растровой графики:
+    масштабируется, мгновенно грузится, анимируется по частям.</div></div>
+  <div class="spec"><div class="k">Как устроено</div><div class="v">Один SVG со всеми деталями. Состояние —
+    класс на корне (<code>s-curious</code>), CSS показывает нужные глаза, рот, руки и реквизит.</div></div>
+  <div class="spec"><div class="k">Живость</div><div class="v">Дыхание, моргание с паузами, покачивание,
+    прыжок, сквош-растяжение на тап, пружинка в кольце осознанности.</div></div>
+  <div class="spec"><div class="k">Доступность</div><div class="v">Все анимации выключаются в
+    <code>prefers-reduced-motion: reduce</code> — позы и реквизит остаются, движение нет.</div></div>
+</div>
+
+<h2 class="sec">Варианты</h2>
+<div class="lead">Отличаются не цветом, а характером: степенью игрушечности, ролью маскота и композицией
+  главного экрана. Переключатель ниже задаёт состояние Гроша во всех четырёх макетах сразу.</div>
+<div class="ctrl">
+  <span class="lb">Состояние Гроша</span>
+  <button data-ms="auto" class="on">авто</button>
+<button data-ms="proud">Доволен</button><button data-ms="curious">Озадачен</button><button data-ms="hype">Загорелся</button><button data-ms="sad">Грустит</button><button data-ms="think">Считает</button><button data-ms="party">Празднует</button>
+</div>
+<div class="strip" id="strip">
+<div class="col"><div class="ti"><h3>A · Аркада</h3><a href="v3-a.html" target="_blank" rel="noopener">открыть ↗</a></div><div class="ds">Прямое развитие concept-3. Всё — наклейки с толстым контуром и «толстой» тенью: XP, задания, сундук. Прогноз подан как «забег до конца месяца»: Грош бежит по дорожке к флажку.</div><div class="device"><iframe data-src="v3-a.html" title="A · Аркада" loading="lazy"></iframe></div></div>
+<div class="col"><div class="ti"><h3>B · Питомец</h3><a href="v3-b.html" target="_blank" rel="noopener">открыть ↗</a></div><div class="ds">Маскот — главный герой экрана. Стоит в своей «комнате», кольцо осознанности — нимб вокруг него. Игрового обвеса нет: мягкие тени, большие радиусы, тёплый бежевый. Прогноз — «успеем уложиться?».</div><div class="device"><iframe data-src="v3-b.html" title="B · Питомец" loading="lazy"></iframe></div></div>
+<div class="col"><div class="ti"><h3>C · Сводка</h3><a href="v3-c.html" target="_blank" rel="noopener">открыть ↗</a></div><div class="ds">Минимум игрушечности: крупная типографика, тонкие линейки, табличные цифры, один акцент. Грош маленький и появляется только там, где он говорит. Прогноз — строка с полосой и двумя метриками.</div><div class="device"><iframe data-src="v3-c.html" title="C · Сводка" loading="lazy"></iframe></div></div>
+<div class="col"><div class="ti"><h3>D · Карта месяца</h3><a href="v3-d.html" target="_blank" rel="noopener">открыть ↗</a></div><div class="ds">Самый игровой. Экран — тропа из станций: разобранные недели, вопросы, сундук, финиш месяца. Грош стоит на текущей станции. Прогноз — последняя станция тропы.</div><div class="device"><iframe data-src="v3-d.html" title="D · Карта месяца" loading="lazy"></iframe></div></div>
+</div>
+
+<footer>
+  Цифры: потрачено 125 618 ₽, получено 301 240 ₽, оборот 426 858 ₽, непонятно 4 700 ₽, осознанность 99 %,
+  стрик 12 дней при рекорде 18, прогноз до конца месяца 149 083,30 ₽.<br>
+  Иконки категорий — готовый набор <code>dist/art/icon-*.png</code>; недостающие («доставка еды», служебные)
+  дорисованы инлайновым SVG в той же манере. В концептах путь к иконкам —
+  <code>../../dist/art/</code>, в финальной сборке будет <code>art/</code>.
+</footer>
+
+</div>
+<script>
+function loadFrames(){
+  document.querySelectorAll(".device iframe").forEach(f => { f.src = f.dataset.src; });
+}
+
+/* переключатель состояния маскота: витрина + все iframe */
+let ms = "auto";
+function pushState(){
+  document.querySelectorAll(".device iframe").forEach(f => {
+    try{ f.contentWindow.postMessage({ type:"mascot", state: ms }, "*"); }catch(e){}
+  });
+}
+document.querySelectorAll(".ctrl button").forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll(".ctrl button").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    ms = b.dataset.ms;
+    pushState();
+  };
+});
+
+/* тап по маскоту в галерее состояний */
+document.querySelectorAll(".mcell button.m").forEach(b => {
+  const svg = b.querySelector(".mas");
+  svg.setAttribute("class", "mas s-" + b.dataset.state);
+  let t = null;
+  b.onclick = () => {
+    svg.classList.remove("tap"); void svg.getBoundingClientRect(); svg.classList.add("tap");
+    clearTimeout(t); t = setTimeout(() => svg.classList.remove("tap"), 620);
+  };
+});
+
+loadFrames();
+</script>
+</body>
+</html>

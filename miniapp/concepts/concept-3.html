@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="ru" data-concept="game" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Честный месяц — Игра</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg: var(--tg-theme-bg-color, #f2f7fb);
+  --card: var(--tg-theme-secondary-bg-color, #ffffff);
+  --card-2:#f0f5f9;
+  --ink: var(--tg-theme-text-color, #16303f);
+  --hint: var(--tg-theme-hint-color, #7a94a5);
+  --line:#dde7ee;
+  --line-3d:#c6d5e0;
+  --green:#58cc02; --green-d:#46a302; --green-soft:#e8f8d8;
+  --blue:#1cb0f6;  --blue-d:#1899d6;  --blue-soft:#ddf4ff;
+  --orange:#ff9600;--orange-d:#e08200;--orange-soft:#fff0d9;
+  --red:#ff4b4b;   --red-d:#d93a3a;   --red-soft:#ffe4e4;
+  --purple:#ce82ff;--yellow:#ffc800;
+}
+
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);overflow-x:hidden;
+  font-family:'Nunito',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;
+  font-weight:600;line-height:1.35}
+.phone{max-width:430px;margin:0 auto;min-height:100vh;background:var(--bg);padding:0 16px 10px;overflow-x:hidden;position:relative}
+
+.bar{display:flex;align-items:center;gap:8px;padding:12px 0 10px}
+.pill{display:flex;align-items:center;gap:5px;background:var(--card);border:2px solid var(--line);
+  border-radius:999px;padding:5px 11px;font-size:13px;font-weight:800}
+.pill.fire{color:var(--orange);border-color:var(--orange-soft);background:var(--orange-soft)}
+.pill.gem{color:var(--blue);border-color:var(--blue-soft);background:var(--blue-soft)}
+.bar .sp{flex:1}
+.tbtn{border:2px solid var(--line);background:var(--card);border-radius:999px;width:32px;height:32px;
+  font-size:14px;cursor:pointer;color:var(--hint);font-family:inherit}
+
+.card{background:var(--card);border:2px solid var(--line);border-bottom-width:4px;border-radius:20px;padding:16px;margin-bottom:12px}
+.card.flat{border-bottom-width:2px}
+.h{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.h h2{margin:0;font-size:15px;font-weight:900;letter-spacing:-.01em}
+.h .sp{flex:1}
+.h .tag{font-size:11px;font-weight:800;color:var(--hint);background:var(--card-2);padding:4px 9px;border-radius:999px}
+
+/* HERO */
+.hero{background:linear-gradient(170deg,#58cc02,#3aa900);border:0;border-radius:24px;padding:18px 16px 16px;
+  position:relative;overflow:hidden;box-shadow:0 6px 0 #2f8a00;margin-bottom:14px;color:#fff}
+.hero:after{content:"";position:absolute;width:220px;height:220px;border-radius:50%;background:rgba(255,255,255,.08);
+  right:-80px;top:-70px}
+.hero-top{display:flex;align-items:center;gap:8px;position:relative;z-index:1}
+.hero-top .lbl{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;opacity:.88}
+.hero-body{display:flex;align-items:center;gap:6px;position:relative;z-index:1}
+.ringbox{position:relative;width:186px;height:186px;flex:0 0 186px;margin-left:-6px}
+.ringbox svg{display:block;transform:rotate(-90deg)}
+.ringbox .in{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ringbox .v{font-size:56px;font-weight:900;letter-spacing:-.05em;line-height:.9;text-shadow:0 3px 0 rgba(0,0,0,.12)}
+.ringbox .v span{font-size:22px}
+.ringbox .c{font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;opacity:.9;margin-top:4px;max-width:112px;text-align:center;line-height:1.25}
+.mascot{flex:1;text-align:center;position:relative;z-index:1}
+.bubble{background:#fff;color:var(--ink);border-radius:14px;padding:8px 10px;font-size:11.5px;font-weight:800;
+  line-height:1.3;position:relative;box-shadow:0 3px 0 rgba(0,0,0,.12);margin-bottom:6px}
+.bubble:after{content:"";position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);
+  border:6px solid transparent;border-top-color:#fff;border-bottom:0}
+.hero-foot{display:flex;gap:8px;margin-top:10px;position:relative;z-index:1}
+.hero-foot div{flex:1;background:rgba(255,255,255,.16);border-radius:12px;padding:7px 9px}
+.hero-foot .k{font-size:9.5px;font-weight:800;opacity:.85;text-transform:uppercase;letter-spacing:.06em}
+.hero-foot .v{font-size:13.5px;font-weight:900;margin-top:2px}
+
+/* gaps as quests */
+.quest{display:flex;align-items:center;gap:10px;padding:9px;border-radius:14px;background:var(--card-2);margin-bottom:8px}
+.quest:last-child{margin-bottom:0}
+.quest .ic{width:34px;height:34px;flex:0 0 34px;border-radius:11px;background:var(--card);display:grid;place-items:center;font-size:16px}
+.quest .t{font-size:12.5px;font-weight:700}
+.quest .track{height:7px;border-radius:4px;background:var(--line);margin-top:6px;overflow:hidden}
+.quest .track i{display:block;height:100%;border-radius:4px;background:var(--orange)}
+.quest .a{font-size:13px;font-weight:900;color:var(--orange);white-space:nowrap}
+.quest .xp{font-size:10px;font-weight:800;color:var(--hint);display:block;margin-top:2px;text-align:right}
+
+/* streak */
+.streak-card{background:linear-gradient(165deg,#ffb020,#ff8a00);border:0;box-shadow:0 6px 0 #d97400;color:#fff;
+  border-radius:20px;padding:16px;margin-bottom:12px}
+.streak-top{display:flex;align-items:center;gap:12px}
+.streak-top .fire{font-size:40px;filter:drop-shadow(0 3px 0 rgba(0,0,0,.15))}
+.streak-top .n{font-size:38px;font-weight:900;letter-spacing:-.04em;line-height:1}
+.streak-top .t{font-size:12.5px;font-weight:800;opacity:.92;margin-top:2px}
+.streak-top .rec{margin-left:auto;text-align:right;font-size:11px;font-weight:800;background:rgba(255,255,255,.2);
+  border-radius:10px;padding:6px 9px}
+.week{display:flex;gap:6px;margin-top:14px}
+.week .d{flex:1;text-align:center}
+.week .d .n{font-size:10px;font-weight:800;opacity:.8}
+.week .d .b{margin-top:4px;height:30px;border-radius:10px;background:rgba(255,255,255,.22);display:grid;place-items:center;
+  font-size:14px;font-weight:900}
+.week .d.on .b{background:#fff;color:#ff8a00}
+.week .d.today .b{background:#fff;color:#ff8a00;box-shadow:0 0 0 3px rgba(255,255,255,.55)}
+.reward{margin-top:12px;background:rgba(255,255,255,.18);border-radius:12px;padding:9px 11px;display:flex;
+  align-items:center;gap:9px;font-size:11.5px;font-weight:800}
+.reward .track{flex:1;height:8px;background:rgba(0,0,0,.14);border-radius:5px;overflow:hidden}
+.reward .track i{display:block;height:100%;background:#fff;border-radius:5px}
+
+/* quiz */
+.quiz{border:2px solid var(--blue);border-bottom-width:4px;border-radius:20px;background:var(--card);
+  padding:16px;margin-bottom:12px;transition:.3s cubic-bezier(.3,.8,.3,1)}
+.quiz.gone{opacity:0;transform:scale(.94) translateY(-8px);margin-bottom:-120px;pointer-events:none}
+.quiz .qh{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.quiz .qh .badge{background:var(--blue);color:#fff;font-size:10.5px;font-weight:900;padding:4px 9px;border-radius:999px;
+  text-transform:uppercase;letter-spacing:.06em}
+.quiz .qh .cnt{margin-left:auto;font-size:11.5px;font-weight:800;color:var(--hint)}
+.quiz .who{display:flex;align-items:center;gap:10px;background:var(--card-2);border-radius:14px;padding:9px 11px;margin-bottom:11px}
+.quiz .who .av{width:34px;height:34px;border-radius:50%;background:var(--purple);color:#fff;display:grid;place-items:center;
+  font-weight:900;font-size:15px;flex:0 0 34px}
+.quiz .who .nm{font-size:13px;font-weight:800}
+.quiz .who .dt{font-size:11px;font-weight:600;color:var(--hint)}
+.quiz .who .am{margin-left:auto;font-size:15px;font-weight:900}
+.quiz .who .am.in{color:var(--green)}
+.quiz .q{font-size:16px;font-weight:800;line-height:1.3;margin-bottom:4px}
+.quiz .qn{font-size:12px;font-weight:600;color:var(--hint);margin-bottom:12px}
+.ans{width:100%;display:flex;align-items:center;gap:10px;background:var(--card);border:2px solid var(--line);
+  border-bottom-width:4px;border-radius:14px;padding:12px 13px;margin-bottom:8px;font:inherit;font-size:14px;
+  font-weight:800;color:var(--ink);cursor:pointer;transition:.1s;text-align:left}
+.ans:last-child{margin-bottom:0}
+.ans .e{font-size:18px}
+.ans:hover{background:var(--blue-soft);border-color:var(--blue)}
+.ans:active{transform:translateY(2px);border-bottom-width:2px;margin-bottom:10px}
+.ans.picked{background:var(--green-soft);border-color:var(--green);color:var(--green-d)}
+.ans .plus{margin-left:auto;font-size:11px;font-weight:900;color:var(--hint)}
+.numrow{display:flex;gap:8px}
+.numrow .ans{justify-content:center;font-size:19px;font-weight:900;padding:14px 0;margin-bottom:0}
+.numrow .ans.sugg{border-color:var(--green);background:var(--green-soft);color:var(--green-d)}
+.wide{margin-top:8px;justify-content:center}
+.alldone{text-align:center;padding:22px 14px;background:var(--green-soft);border:2px dashed var(--green);
+  border-radius:20px;margin-bottom:12px;font-size:14px;font-weight:800;color:var(--green-d);line-height:1.45}
+.alldone .em{font-size:34px;display:block;margin-bottom:6px}
+
+/* month */
+.big-sum{font-size:34px;font-weight:900;letter-spacing:-.04em;line-height:1}
+.sum-row{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
+.sum-row .badge{font-size:11.5px;font-weight:900;background:var(--red-soft);color:var(--red);padding:4px 9px;border-radius:999px}
+.sum-row .sub{font-size:12px;font-weight:700;color:var(--hint);margin-left:auto}
+.need{display:flex;gap:8px;margin-top:14px}
+.need div{flex:1;border-radius:14px;padding:10px 11px}
+.need .a{background:var(--blue-soft)}
+.need .b{background:var(--orange-soft)}
+.need .k{font-size:10.5px;font-weight:800;color:var(--hint)}
+.need .v{font-size:16px;font-weight:900;margin-top:3px}
+.need .a .v{color:var(--blue)} .need .b .v{color:var(--orange)}
+
+.catrow{display:flex;align-items:center;gap:10px;padding:8px 0}
+.catrow .e{width:32px;height:32px;flex:0 0 32px;border-radius:11px;display:grid;place-items:center;font-size:16px;background:var(--card-2)}
+.catrow .n{font-size:13.5px;font-weight:800}
+.catrow .tr{height:8px;border-radius:5px;background:var(--card-2);margin-top:6px;overflow:hidden}
+.catrow .tr i{display:block;height:100%;border-radius:5px}
+.catrow .r{text-align:right;white-space:nowrap}
+.catrow .v{font-size:13.5px;font-weight:900}
+.catrow .d{font-size:10.5px;font-weight:800;margin-top:2px;color:var(--hint)}
+.catrow .d.up{color:var(--red)} .catrow .d.down{color:var(--green)}
+
+.tipcard{display:flex;gap:11px;background:var(--card-2);border-radius:16px;padding:12px;margin-bottom:8px}
+.tipcard:last-child{margin-bottom:0}
+.tipcard .e{width:38px;height:38px;flex:0 0 38px;border-radius:13px;background:var(--card);display:grid;place-items:center;font-size:19px}
+.tipcard .t{font-size:13.5px;font-weight:800}
+.tipcard .d{font-size:12px;font-weight:600;color:var(--hint);margin-top:4px;line-height:1.4}
+.tipcard .g{display:inline-block;margin-top:7px;background:var(--green);color:#fff;font-size:11px;font-weight:900;
+  padding:4px 9px;border-radius:999px}
+
+.nav{position:sticky;bottom:0;display:flex;gap:4px;background:var(--card);border:2px solid var(--line);
+  border-radius:18px;padding:6px;margin-top:6px}
+.nav button{flex:1;background:none;border:0;border-radius:12px;padding:8px 0;font:inherit;font-size:10px;font-weight:800;
+  color:var(--hint);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+.nav button span{font-size:18px}
+.nav button.on{background:var(--green-soft);color:var(--green-d)}
+.hero-foot .v,.quest .a,.quiz .who .am,.big-sum,.need .v,.catrow .v,.tipcard .g,.bubble b{white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="phone" id="app"></div>
+<script>
+const DATA = {
+  period:{ title:"Сентябрь", daysPassed:20, daysTotal:30 },
+  money:{ spent:125618, income:301240, deltaPrev:9620, turnover:426858, unclear:4700 },
+  awareness:{ percent:99, prev:94, level:4, levelName:"Знаток своих денег", gems:1240, gaps:[
+    { emoji:"📥", title:"Разобрать поступления", amount:500,  xp:"+10 XP", prog:70 },
+    { emoji:"❔", title:"Раскидать траты по категориям", amount:1200, xp:"+15 XP", prog:45 },
+    { emoji:"💵", title:"Объяснить наличные", amount:3000, xp:"+25 XP", prog:20 }
+  ]},
+  streak:{ current:12, record:18, nextReward:14, rewardName:"Сундук «Две недели правды»",
+    week:[{n:"пн",on:true},{n:"вт",on:true},{n:"ср",on:true},{n:"чт",on:true},{n:"пт",on:true},{n:"сб",on:true},{n:"вс",on:true,today:true}] },
+  disputes:[
+    { id:"d1", av:"К", who:"Катя Н.", date:"18 сентября · СБП", amount:500, dir:"in",
+      q:"Катя Н. перевела 500 ₽ — что это?", note:"В комментарии написала «за обед»",
+      options:[{e:"🍽",t:"Вернула свою долю",xp:"+10 XP"},{e:"🤝",t:"Вернула долг",xp:"+10 XP"},
+               {e:"🎁",t:"Подарок",xp:"+10 XP"},{e:"💰",t:"Это доход",xp:"+10 XP"}] },
+    { id:"d2", av:"🐰", who:"White Rabbit", date:"14 сентября · ресторан", amount:8000, dir:"out",
+      q:"На скольких человек делили счёт?", note:"Пока считаю, что на 5 — ваша доля 1 ⁠600 ₽",
+      numeric:true, options:[{t:"2"},{t:"3"},{t:"4"},{t:"5",sugg:true}], more:"Нас было больше" }
+  ],
+  categories:[
+    { e:"🏠", n:"Жильё и ЖКХ",     a:76800, s:61, d:0,     c:"var(--blue)"   },
+    { e:"🛒", n:"Продукты",         a:22725, s:18, d:1240,  c:"var(--green)"  },
+    { e:"🚕", n:"Такси",            a:6967,  s:6,  d:1980,  c:"var(--yellow)" },
+    { e:"🍽", n:"Кафе и рестораны", a:6360,  s:5,  d:-2100, c:"var(--orange)" },
+    { e:"🛵", n:"Доставка еды",     a:5287,  s:4,  d:640,   c:"var(--red)"    },
+    { e:"🪑", n:"Товары для дома",  a:3100,  s:2,  d:1500,  c:"var(--purple)" },
+    { e:"🔁", n:"Подписки",         a:1888,  s:2,  d:0,     c:"var(--blue)"   },
+    { e:"❔", n:"Прочее",           a:1200,  s:1,  d:-420,  c:"var(--hint)"   },
+    { e:"📶", n:"Связь",            a:900,   s:1,  d:0,     c:"var(--green)"  }
+  ],
+  split:{ mandatory:100425, optional:25193, optionalShare:20 },
+  tips:[
+    { e:"🚇", t:"Проездной побеждает такси", d:"8 поездок за 6 ⁠967 ₽. Проездной на месяц — 3 ⁠070 ₽.", gain:3897 },
+    { e:"🔁", t:"Две подписки спят", d:"749 ₽ из 1 ⁠888 ₽ ушли за сервисы, которые вы не открывали.", gain:749 },
+    { e:"🛵", t:"Доставка вместо магазина", d:"11 заказов, средний чек 481 ₽ — почти вдвое дороже продуктов.", gain:2100 }
+  ],
+  facts:{ actionsPerDay:1.4, owed:0, cash:3000 }
+};
+
+const TH = " ";
+const num = n => Math.round(n).toLocaleString("ru-RU").replace(/[\s ]/g, TH + "⁠");
+const money = n => num(n) + TH + "₽";
+const signed = n => (n > 0 ? "+" : "−") + num(Math.abs(n)) + TH + "₽";
+const el = h => { const t = document.createElement("template"); t.innerHTML = h.trim(); return t.content.firstElementChild; };
+try{ const t = new URLSearchParams(location.search).get("theme");
+
+const app = document.getElementById("app");
+const state = { awareness: DATA.awareness.percent, open: DATA.disputes.map(d => d.id) };
+const R = 78, C = 2 * Math.PI * R;
+
+function ring(p){
+  return '<svg width="186" height="186" viewBox="0 0 186 186" aria-hidden="true">' +
+    '<circle cx="93" cy="93" r="' + R + '" fill="none" stroke="rgba(0,0,0,.16)" stroke-width="16"/>' +
+    '<circle id="arc" cx="93" cy="93" r="' + R + '" fill="none" stroke="#fff" stroke-width="16" stroke-linecap="round" ' +
+      'stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + C.toFixed(1) + '" data-target="' + (C * (1 - p / 100)).toFixed(1) + '" ' +
+      'style="transition:stroke-dashoffset 1.1s cubic-bezier(.2,.9,.2,1)"/></svg>';
+}
+
+function mascot(){
+  return '<svg width="96" height="96" viewBox="0 0 120 120" aria-hidden="true">' +
+    '<ellipse cx="60" cy="108" rx="30" ry="6" fill="rgba(0,0,0,.14)"/>' +
+    '<circle cx="60" cy="58" r="42" fill="#ffd429" stroke="#e0a800" stroke-width="4"/>' +
+    '<circle cx="60" cy="58" r="33" fill="#ffe377"/>' +
+    '<circle cx="47" cy="50" r="7" fill="#fff"/><circle cx="73" cy="50" r="7" fill="#fff"/>' +
+    '<circle cx="48.5" cy="51.5" r="3.6" fill="#243b2c"/><circle cx="74.5" cy="51.5" r="3.6" fill="#243b2c"/>' +
+    '<circle cx="46.8" cy="49.4" r="1.3" fill="#fff"/><circle cx="72.8" cy="49.4" r="1.3" fill="#fff"/>' +
+    '<path d="M48 68 q12 12 24 0" stroke="#b07d00" stroke-width="4" fill="none" stroke-linecap="round"/>' +
+    '<circle cx="36" cy="66" r="5" fill="#ff9d9d" opacity=".75"/><circle cx="84" cy="66" r="5" fill="#ff9d9d" opacity=".75"/>' +
+    '<path d="M60 26 q6 -12 -2 -18 q14 4 12 18z" fill="#ff7a1a"/>' +
+    '<path d="M22 72 q-10 8 -4 16" stroke="#e0a800" stroke-width="5" fill="none" stroke-linecap="round"/>' +
+    '<path d="M98 72 q10 8 4 16" stroke="#e0a800" stroke-width="5" fill="none" stroke-linecap="round"/>' +
+    '</svg>';
+}
+
+function render(){
+  const d = DATA;
+  app.innerHTML = `
+  <div class="bar">
+    <div class="pill fire">🔥 <span id="pillStreak">${d.streak.current}</span></div>
+    <div class="pill gem">💎 ${num(d.awareness.gems)}</div>
+    <div class="sp"></div>
+    <div class="pill">${d.period.title} · ур. ${d.awareness.level}</div>
+  </div>
+
+  <div class="hero">
+    <div class="hero-top"><span class="lbl">Осознанность · уровень ${d.awareness.level} · ${d.awareness.levelName}</span></div>
+    <div class="hero-body">
+      <div class="ringbox">${ring(state.awareness)}
+        <div class="in"><div class="v"><span id="ringVal">${state.awareness}</span><span>%</span></div>
+        <div class="c">оборот понятен</div></div>
+      </div>
+      <div class="mascot">
+        <div class="bubble" id="bubble">Осталось объяснить <b id="unclearVal">${money(d.money.unclear)}</b> — и будет 100%!</div>
+        ${mascot()}
+      </div>
+    </div>
+    <div class="hero-foot">
+      <div><div class="k">Оборот</div><div class="v">${money(d.money.turnover)}</div></div>
+      <div><div class="k">Понятно</div><div class="v" id="clearVal">${money(d.money.turnover - d.money.unclear)}</div></div>
+      <div><div class="k">К августу</div><div class="v">+${state.awareness - d.awareness.prev} п.п.</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="h"><h2>Задания до 100%</h2><span class="sp"></span><span class="tag">+50 XP за все</span></div>
+    <div id="quests"></div>
+  </div>
+
+  <div class="streak-card">
+    <div class="streak-top">
+      <div class="fire">🔥</div>
+      <div><div class="n">${d.streak.current}</div><div class="t">дней подряд</div></div>
+      <div class="rec">рекорд<br>${d.streak.record} дней</div>
+    </div>
+    <div class="week">${d.streak.week.map(w =>
+      '<div class="d ' + (w.on ? "on" : "") + " " + (w.today ? "today" : "") + '"><div class="n">' + w.n +
+      '</div><div class="b">' + (w.on ? "✓" : "") + "</div></div>").join("")}</div>
+    <div class="reward">🎁 ${d.streak.rewardName}
+      <span class="track"><i style="width:${Math.round(d.streak.current / d.streak.nextReward * 100)}%"></i></span>
+      ${d.streak.current}/${d.streak.nextReward}</div>
+  </div>
+
+  <div id="queue"></div>
+
+  <div class="card">
+    <div class="h"><h2>Потрачено в сентябре</h2></div>
+    <div class="sum-row">
+      <div class="big-sum">${money(d.money.spent)}</div>
+      <div class="badge">${signed(d.money.deltaPrev)}</div>
+      <div class="sub">получено ${money(d.money.income)}</div>
+    </div>
+    <div class="need">
+      <div class="a"><div class="k">Так было надо</div><div class="v">${money(d.split.mandatory)}</div></div>
+      <div class="b"><div class="k">Можно было не (${d.split.optionalShare}%)</div><div class="v">${money(d.split.optional)}</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="h"><h2>Куда ушли деньги</h2><span class="sp"></span><span class="tag">9 категорий</span></div>
+    <div id="cats"></div>
+  </div>
+
+  <div class="card">
+    <div class="h"><h2>Советы Монетки</h2><span class="sp"></span>
+      <span class="tag">до −${num(d.tips.reduce((s, t) => s + t.gain, 0))}${TH}₽</span></div>
+    <div id="tips"></div>
+  </div>
+
+  <div class="card flat">
+    <div class="h"><h2>Коротко о месяце</h2></div>
+    <div style="display:flex;gap:8px;text-align:center">
+      <div style="flex:1"><div style="font-size:20px;font-weight:900">${String(d.facts.actionsPerDay).replace(".", ",")}</div>
+        <div style="font-size:10.5px;color:var(--hint);font-weight:700">действий в день</div></div>
+      <div style="flex:1"><div style="font-size:20px;font-weight:900">${money(d.facts.owed)}</div>
+        <div style="font-size:10.5px;color:var(--hint);font-weight:700">вам должны</div></div>
+      <div style="flex:1"><div style="font-size:20px;font-weight:900">${money(d.facts.cash)}</div>
+        <div style="font-size:10.5px;color:var(--hint);font-weight:700">наличными</div></div>
+    </div>
+  </div>
+
+  <div class="nav">
+    <button class="on"><span>🏠</span>Главная</button>
+    <button><span>📊</span>Отчёты</button>
+    <button><span>❓</span>Вопросы</button>
+    <button><span>🏆</span>Награды</button>
+  </div>`;
+
+  document.getElementById("quests").innerHTML = DATA.awareness.gaps.map(g => `
+    <div class="quest">
+      <div class="ic">${g.emoji}</div>
+      <div style="flex:1"><div class="t">${g.title}</div>
+        <div class="track"><i style="width:${g.prog}%"></i></div></div>
+      <div><div class="a">${money(g.amount)}</div><span class="xp">${g.xp}</span></div>
+    </div>`).join("");
+
+  const maxCat = DATA.categories[0].a;
+  document.getElementById("cats").innerHTML = DATA.categories.map(c => `
+    <div class="catrow">
+      <div class="e">${c.e}</div>
+      <div style="flex:1;min-width:0"><div class="n">${c.n} <span style="color:var(--hint);font-size:11px">${c.s}%</span></div>
+        <div class="tr"><i style="width:${Math.max(6, Math.round(c.a / maxCat * 100))}%;background:${c.c}"></i></div></div>
+      <div class="r"><div class="v">${money(c.a)}</div>
+        <div class="d ${c.d > 0 ? "up" : c.d < 0 ? "down" : ""}">${c.d === 0 ? "ровно как в августе" : signed(c.d)}</div></div>
+    </div>`).join("");
+
+  document.getElementById("tips").innerHTML = DATA.tips.map(t => `
+    <div class="tipcard"><div class="e">${t.e}</div>
+      <div><div class="t">${t.t}</div><div class="d">${t.d}</div>
+      <span class="g">экономия ${money(t.gain)}</span></div></div>`).join("");
+
+  renderQueue();
+  requestAnimationFrame(() => { const a = document.getElementById("arc"); if (a) a.setAttribute("stroke-dashoffset", a.dataset.target); });
+  document.getElementById("themeBtn").onclick = toggleTheme;
+}
+
+function renderQueue(){
+  const q = document.getElementById("queue");
+  q.innerHTML = "";
+  const list = DATA.disputes.filter(d => state.open.indexOf(d.id) >= 0);
+  if (!list.length){
+    q.appendChild(el('<div class="alldone"><span class="em">🎉</span>Все вопросы закрыты!<br>+45 XP и сундук стал ближе.</div>'));
+    return;
+  }
+  list.forEach((d, idx) => {
+    const opts = d.numeric
+      ? '<div class="numrow">' + d.options.map((o, i) => '<button class="ans ' + (o.sugg ? "sugg" : "") + '" data-i="' + i + '">' + o.t + "</button>").join("") + "</div>" +
+        '<button class="ans wide" data-i="more"><span class="e">✍️</span>' + d.more + "</button>"
+      : d.options.map((o, i) => '<button class="ans" data-i="' + i + '"><span class="e">' + o.e + "</span><span>" + o.t +
+          '</span><span class="plus">' + o.xp + "</span></button>").join("");
+    const card = el(`
+      <div class="quiz">
+        <div class="qh"><span class="badge">Вопрос ${idx + 1}</span>
+          <span class="cnt">${state.open.length} в очереди · 1 тап</span></div>
+        <div class="who"><div class="av">${d.av}</div>
+          <div><div class="nm">${d.who}</div><div class="dt">${d.date}</div></div>
+          <div class="am ${d.dir === "in" ? "in" : ""}">${d.dir === "in" ? "+" : "−"}${money(d.amount)}</div></div>
+        <div class="q">${d.q}</div>
+        <div class="qn">${d.note}</div>
+        ${opts}
+      </div>`);
+    card.querySelectorAll(".ans").forEach(b => { b.onclick = () => answer(d, card, b); });
+    q.appendChild(card);
+  });
+}
+
+function answer(d, card, btn){
+  try{ if (window.Telegram && Telegram.WebApp.HapticFeedback) Telegram.WebApp.HapticFeedback.impactOccurred("medium"); }catch(e){}
+  btn.classList.add("picked");
+  setTimeout(() => {
+    card.classList.add("gone");
+    setTimeout(() => {
+      state.open = state.open.filter(x => x !== d.id);
+      if (d.id === "d1") clearAmount(500);
+      renderQueue();
+      const b = document.getElementById("bubble");
+      if (b && !state.open.length) b.innerHTML = "Красота! Все вопросы закрыты 🎉";
+    }, 300);
+  }, 260);
+}
+
+function clearAmount(v){
+  const unclear = Math.max(0, DATA.money.unclear - v);
+  DATA.money.unclear = unclear;
+  document.getElementById("unclearVal").textContent = money(unclear);
+  document.getElementById("clearVal").textContent = money(DATA.money.turnover - unclear);
+  const p = Math.min(100, Math.round((1 - unclear / DATA.money.turnover) * 100));
+  if (p !== state.awareness){
+    state.awareness = p;
+    document.getElementById("ringVal").textContent = p;
+    const a = document.getElementById("arc");
+    if (a) a.setAttribute("stroke-dashoffset", (C * (1 - p / 100)).toFixed(1));
+  }
+}
+
+function toggleTheme(){
+  const now = cur ? cur : (sysDark ? "dark" : "light");
+}
+
+render();
+try{ Telegram.WebApp.ready(); Telegram.WebApp.expand(); }catch(e){}
+</script>
+</body>
+</html>
